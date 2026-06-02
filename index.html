@@ -5050,6 +5050,7 @@ let _gv = {
   resizeObs:null,
 };
 const _gAnim = { zoom:1, panX:0, panY:0 };
+const _gFocus = { wx: null, wy: null }; // Maus-Position in Weltkoordinaten
 let _gTween = null;
 function _gSync(){ _gv.zoom=_gAnim.zoom; _gv.panX=_gAnim.panX; _gv.panY=_gAnim.panY; }
 
@@ -5268,9 +5269,21 @@ function _springTick() {
   const z = _gv.zoom;
   // Zoom relativ zum Übersichts-Zoom
   const relZ = z / Math.max(0.001, _gv.baseZoom);
+
+  // Focus-Punkt: Maus-Position in Weltkoordinaten (oder Zentrum als Fallback)
+  const fw = _gFocus.wx ?? _gv.width/2;
+  const fh = _gFocus.wy ?? _gv.height/2;
+  const focusR = Math.min(_gv.width, _gv.height) * 0.35; // Einfluss-Radius
+
   _gv.nodes.forEach(n => {
-    // Enthüllung: relativ zum baseZoom (0=immer, 1.5=ab 150% der Übersicht)
-    const shouldReveal = relZ >= n.revealAt || n.revealAt === 0;
+    // Distanz vom Focus-Punkt → beeinflusst Reveal-Schwelle
+    const dx = n.tx - fw, dy = n.ty - fh;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    // Knoten nahe Maus erscheinen früher (factor < 1), weit weg später (factor > 1)
+    const distFactor = n.revealAt <= 0 ? 1.0
+      : 1.0 + Math.max(0, dist - focusR*0.3) / (focusR * 1.2);
+    const effectiveReveal = n.revealAt * distFactor;
+    const shouldReveal = relZ >= effectiveReveal || n.revealAt === 0;
     const targetP = shouldReveal ? 1 : 0;
     n.revealP += (targetP - n.revealP) * 0.12; // smooth ease
     if (n.revealP < 0.001) n.revealP = 0;
@@ -5288,16 +5301,19 @@ function _springTick() {
     n.y = n.parentY + (scaledTy - n.parentY)*ease;
   });
 
-  // Sanfte Abstoßung mit dynamischem Minimum-Abstand
-  const revealed = _gv.nodes.filter(n=>n.revealP>0.4);
+  // Abstoßung: stärker für gerade erscheinende Knoten (frischer Reveal)
+  const revealed = _gv.nodes.filter(n=>n.revealP>0.05);
   for (let i=0;i<revealed.length;i++) for(let j=i+1;j<revealed.length;j++){
     const a=revealed[i], b=revealed[j];
     const dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy+1;
-    const circA=(a.r||8)*1.45, circB=(b.r||8)*1.45;
-    const minD=(circA+circB)*1.4 + 10; // Abstand basierend auf tatsächlicher Knotengröße
+    const circA=(a.r||8)*1.55, circB=(b.r||8)*1.55;
+    // Knoten die gerade erscheinen bekommen Extra-Abstand (verhindert initiales Überlappen)
+    const freshBoost = (a.revealP < 0.6 || b.revealP < 0.6) ? 1.8 : 1.0;
+    const minD=(circA+circB)*1.6*freshBoost + 14;
     if (d2 < minD*minD) {
       const d=Math.sqrt(d2)||1;
-      const force=(minD-d)*0.035;
+      // Stärkere Kraft für neue Knoten
+      const force=(minD-d)*0.055*freshBoost;
       a.tx -= (dx/d)*force; a.ty -= (dy/d)*force;
       b.tx += (dx/d)*force; b.ty += (dy/d)*force;
     }
@@ -5449,6 +5465,16 @@ function _draw(ctx) {
     ctx.globalAlpha=1;
   });
   ctx.restore(); ctx.shadowBlur=0;
+  // Subtiler Focus-Indikator (nur wenn Maus auf Canvas)
+  if (_gFocus.wx !== null && _gv.loopFrame % 60 < 30) {
+    // Fokus-Punkt in Screenkoordinaten
+    const _fsx = (_gFocus.wx-_gv.width/2)*_gv.zoom + _gv.width/2 + _gv.panX;
+    const _fsy = (_gFocus.wy-_gv.height/2)*_gv.zoom + _gv.height/2 + _gv.panY;
+    const _focusScreenR = Math.min(_gv.width,_gv.height)*0.35*_gv.zoom;
+    ctx.beginPath(); ctx.arc(_fsx,_fsy,_focusScreenR,0,Math.PI*2);
+    ctx.strokeStyle='rgba(32,110,251,.05)'; ctx.lineWidth=1.5;
+    ctx.setLineDash([6,6]); ctx.stroke(); ctx.setLineDash([]);
+  }
 }
 
 function _drawDocCard(ctx, n, isHover, z) {
@@ -5680,7 +5706,7 @@ function _loadDocContent(){
 
 // ── Controls ─────────────────────────────────────────────────────────────────
 window.navGraph=function(dir){_animZoom(_gAnim.zoom*(dir>0?1.8:1/1.8));};  
-window.fitGraphView=function(){_fitToRoots(false);};
+window.fitGraphView=function(){_gFocus.wx=null;_gFocus.wy=null;_fitToRoots(false);};
 window.reheatGraphV2=function(){_buildHierarchicalLayout();_fitToRoots(true);};
 window.setGraphGrouping=function(mode){
   document.getElementById('gbtn-folder')?.classList.toggle('active',mode==='folder');
