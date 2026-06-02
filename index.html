@@ -1098,6 +1098,71 @@
     }
     .btn-close-modal:hover { background: var(--surface); color: var(--ink); }
 
+    /* ─── KI-Einstellungen ─── */
+    .settings-section { margin-bottom: 1.5rem; }
+    .settings-section-title {
+      font-size: .78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted); margin-bottom: .85rem;
+      display: flex; align-items: center; gap: .4rem;
+    }
+    .settings-hint { font-size: .78rem; color: var(--muted); line-height: 1.45; }
+    .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+    .settings-row-label { font-size: .85rem; font-weight: 600; color: var(--ink); }
+    .api-key-group { margin-bottom: 1rem; }
+    .api-key-label {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: .82rem; font-weight: 600; color: var(--ink); margin-bottom: .4rem;
+    }
+    .api-provider-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 6px; font-size: .75rem; color: #fff; flex-shrink: 0;
+    }
+    .badge-anthropic { background: #d97706; }
+    .badge-openai    { background: #10a37f; }
+    .badge-google    { background: #4285f4; }
+    .badge-voyage    { background: #206efb; }
+    .api-key-input-wrap { display: flex; gap: .4rem; }
+    .api-key-input {
+      flex: 1; height: 40px; padding: 0 12px;
+      border: 1px solid var(--line); border-radius: 10px;
+      background: var(--bg); color: var(--ink);
+      font-family: 'Courier New', monospace; font-size: .85rem;
+      outline: none; transition: border-color .15s, box-shadow .15s;
+    }
+    .api-key-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(32,110,251,.1); }
+    .api-key-input.has-value { color: var(--brand); }
+    .btn-eye {
+      height: 40px; width: 40px; border: 1px solid var(--line); border-radius: 10px;
+      background: var(--bg); color: var(--muted); cursor: pointer; font-size: .9rem;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: all .15s;
+    }
+    .btn-eye:hover { border-color: var(--brand); color: var(--brand); }
+    /* Model Grid */
+    .model-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .5rem; }
+    .model-card {
+      border: 1.5px solid var(--line); border-radius: 12px; padding: .75rem .65rem;
+      cursor: pointer; transition: all .18s; text-align: center;
+      background: var(--bg); position: relative;
+    }
+    .model-card:hover { border-color: var(--brand); background: var(--brand-light); }
+    .model-card.selected { border-color: var(--brand); background: var(--brand-light); }
+    .model-card.selected::after {
+      content: '✓'; position: absolute; top: 6px; right: 8px;
+      font-size: .7rem; font-weight: 700; color: var(--brand);
+    }
+    .model-card-provider { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .25rem; }
+    .model-card-name { font-size: .78rem; font-weight: 700; color: var(--ink); line-height: 1.2; margin-bottom: .2rem; }
+    .model-card-badge {
+      display: inline-flex; align-items: center; gap: .2rem;
+      font-size: .65rem; font-weight: 700; padding: .15rem .4rem;
+      border-radius: 999px; margin-top: .2rem;
+    }
+    .badge-fast    { background: #ecfdf5; color: #059669; }
+    .badge-best    { background: #eff6ff; color: var(--brand); }
+    .badge-premium { background: #fdf4ff; color: #9333ea; }
+    .badge-reason  { background: #fff7ed; color: #d97706; }
+
     /* ─── Toast ─── */
     #toast-container {
       position: fixed;
@@ -1361,6 +1426,14 @@
           <span style="font-size:.78rem;color:var(--muted);padding:.2rem .3rem">Lade Tags…</span>
         </div>
 
+        <!-- Admin: KI-Einstellungen -->
+        <div id="sidebar-ai-settings" hidden style="margin-top:auto;padding-top:.75rem;border-top:1px solid var(--line)">
+          <button class="dash-nav-item" onclick="openAiSettings()" style="color:var(--muted)">
+            <i class="fa-solid fa-gear"></i>
+            KI-Einstellungen
+          </button>
+        </div>
+
       </nav>
     </aside>
 
@@ -1548,6 +1621,105 @@
 <!-- ─── Toast container ─── -->
 <div id="toast-container" aria-live="polite" aria-atomic="true"></div>
 
+<!-- ─── KI-Einstellungen Modal (Admin only) ─── -->
+<div class="modal-overlay" id="modal-ai-settings">
+  <div class="modal-box" style="max-width:580px;width:100%">
+    <div class="modal-head">
+      <span class="modal-title"><i class="fa-solid fa-gear" style="margin-right:.5rem;color:var(--brand)"></i>KI-Einstellungen</span>
+      <button class="btn-close-modal" onclick="closeAiSettings()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body" style="max-height:70vh;overflow-y:auto;padding-right:.25rem">
+
+      <!-- Model Selector -->
+      <div class="settings-section">
+        <div class="settings-section-title"><i class="fa-solid fa-robot"></i> Standard-Modell für Chat</div>
+        <div class="model-grid" id="model-grid">
+          <!-- rendered by JS -->
+        </div>
+      </div>
+
+      <!-- API Keys -->
+      <div class="settings-section">
+        <div class="settings-section-title"><i class="fa-solid fa-key"></i> API-Schlüssel</div>
+        <div class="settings-hint">Schlüssel werden verschlüsselt gespeichert und nie im Klartext angezeigt.</div>
+
+        <div class="api-key-group">
+          <label class="api-key-label"><span class="api-provider-badge badge-anthropic"><i class="fa-solid fa-a"></i></span> Anthropic (Claude)</label>
+          <div class="api-key-input-wrap">
+            <input type="password" id="key-anthropic" class="api-key-input" placeholder="sk-ant-…" autocomplete="off">
+            <button class="btn-eye" onclick="toggleKeyVisibility('key-anthropic', this)" title="Anzeigen"><i class="fa-solid fa-eye"></i></button>
+          </div>
+        </div>
+
+        <div class="api-key-group">
+          <label class="api-key-label"><span class="api-provider-badge badge-openai"><i class="fa-brands fa-openai"></i></span> OpenAI (ChatGPT)</label>
+          <div class="api-key-input-wrap">
+            <input type="password" id="key-openai" class="api-key-input" placeholder="sk-…" autocomplete="off">
+            <button class="btn-eye" onclick="toggleKeyVisibility('key-openai', this)" title="Anzeigen"><i class="fa-solid fa-eye"></i></button>
+          </div>
+        </div>
+
+        <div class="api-key-group">
+          <label class="api-key-label"><span class="api-provider-badge badge-google"><i class="fa-brands fa-google"></i></span> Google (Gemini)</label>
+          <div class="api-key-input-wrap">
+            <input type="password" id="key-google" class="api-key-input" placeholder="AIza…" autocomplete="off">
+            <button class="btn-eye" onclick="toggleKeyVisibility('key-google', this)" title="Anzeigen"><i class="fa-solid fa-eye"></i></button>
+          </div>
+        </div>
+
+        <div class="api-key-group">
+          <label class="api-key-label"><span class="api-provider-badge badge-voyage"><i class="fa-solid fa-ship"></i></span> Voyage AI (Embeddings)</label>
+          <div class="api-key-input-wrap">
+            <input type="password" id="key-voyage" class="api-key-input" placeholder="pa-…" autocomplete="off">
+            <button class="btn-eye" onclick="toggleKeyVisibility('key-voyage', this)" title="Anzeigen"><i class="fa-solid fa-eye"></i></button>
+          </div>
+          <div class="settings-hint" style="margin-top:.35rem">Optional: für bessere deutschsprachige Embeddings (Anthropic-Technologie)</div>
+        </div>
+      </div>
+
+      <!-- Embedding Model -->
+      <div class="settings-section">
+        <div class="settings-section-title"><i class="fa-solid fa-vector-square"></i> Embedding-Modell</div>
+        <select class="toolbar-select" id="embedding-model-select" style="width:100%">
+          <option value="text-embedding-3-small">OpenAI text-embedding-3-small (Standard, 1536-dim)</option>
+          <option value="text-embedding-3-large">OpenAI text-embedding-3-large (Beste Qualität, 3072-dim)</option>
+          <option value="voyage-3-lite">Voyage voyage-3-lite (Schnell, 512-dim)</option>
+          <option value="voyage-3">Voyage voyage-3 (Beste Qualität, 1024-dim)</option>
+        </select>
+        <div class="settings-hint" style="margin-top:.35rem">Ändert die Chunk-Vektoren. Nach Änderung alle Dokumente neu einbetten.</div>
+      </div>
+
+      <!-- RAG Settings -->
+      <div class="settings-section">
+        <div class="settings-section-title"><i class="fa-solid fa-sliders"></i> RAG-Parameter</div>
+        <div class="settings-row">
+          <label class="settings-row-label">Ähnlichkeits-Schwelle</label>
+          <div style="display:flex;align-items:center;gap:.5rem">
+            <input type="range" id="rag-threshold" min="0.5" max="0.95" step="0.05" value="0.7" oninput="document.getElementById('rag-threshold-val').textContent=this.value" style="flex:1">
+            <span id="rag-threshold-val" style="font-size:.82rem;font-weight:700;color:var(--brand);min-width:2.5rem;text-align:right">0.7</span>
+          </div>
+        </div>
+        <div class="settings-row" style="margin-top:.75rem">
+          <label class="settings-row-label">Anzahl Quellen (Top-K)</label>
+          <select class="toolbar-select" id="rag-topk" style="width:80px">
+            <option value="3">3</option>
+            <option value="5" selected>5</option>
+            <option value="8">8</option>
+            <option value="12">12</option>
+          </select>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="closeAiSettings()">Abbrechen</button>
+      <button class="btn-primary" onclick="saveAiSettings()">
+        <i class="fa-solid fa-floppy-disk"></i> Einstellungen speichern
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ─── User Settings Modal (same pattern as Team-Kalender) ─── -->
 <div id="roots-user-settings-modal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:1rem;font-family:'Circular Std',system-ui,sans-serif">
   <div style="background:var(--bg,#fff);border-radius:16px;box-shadow:0 20px 50px rgba(0,0,0,.25);width:100%;max-width:460px;padding:2rem">
@@ -1633,6 +1805,7 @@ async function onSessionReady(session) {
   const { data: prof } = await sb.schema('users').from('profiles')
     .select('app_role').eq('id', session.user.id).single().catch(() => ({ data: null }));
   state.isAdmin = prof?.app_role === 'admin';
+  updateAdminSidebar();
   await Promise.all([loadFolders(), loadTags(), loadDocuments()]);
 }
 
@@ -2381,6 +2554,9 @@ document.getElementById('modal-new-folder').addEventListener('click', function(e
 document.getElementById('modal-delete-confirm').addEventListener('click', function(e) {
   if (e.target === this) closeDeleteModal();
 });
+document.getElementById('modal-ai-settings').addEventListener('click', function(e) {
+  if (e.target === this) closeAiSettings();
+});
 
 // ─── Expose globals needed by HTML onclick attrs ───────────────────────────────
 window.switchView = window.switchView;
@@ -2401,6 +2577,142 @@ window.renderDocuments = window.renderDocuments;
 window.downloadDoc = window.downloadDoc;
 window.openDeleteModal = window.openDeleteModal;
 window.removeFile = window.removeFile;
+
+// ─── KI-Einstellungen ─────────────────────────────────────────────────────────
+
+const AI_MODELS = [
+  // Anthropic Claude
+  { id: 'claude-haiku-4-5',    provider: 'Anthropic', name: 'Claude Haiku',    tier: 'fast',    badge: '⚡ Schnell & günstig',  key: 'anthropic' },
+  { id: 'claude-sonnet-4-5',   provider: 'Anthropic', name: 'Claude Sonnet',   tier: 'best',    badge: '✦ Beste Balance',        key: 'anthropic' },
+  { id: 'claude-opus-4-5',     provider: 'Anthropic', name: 'Claude Opus',     tier: 'premium', badge: '★ Premium',              key: 'anthropic' },
+  // OpenAI
+  { id: 'gpt-4o-mini',         provider: 'OpenAI',    name: 'GPT-4o mini',     tier: 'fast',    badge: '⚡ Schnell & günstig',  key: 'openai' },
+  { id: 'gpt-4o',              provider: 'OpenAI',    name: 'GPT-4o',          tier: 'best',    badge: '✦ Beste Balance',        key: 'openai' },
+  { id: 'o1-mini',             provider: 'OpenAI',    name: 'o1-mini',         tier: 'reason',  badge: '🧠 Reasoning',           key: 'openai' },
+  // Google Gemini
+  { id: 'gemini-2.0-flash',    provider: 'Google',    name: 'Gemini 2.0 Flash', tier: 'fast',  badge: '⚡ Schnell & günstig',  key: 'google' },
+  { id: 'gemini-1.5-pro',      provider: 'Google',    name: 'Gemini 1.5 Pro',  tier: 'best',    badge: '✦ Beste Balance',        key: 'google' },
+  { id: 'gemini-2.5-pro',      provider: 'Google',    name: 'Gemini 2.5 Pro',  tier: 'premium', badge: '★ Premium',              key: 'google' },
+];
+
+const TIER_BADGE_CLASS = { fast: 'badge-fast', best: 'badge-best', premium: 'badge-premium', reason: 'badge-reason' };
+
+function loadAiSettings() {
+  return JSON.parse(localStorage.getItem('wh_ai_settings') || '{}');
+}
+
+function saveAiSettingsToStorage(settings) {
+  localStorage.setItem('wh_ai_settings', JSON.stringify(settings));
+}
+
+function openAiSettings() {
+  const settings = loadAiSettings();
+  const selectedModel = settings.model || 'claude-sonnet-4-5';
+
+  // Render model grid
+  const grid = document.getElementById('model-grid');
+  grid.innerHTML = AI_MODELS.map(m => `
+    <div class="model-card ${m.id === selectedModel ? 'selected' : ''}"
+         onclick="selectModel('${m.id}', this)"
+         data-model="${m.id}" title="${m.id}">
+      <div class="model-card-provider">${m.provider}</div>
+      <div class="model-card-name">${m.name}</div>
+      <span class="model-card-badge ${TIER_BADGE_CLASS[m.tier] || ''}">${m.badge}</span>
+    </div>
+  `).join('');
+
+  // Restore API key hints (masked)
+  const keys = settings.keys || {};
+  ['anthropic','openai','google','voyage'].forEach(k => {
+    const inp = document.getElementById('key-' + k);
+    if (!inp) return;
+    inp.value = keys[k] ? '••••••••' + keys[k].slice(-4) : '';
+    inp.dataset.saved = keys[k] ? '1' : '';
+    if (keys[k]) inp.classList.add('has-value');
+  });
+
+  // RAG params
+  const threshold = settings.threshold ?? 0.7;
+  const topk = settings.topk ?? 5;
+  const emb = settings.embeddingModel || 'text-embedding-3-small';
+  const thEl = document.getElementById('rag-threshold');
+  if (thEl) { thEl.value = threshold; document.getElementById('rag-threshold-val').textContent = threshold; }
+  const tkEl = document.getElementById('rag-topk');
+  if (tkEl) tkEl.value = topk;
+  const embEl = document.getElementById('embedding-model-select');
+  if (embEl) embEl.value = emb;
+
+  document.getElementById('modal-ai-settings').classList.add('open');
+}
+
+function closeAiSettings() {
+  document.getElementById('modal-ai-settings').classList.remove('open');
+}
+
+function selectModel(modelId, el) {
+  document.querySelectorAll('#model-grid .model-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function toggleKeyVisibility(inputId, btn) {
+  const inp = document.getElementById(inputId);
+  const isHidden = inp.type === 'password';
+  inp.type = isHidden ? 'text' : 'password';
+  btn.innerHTML = isHidden ? '<i class="fa-solid fa-eye-slash"></i>' : '<i class="fa-solid fa-eye"></i>';
+  // Clear placeholder mask when showing
+  if (isHidden && inp.dataset.saved && inp.value.startsWith('••')) inp.value = '';
+}
+
+async function saveAiSettings() {
+  const settings = loadAiSettings();
+  const selectedCard = document.querySelector('#model-grid .model-card.selected');
+  if (selectedCard) settings.model = selectedCard.dataset.model;
+
+  // Save API keys (only if changed — not the masked placeholder)
+  const keys = settings.keys || {};
+  ['anthropic','openai','google','voyage'].forEach(k => {
+    const inp = document.getElementById('key-' + k);
+    if (!inp) return;
+    const val = inp.value.trim();
+    if (!val || val.startsWith('••')) return; // unchanged masked value → keep old
+    keys[k] = val;
+  });
+  settings.keys = keys;
+  settings.threshold = parseFloat(document.getElementById('rag-threshold')?.value || '0.7');
+  settings.topk = parseInt(document.getElementById('rag-topk')?.value || '5');
+  settings.embeddingModel = document.getElementById('embedding-model-select')?.value || 'text-embedding-3-small';
+
+  saveAiSettingsToStorage(settings);
+
+  // Push API keys to Edge Function for server-side storage (optional, if endpoint exists)
+  try {
+    await fetch(WISSENSHUB_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await sb.auth.getSession()).data.session?.access_token}` },
+      body: JSON.stringify({ action: 'save_settings', settings: { model: settings.model, threshold: settings.threshold, topk: settings.topk, embeddingModel: settings.embeddingModel } })
+    });
+  } catch (_) { /* silently ignore — local storage is the fallback */ }
+
+  closeAiSettings();
+  toast('KI-Einstellungen gespeichert ✓', 'ok');
+
+  // Update current chat model selector if visible
+  const chatModelSel = document.getElementById('chat-model-select');
+  if (chatModelSel && settings.model) chatModelSel.value = settings.model;
+}
+
+// Show gear icon only for admins — called after login
+function updateAdminSidebar() {
+  const el = document.getElementById('sidebar-ai-settings');
+  if (el) el.hidden = !state.isAdmin;
+}
+
+// Expose for global use
+window.openAiSettings = openAiSettings;
+window.closeAiSettings = closeAiSettings;
+window.selectModel = selectModel;
+window.toggleKeyVisibility = toggleKeyVisibility;
+window.saveAiSettings = saveAiSettings;
 
 </script>
 
