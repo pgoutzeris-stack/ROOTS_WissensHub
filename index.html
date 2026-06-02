@@ -2077,6 +2077,18 @@
                 <button class="graph-cb-btn" onclick="fitGraphView()" title="Alles anzeigen"><i class="fa-solid fa-expand"></i></button>
                 <button class="graph-cb-btn" onclick="reheatGraphV2()" title="Neu anordnen"><i class="fa-solid fa-rotate"></i></button>
               </div>
+              <div class="graph-cb-sep"></div>
+              <div class="graph-cb-group" style="position:relative">
+                <button class="graph-cb-btn" onclick="toggleGraphLegend()" title="Legende"><i class="fa-solid fa-circle-info"></i></button>
+                <div id="graph-legend" style="display:none;position:absolute;bottom:calc(100% + 8px);right:0;background:rgba(255,255,255,.97);border:1px solid rgba(15,23,42,.1);border-radius:10px;padding:10px 12px;font-size:.74rem;color:#475569;white-space:nowrap;box-shadow:0 4px 20px rgba(15,23,42,.12);z-index:100">
+                  <div style="font-weight:700;color:#0f172a;margin-bottom:6px;font-size:.76rem">Verbindungen</div>
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:24px;height:2px;background:#206efb;border-radius:2px"></div>Dokument in Ordner</div>
+                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><div style="width:24px;height:2px;background:#64748b;border-radius:2px"></div>Ordner → Unterordner</div>
+                  <div style="display:flex;align-items:center;gap:6px"><div style="width:24px;height:1px;background:#8b5cf6;border-top:1px dashed #8b5cf6"></div>Gleicher Tag</div>
+                  <div style="font-weight:700;color:#0f172a;margin:8px 0 5px;font-size:.76rem">Zoom</div>
+                  <div style="color:#94a3b8;line-height:1.6">Scrollen = Zoom · Ziehen = Pan<br>Klick = Zoom zu Node<br>Doppelklick = Öffnen</div>
+                </div>
+              </div>
               <!-- Level-Indikator -->
               <div class="graph-level-indicator">
                 <div class="graph-level-dot" id="glvl-1" title="Galaxy"></div>
@@ -4882,6 +4894,7 @@ function initKnowledgeGraph() {
   _attachGraphEventsV2(canvas, wrap);
 
   // FIX: Loop ZUERST starten, dann nach Physics-Settle fitten
+  _setupGraphResize(wrap); // Fix 7
   _gv.running = true;
   _loop();
 
@@ -4934,7 +4947,16 @@ function _buildGraph() {
         uploader:doc.uploader_name||'', date:doc.created_at||'',
         size:doc.file_size_bytes||0, content: null, folderId: doc.folder_id||null });
       const fNode = byId.get('f:'+doc.folder_id);
-      if (fNode) edges.push({ a:fNode, b:n, kind:'contains', w:1.5 });
+      if (fNode) {
+        edges.push({ a:fNode, b:n, kind:'contains', w:1.5 });
+      } else {
+        // Fix 4: Docs ohne Ordner → virtueller Root-Hub
+        if (!byId.has('__orphan__')) {
+          const orphan = addNode({ id:'__orphan__', label:'Ohne Ordner', type:'subfolder',
+            r:14, color:'#94a3b8', folderId:null });
+        }
+        edges.push({ a:byId.get('__orphan__'), b:n, kind:'contains', w:0.8 });
+      }
     });
   } else {
     // Tag-Gruppierung
@@ -5001,10 +5023,11 @@ function _drawParticles(ctx, t) {
 }
 
 // ── Hauptloop ──────────────────────────────────────────────────────────────────
-let _loopT = 0;
+let _loopFrame = 0; // Fix 3: Frame-Counter für throttling
 function _loop() {
   if (!_gv.running) return;
-  _loopT++;
+  _loopT = (_loopT + 1) % 100000; // Fix 5: wrap counter
+  _loopFrame++;
   _gSync();
   const canvas  = document.getElementById('graph-canvas');
   const pCanvas = document.getElementById('graph-particles');
@@ -5013,16 +5036,25 @@ function _loop() {
   const ctx  = canvas.getContext('2d');
   const pctx = pCanvas?.getContext('2d');
 
-  if (pctx) _drawParticles(pctx, _loopT);
+  const physicsActive = _gv.energy > 0.5;
+  const hovering      = !!_gv.hover;
+  const dragging      = _gv.dragging || !!_gv.dragNode;
 
-  if (_gv.energy > 0.5) {
+  // Fix 3: Wenn settled → nur alle 6 Frames zeichnen (≈10fps), spart CPU
+  if (!physicsActive && !hovering && !dragging && _loopFrame % 6 !== 0) {
+    _gv.animId = requestAnimationFrame(_loop);
+    return;
+  }
+
+  if (pctx && (physicsActive || _loopFrame % 3 === 0)) _drawParticles(pctx, _loopT);
+
+  if (physicsActive) {
     _tick();
     _gv.energy *= .986;
   }
 
   _draw(ctx);
-  _updateMinimap();
-  _updateLevelIndicator();
+  if (_loopFrame % 3 === 0) { _updateMinimap(); _updateLevelIndicator(); }
 
   _gv.animId = requestAnimationFrame(_loop);
 }
@@ -5081,9 +5113,11 @@ function _draw(ctx) {
 
   // Background
   ctx.clearRect(0, 0, W, H);
+  // Heller Hintergrund (Fix 1)
   const bg = ctx.createRadialGradient(W/2, H/2, 50, W/2, H/2, Math.max(W,H)*.7);
-  bg.addColorStop(0, '#070f1f');
-  bg.addColorStop(1, '#020609');
+  bg.addColorStop(0, '#f8fafc');
+  bg.addColorStop(0.5, '#eff6ff');
+  bg.addColorStop(1, '#f0fdf4');
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, W, H);
 
@@ -5121,13 +5155,13 @@ function _draw(ctx) {
       ctx.strokeStyle = grad;
       ctx.lineWidth = Math.max(1, e.w * 1.2);
     } else if (e.kind === 'folder') {
-      ctx.strokeStyle = `rgba(203,213,225,${alpha * 0.8})`;
+      ctx.strokeStyle = `rgba(100,116,139,${alpha * 0.7})`; // Fix 2: dunkleres Grau auf hellem BG
       ctx.lineWidth = 2;
     } else if (e.kind === 'contains') {
-      ctx.strokeStyle = `rgba(96,165,250,${alpha})`;
+      ctx.strokeStyle = `rgba(32,110,251,${alpha * 0.9})`; // Fix 2: brand-Blau
       ctx.lineWidth = 1.5;
     } else {
-      ctx.strokeStyle = `rgba(203,213,225,${alpha * 0.8})`;
+      ctx.strokeStyle = `rgba(100,116,139,${alpha * 0.5})`;
       ctx.lineWidth = 1;
     }
     ctx.beginPath();
@@ -5177,8 +5211,8 @@ function _draw(ctx) {
     }
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255,255,255,' + (isHover?.6:.15) + ')';
-    ctx.lineWidth = isHover ? 2 : 1;
+    ctx.strokeStyle = isHover ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.7)'; // Fix 2c
+    ctx.lineWidth = isHover ? 2.5 : 1.5;
     ctx.stroke();
 
     // Label
@@ -5187,10 +5221,10 @@ function _draw(ctx) {
       const label = n.label.length>maxC ? n.label.slice(0,maxC-1)+'…' : n.label;
       ctx.font = `${n.type==='folder'?'700 ':''}${n.type==='folder'?11:9.5}px Circular Std, system-ui`;
       const tw = ctx.measureText(label).width;
-      ctx.fillStyle = 'rgba(2,6,23,.7)';
+      ctx.fillStyle = 'rgba(248,250,252,.88)'; // Fix 2b: heller BG für Labels
       const py = n.y + n.r + 4;
       ctx.fillRect(n.x-tw/2-3, py, tw+6, 13);
-      ctx.fillStyle = n.type==='folder' ? '#e2e8f0' : 'rgba(226,232,240,.8)';
+      ctx.fillStyle = n.type==='folder' ? '#0f172a' : '#475569'; // Fix 2b: dunkler Text
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillText(label, n.x, py+1);
     }
@@ -5211,9 +5245,9 @@ function _drawPostIt(ctx, n, isHover, z) {
   ctx.shadowColor = n.color + '55';
   ctx.shadowBlur = isHover ? 24 : 12;
 
-  // Glassmorphism card
-  ctx.fillStyle = isHover ? 'rgba(15,23,42,.95)' : 'rgba(10,16,30,.88)';
-  ctx.strokeStyle = isHover ? n.color + 'aa' : 'rgba(255,255,255,.12)';
+  // Glassmorphism card — hell (Fix 2d)
+  ctx.fillStyle = isHover ? 'rgba(255,255,255,.98)' : 'rgba(255,255,255,.92)';
+  ctx.strokeStyle = isHover ? n.color : 'rgba(15,23,42,.12)';
   ctx.lineWidth = isHover ? 1.5 : 1;
   ctx.beginPath();
   if (ctx.roundRect) ctx.roundRect(rx, ry, pw, ph, 8);
@@ -5233,10 +5267,10 @@ function _drawPostIt(ctx, n, isHover, z) {
 
   if (showContent && n.content) {
     // Volltext
-    ctx.font = '700 9.5px Circular Std,system-ui'; ctx.fillStyle = '#f1f5f9';
+    ctx.font = '700 9.5px Circular Std,system-ui'; ctx.fillStyle = '#0f172a'; // Fix 2d
     const t = n.label.length>20?n.label.slice(0,19)+'…':n.label;
     ctx.fillText(t, n.x, ry+8);
-    ctx.font = '8.5px Circular Std,system-ui'; ctx.fillStyle = '#64748b';
+    ctx.font = '8.5px Circular Std,system-ui'; ctx.fillStyle = '#475569'; // Fix 2d
     const words = n.content.split(' '), maxW = pw-14;
     let line='', ly=ry+22;
     for (const w of words) {
@@ -5249,7 +5283,7 @@ function _drawPostIt(ctx, n, isHover, z) {
     if (ly <= ry+ph-16) ctx.fillText(line, n.x, ly);
   } else {
     // Titel + Tags
-    ctx.font = '700 10px Circular Std,system-ui'; ctx.fillStyle = '#f1f5f9';
+    ctx.font = '700 10px Circular Std,system-ui'; ctx.fillStyle = '#0f172a'; // Fix 2d
     const t = n.label.length>18?n.label.slice(0,17)+'…':n.label;
     ctx.fillText(t, n.x, ry+9);
     if (n.tags?.length) {
@@ -5379,6 +5413,18 @@ window.setGraphGrouping = function(mode) {
   reheatGraphV2();
   fitGraphView();
 };
+
+// Fix 8: Legende toggle
+window.toggleGraphLegend = function() {
+  const l = document.getElementById('graph-legend');
+  if (l) l.style.display = l.style.display === 'none' ? 'block' : 'none';
+};
+document.addEventListener('click', e => {
+  if (!e.target.closest('#graph-legend') && !e.target.closest("[onclick='toggleGraphLegend()']")) {
+    const l = document.getElementById('graph-legend');
+    if (l) l.style.display = 'none';
+  }
+});
 
 // Legacy compat
 window.resetGraphView = fitGraphView;
@@ -5584,12 +5630,26 @@ function _attachGraphEventsV2(canvas, wrap) {
   canvas.addEventListener('mouseup', () => { _gv.dragging = false; _gv.dragNode = null; });
   canvas.addEventListener('mouseleave', () => { _gv.hover = null; _gv.dragging = false; _gv.dragNode = null; _hideContextPanel(); });
 
-  // Doppelklick → In Ordner navigieren / Dokument öffnen
-  canvas.addEventListener('dblclick', e => {
+  // Fix 6: Einfachklick auf Node → zoom to; Doppelklick → öffnen
+  let _lastClickTime = 0, _lastClickNode = null;
+  canvas.addEventListener('click', e => {
     const hit = hitTest(e.clientX, e.clientY);
     if (!hit) return;
-    if (hit.type==='folder'||hit.type==='subfolder') navigateTo(hit.folderId, hit.label);
-    else if (hit.type==='doc') openDocPreview(hit.docId, hit.label);
+    const now = Date.now();
+    if (_lastClickNode?.id === hit.id && now - _lastClickTime < 400) {
+      // Doppelklick: navigieren/öffnen
+      if (hit.type==='folder'||hit.type==='subfolder') { setDocView('cards'); navigateTo(hit.folderId, hit.label); }
+      else if (hit.type==='doc') openDocPreview(hit.docId, hit.label);
+    } else {
+      // Einzelklick: zu Node zoomen
+      const rect = canvas.getBoundingClientRect();
+      const sx = (e.clientX-rect.left)*(_gv.width/rect.width);
+      const sy = (e.clientY-rect.top)*(_gv.height/rect.height);
+      const targetZ = Math.min(2.0, _gAnim.zoom * 1.6);
+      _animZoom(targetZ, sx, sy);
+      _gv.energy = Math.max(_gv.energy, 30); // sanfte Bewegung
+    }
+    _lastClickTime = now; _lastClickNode = hit;
   });
 
   // Touch Support
@@ -5623,6 +5683,29 @@ function _showScrollHint() {
   if (!el) return;
   el.style.opacity = '1';
   setTimeout(() => { if (el) el.style.transition = 'opacity 1s'; el.style.opacity = '0'; }, 3000);
+}
+
+// Fix 7: Window Resize Handler
+let _graphResizeObserver = null;
+function _setupGraphResize(wrap) {
+  if (_graphResizeObserver) _graphResizeObserver.disconnect();
+  if (typeof ResizeObserver !== 'undefined') {
+    _graphResizeObserver = new ResizeObserver(() => {
+      if (!_gv.running) return;
+      const newW = Math.max(400, wrap.clientWidth||800);
+      const newH = Math.max(300, wrap.clientHeight||600);
+      if (Math.abs(newW - _gv.width) > 20 || Math.abs(newH - _gv.height) > 20) {
+        _gv.width = newW; _gv.height = newH;
+        const dpr = window.devicePixelRatio||1;
+        const canvas = document.getElementById('graph-canvas');
+        if (canvas) { canvas.width=newW*dpr; canvas.height=newH*dpr; canvas.style.width=newW+'px'; canvas.style.height=newH+'px'; canvas.getContext('2d').setTransform(dpr,0,0,dpr,0,0); }
+        const pCanvas = document.getElementById('graph-particles');
+        if (pCanvas) { pCanvas.width=newW*dpr; pCanvas.height=newH*dpr; pCanvas.style.width=newW+'px'; pCanvas.style.height=newH+'px'; pCanvas.getContext('2d').setTransform(dpr,0,0,dpr,0,0); }
+        setTimeout(fitGraphView, 100);
+      }
+    });
+    _graphResizeObserver.observe(wrap);
+  }
 }
 
 // ── Stop ────────────────────────────────────────────────────────────────────────
