@@ -2344,6 +2344,7 @@ function renderFileList() {
         ${uf.status === 'done' ? '<span class="status-badge verarbeitet"><span class="status-dot"></span>OK</span>' :
           uf.status === 'error' ? '<span class="status-badge fehler"><span class="status-dot"></span>Fehler</span>' :
           uf.status === 'uploading' ? '<i class="fa-solid fa-circle-notch roots-spin" style="color:var(--brand)"></i>' :
+          uf.status === 'skipped' ? '<span class="status-badge pending"><span class="status-dot"></span>Übersprungen</span>' :
           '<span class="status-badge pending"><span class="status-dot"></span>Bereit</span>'}
       </div>
       ${uf.status === 'pending' ? `<button class="btn-remove-file" onclick="removeFile(${idx})" title="Entfernen"><i class="fa-solid fa-xmark"></i></button>` : ''}
@@ -2384,15 +2385,39 @@ window.handleUploadAll = async function() {
     uf.progress = 10;
     renderFileList();
     try {
-      // Read file as text (markdown)
+      // ── Duplikat-Prüfung ────────────────────────────────────────────────────
+      let dupAction = 'upload'; // 'upload' | 'copy' | 'replace' | 'skip'
+      let existingId = null;
+      try {
+        const dupRes = await fetch(
+          `${WISSENSHUB_API_URL}?action=check_duplicate&filename=${encodeURIComponent(uf.file.name)}`,
+          { headers: await authHeaders() }
+        );
+        if (dupRes.ok) {
+          const dupData = await dupRes.json();
+          if (dupData.exists) {
+            dupAction = await showDuplicateDialog(uf.file.name, dupData);
+            existingId = dupData.id || null;
+          }
+        }
+      } catch (_) { /* Netzwerkfehler bei Check → trotzdem hochladen */ }
+
+      if (dupAction === 'skip') {
+        uf.status = 'skipped';
+        renderFileList();
+        continue;
+      }
+
+      // ── Datei lesen & hochladen ─────────────────────────────────────────────
       const content = await uf.file.text();
-      const title = uf.file.name.replace(/\.md$/i, '');
+      const baseTitle = uf.file.name.replace(/\.md$/i, '');
+      const title = dupAction === 'copy' ? baseTitle + ' (Kopie)' : baseTitle;
+
       const headers = { ...await authHeaders(), 'Content-Type': 'application/json' };
       const payload = JSON.stringify({
         action: 'upload',
-        title: action === 'copy' ? title + ' (Kopie)' : title,
-        title_suffix: action === 'copy' ? '(Kopie)' : undefined,
-        replace_id: action === 'replace' ? existingId : undefined,
+        title,
+        replace_id: dupAction === 'replace' ? existingId : undefined,
         filename: uf.file.name,
         content,
         file_size_bytes: uf.file.size,
@@ -2403,22 +2428,25 @@ window.handleUploadAll = async function() {
         uploaded_by: window.RootsUser?._uid || null,
       });
       const res = await fetch(`${WISSENSHUB_API_URL}`, { method: 'POST', headers, body: payload });
+
+      // Body nur EINMAL lesen
+      let resData = {};
+      try { resData = await res.json(); } catch (_) {}
+
       if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        if (res.status === 429) {
-          throw new Error('Tageslimit erreicht. Morgen wieder verfügbar.');
-        }
-        throw new Error(e.error || e.message || `HTTP ${res.status}`);
+        if (res.status === 429) throw new Error('Tageslimit erreicht. Morgen wieder verfügbar.');
+        throw new Error(resData.error || resData.message || `HTTP ${res.status}`);
       }
+
       uf.status = 'done'; uf.progress = 100;
       successCount++;
-      // Trigger embedding immediately (fire-and-forget)
-      const docId = (await res.json().catch(() => ({}))).id;
-      if (docId) {
+
+      // ── Embedding sofort anstoßen (fire-and-forget) ─────────────────────────
+      if (resData.id) {
         fetch(`${WISSENSHUB_API_URL}`, {
           method: 'POST',
           headers: { ...await authHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'embed', document_id: docId })
+          body: JSON.stringify({ action: 'embed', document_id: resData.id })
         }).catch(() => {});
       }
     } catch (err) {
@@ -2675,7 +2703,7 @@ function showDuplicateDialog(filename, dupInfo) {
     const modal = document.getElementById('modal-duplicate');
     const msg = document.getElementById('dup-msg');
     const date = dupInfo.created_at ? new Date(dupInfo.created_at).toLocaleDateString('de-DE') : '';
-    msg.innerHTML = `<strong>${escapeHtml(filename)}</strong> wurde bereits am ${date} hochgeladen.`;
+    msg.innerHTML = `<strong>${escHtml(filename)}</strong> wurde bereits am ${date} hochgeladen.`;
     modal.classList.add('open');
   });
 }
