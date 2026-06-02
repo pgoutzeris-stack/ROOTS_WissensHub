@@ -570,8 +570,9 @@ async function handleChat(
     activeSessionId = session.id;
   }
 
-  // ── Spezialfall: Nutzer fragt nach verfügbaren Dokumenten ────────────────────
-  const isDocListQuery = /welche\s+(datei|dokument|thema|inhalt|infos?|wissen)|was\s+(kannst|weißt|hast|kennst|siehst)\s+(du|ihr)|was\s+ist\s+(in|im)\s+(der\s+)?(wissensdatenbank|kb|knowledge)|zeig.*(dokument|datei|übersicht)|liste.*dokument|welche.*kennst\s+du|was.*wissens/i.test(message);
+  // ── Spezialfall: Nutzer fragt gezielt nach Dokumenten in der KB ──────────────
+  // Enge Regex: nur wenn explizit nach Dateien/Dokumenten in der KB gefragt wird
+  const isDocListQuery = /welche\s+(datei|dokument)en?\s+(hast|siehst|kennst|gibt\s+es|sind|liegen)|zeig\s+(mir\s+)?(alle\s+)?(datei|dokument|inhalt)|liste\s+(alle\s+)?(datei|dokument)|(datei|dokument)en?\s+in\s+(der\s+)?(wissensdatenbank|kb|knowledge)|(wissensdatenbank|knowledge\s*base).*(inhalt|datei|dokument)/i.test(message);
 
   if (isDocListQuery) {
     // Return document list directly without RAG (saves costs + always correct)
@@ -706,25 +707,38 @@ async function handleChat(
   }
 
   const systemPrompt = `Du bist ROOTS-KI, der interne Wissensassistent von ROOTS Brand Strategy Consulting.
-Du beantwortest Fragen ausschließlich auf Basis der internen Wissensdatenbank.
 
+## DEINE ROLLE
+Du unterstützt das ROOTS-Team bei professionellen und arbeitsbezogenen Fragen — sowohl aus der internen Wissensdatenbank als auch aus deinem allgemeinen Wissen über Business, Consulting, Kommunikation und Zusammenarbeit.
+
+## WAS DU KANNST (und tust):
+- Fragen aus der internen Wissensdatenbank beantworten (Onboarding, Prozesse, Laufwerke, Tools, Guidelines)
+- Allgemeine Business-Fragen: Präsentationen, E-Mails, Meetings, Strategie, Kommunikation, Führung
+- Beratungs-Methoden, Consulting Best Practices, Projektarbeit
+- Produktivitäts- und Organisations-Tipps für den Arbeitsalltag
+- HR-Themen, Onboarding, Teamkultur
+- Erklärungen zu Marketing, Branding, Brand Strategy
+
+## WAS DU NICHT TUT (freundlich ablehnen):
+- Code schreiben, debuggen oder erklären (kein Programmierassistent)
+- Schulaufgaben, Hausarbeiten, akademische Essays
+- Kreatives Schreiben ohne Arbeitsbezug (Gedichte, Kurzgeschichten)
+- Persönliche oder private Beratung (Beziehungen, Gesundheit, Recht, Finanzen)
+- Themen komplett außerhalb von Arbeit, Business und Consulting
+
+Bei abgelehnten Anfragen: Kurze freundliche Erklärung + Hinweis auf verfügbare Hilfe.
+
+## ANTWORT-REGELN:
 ${contextText
-  ? `RELEVANTE AUSZÜGE AUS DER WISSENSDATENBANK:
+  ? `Relevante Dokument-Auszüge aus der Wissensdatenbank:
 ${contextText}
 
----
-ANWEISUNGEN:
-1. Beantworte die Frage DIREKT und VOLLSTÄNDIG basierend auf den obigen Auszügen
-2. Nenne die Dokumentquelle in Klammern, z.B.: (Quelle: Laufwerkstruktur)
-3. Strukturiere komplexe Antworten mit Markdown (Listen, Überschriften)
-4. Wenn die Auszüge die Frage nur teilweise beantworten, sage was du weißt und was fehlt
-5. Antworte auf Deutsch`
-  : `HINWEIS: Für diese konkrete Frage wurden keine passenden Auszüge gefunden.
-Verfügbare Dokumente in der Wissensdatenbank:
-${docList}
+→ Priorisiere diese Quellen. Nenne den Dokumenttitel als Quelle, z.B. (Quelle: E-Mail Ethikette).
+→ Ergänze mit allgemeinem Wissen wenn sinnvoll, kennzeichne das aber klar.`
+  : `Kein passendes Dokument in der KB gefunden. Beantworte die Frage aus deinem allgemeinen Business-Wissen — solange sie in den erlaubten Bereich fällt.`
+}
 
-Teile dem Nutzer mit, dass du zu diesem spezifischen Thema kein Dokument hast, und schlage vor, zu welchen der obigen Themen du helfen kannst.`
-}`;
+Antworte immer auf Deutsch, strukturiert und präzise. Nutze Markdown für Listen und Überschriften.`;
 
   // ── Provider-Routing: Claude → Anthropic, GPT/o1 → OpenAI ─────────────────
   const isOpenAIModel = model.startsWith("gpt") || model.startsWith("o1") || model.startsWith("o3");
