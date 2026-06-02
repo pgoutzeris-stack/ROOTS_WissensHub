@@ -5123,9 +5123,9 @@ function _buildHierarchicalLayout() {
 
   // Radien skalieren mit Canvas-Größe
   const S = Math.min(W, H);
-  const R_ROOT   = S * 0.30;  // Root-Ordner Abstand vom Zentrum
-  const R_SUB    = S * 0.18;  // Unterordner Abstand vom Parent
-  const R_DOC    = S * 0.12;  // Dokument Abstand vom Parent
+  const R_ROOT   = S * 0.32;  // Root-Ordner
+  const R_SUB    = S * 0.20;  // Unterordner (mehr Abstand)
+  const R_DOC    = S * 0.15;  // Dokument (mehr Abstand)
 
   // ── Schritt 1: Orphan-Folder anlegen (bevor Docs verarbeitet werden) ──
   const orphanDocs = docs.filter(d => !d.folder_id);
@@ -5276,27 +5276,30 @@ function _springTick() {
     if (n.revealP < 0.001) n.revealP = 0;
     if (n.revealP > 0.999) n.revealP = 1;
 
-    // Spring zu Zielposition — skaliert mit Zoom für dynamisches Spacing
+    // Spring zu Zielposition + Dynamisches Spacing beim Zoom
     const ease = n.revealP*n.revealP*(3-2*n.revealP);
-    const startX = n.parentX, startY = n.parentY;
-    // Dynamisches Spacing: Nodes entfernen sich weiter beim Reinzoomen
-    const zoomSpread = n.type==='doc' ? Math.max(1, relZ*0.6) : 1.0;
-    const scaledTx = n.parentX + (n.tx - n.parentX)*zoomSpread;
-    const scaledTy = n.parentY + (n.ty - n.parentY)*zoomSpread;
-    n.x = startX + (scaledTx - startX)*ease;
-    n.y = startY + (scaledTy - startY)*ease;
+    // Spacing skaliert: docs breiten sich beim Zoom aus, subfolders leicht
+    const spread = n.type==='doc'      ? Math.max(1.0, relZ*0.55)
+                 : n.type==='subfolder' ? Math.max(1.0, relZ*0.25)
+                 : 1.0;
+    const scaledTx = n.parentX + (n.tx - n.parentX)*spread;
+    const scaledTy = n.parentY + (n.ty - n.parentY)*spread;
+    n.x = n.parentX + (scaledTx - n.parentX)*ease;
+    n.y = n.parentY + (scaledTy - n.parentY)*ease;
   });
 
-  // Leichte Abstoßung um Überlappungen zu vermeiden (nur wenn enthüllt)
-  const revealed = _gv.nodes.filter(n=>n.revealP>0.5);
+  // Sanfte Abstoßung mit dynamischem Minimum-Abstand
+  const revealed = _gv.nodes.filter(n=>n.revealP>0.4);
   for (let i=0;i<revealed.length;i++) for(let j=i+1;j<revealed.length;j++){
     const a=revealed[i], b=revealed[j];
     const dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy+1;
-    const minD=(a.r+b.r)*2.2;
+    const circA=(a.r||8)*1.45, circB=(b.r||8)*1.45;
+    const minD=(circA+circB)*1.4 + 10; // Abstand basierend auf tatsächlicher Knotengröße
     if (d2 < minD*minD) {
-      const d=Math.sqrt(d2), push=(minD-d)*0.04;
-      a.tx -= dx/d*push; a.ty -= dy/d*push;
-      b.tx += dx/d*push; b.ty += dy/d*push;
+      const d=Math.sqrt(d2)||1;
+      const force=(minD-d)*0.035;
+      a.tx -= (dx/d)*force; a.ty -= (dy/d)*force;
+      b.tx += (dx/d)*force; b.ty += (dy/d)*force;
     }
   }
 }
@@ -5321,7 +5324,7 @@ function _draw(ctx) {
   ctx.translate(-W/2,-H/2);
 
   const _relZ = z / Math.max(0.001, _gv.baseZoom);
-  const showCards = _relZ >= Z_CARDS;
+  const showCards = _relZ >= 2.2; // früher als Z_CARDS für sanften Übergang
 
   // Hover-Verbindungen hervorheben
   const conn = hover ? new Set([hover.id]) : null;
@@ -5396,7 +5399,7 @@ function _draw(ctx) {
     const active = !conn || conn.has(n.id);
     ctx.globalAlpha = n.revealP * (active ? 1 : 0.15);
 
-    if (n.type==='doc' && showCards && active && n.revealP>0.8) {
+    if (n.type==='doc' && showCards && n.revealP>0.7) {
       _drawDocCard(ctx, n, isHover, z);
       ctx.globalAlpha=1; return;
     }
@@ -5431,13 +5434,14 @@ function _draw(ctx) {
       const py = (n.type==='folder'||n.type==='subfolder') ? n.y + n.r*1.15 + 5 : n.y+n.r+5;
       // Pill-Label
       const lh=fs+6, lw=tw+12, lx=n.x-lw/2;
-      ctx.beginPath();
-      if(ctx.roundRect) ctx.roundRect(lx,py,lw,lh,lh/2);
-      else ctx.rect(lx,py,lw,lh);
-      ctx.fillStyle='rgba(255,255,255,.94)';
-      ctx.fill();
-      ctx.strokeStyle=n.color+'33'; ctx.lineWidth=1;
-      ctx.stroke();
+      if (_relZ < 1.8) { // Pill-BG nur bei mittlerem Zoom
+        ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(lx,py,lw,lh,lh/2);
+        else ctx.rect(lx,py,lw,lh);
+        ctx.fillStyle='rgba(255,255,255,.88)';
+        ctx.fill();
+        ctx.strokeStyle=n.color+'22'; ctx.lineWidth=1; ctx.stroke();
+      }
       ctx.fillStyle=n.type==='folder'?'#0f172a':'#475569';
       ctx.textAlign='center'; ctx.textBaseline='top';
       ctx.fillText(lbl, n.x, py+2);
@@ -5448,34 +5452,89 @@ function _draw(ctx) {
 }
 
 function _drawDocCard(ctx, n, isHover, z) {
-  const pw=155, ph=n.content?95:58;
-  const rx=n.x-pw/2, ry=n.y-ph/2;
-  ctx.shadowColor='rgba(15,23,42,.15)'; ctx.shadowBlur=isHover?20:8;
-  ctx.fillStyle=isHover?'#ffffff':'rgba(255,255,255,.95)';
-  _rr(ctx,rx,ry,pw,ph,8); ctx.fill();
-  ctx.shadowBlur=0;
-  ctx.strokeStyle=isHover?n.color:'rgba(15,23,42,.1)';
-  ctx.lineWidth=isHover?1.5:1; _rr(ctx,rx,ry,pw,ph,8); ctx.stroke();
-  ctx.fillStyle=n.color; _rr(ctx,rx,ry,pw,3,{tl:8,tr:8,bl:0,br:0}); ctx.fill();
-  ctx.textAlign='center'; ctx.textBaseline='top';
-  ctx.font='700 10px Circular Std,system-ui'; ctx.fillStyle='#0f172a';
-  const t=n.label.length>20?n.label.slice(0,19)+'…':n.label;
-  ctx.fillText(t, n.x, ry+9);
+  // Kein Box-Container — Inhalt direkt als floating Text im Canvas
+  const relZ = z / Math.max(0.001, _gv.baseZoom);
+  const showFullText = relZ >= Z_CARDS * 1.15 && n.content;
+  const alpha = n.revealP;
+
+  ctx.globalAlpha = alpha;
+  ctx.textAlign = 'center';
+
+  // ── Subtiler Hintergrund-Halo (kein Box) ───────────────────────────────
+  const haloR = showFullText ? 90 : 55;
+  const grad = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, haloR);
+  grad.addColorStop(0, 'rgba(255,255,255,.85)');
+  grad.addColorStop(0.6, 'rgba(255,255,255,.4)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(n.x, n.y, haloR, 0, Math.PI*2); ctx.fill();
+
+  // ── Icon ──────────────────────────────────────────────────────────────
+  _drawIconNode(ctx, n, isHover);
+
+  // ── Titel (unter dem Icon) ─────────────────────────────────────────────
+  const titleY = n.y + n.r * 1.7;
+  ctx.font = '700 11px Circular Std, system-ui';
+  ctx.fillStyle = '#0f172a';
+  ctx.textBaseline = 'top';
+  const maxC = 22;
+  const title = n.label.length > maxC ? n.label.slice(0, maxC-1)+'…' : n.label;
+  ctx.fillText(title, n.x, titleY);
+
+  // ── Tag (unter Titel) ─────────────────────────────────────────────────
   if (n.tags?.length) {
-    ctx.font='8.5px Circular Std,system-ui'; ctx.fillStyle=n.color;
-    ctx.fillText('#'+n.tags[0], n.x, ry+24);
+    ctx.font = '9px Circular Std, system-ui';
+    ctx.fillStyle = n.color + 'cc';
+    ctx.fillText('#' + n.tags[0], n.x, titleY + 15);
   }
-  if (n.content) {
-    ctx.font='8px Circular Std,system-ui'; ctx.fillStyle='#64748b';
-    const words=n.content.split(/\s+/), maxW=pw-16; let line='',ly=ry+36;
-    for (const w of words) {
-      const test=line?line+' '+w:w;
-      if (ctx.measureText(test).width>maxW&&line){ ctx.fillText(line,n.x,ly); line=w; ly+=10;
-        if(ly>ry+ph-14){ctx.fillText(line+'…',n.x,ly);line='';break;} } else line=test;
+
+  // ── Markdown-Inhalt (sehr weit reingezoomt) ────────────────────────────
+  if (showFullText) {
+    const contentY = titleY + (n.tags?.length ? 32 : 20);
+    const maxW = 160;
+    ctx.font = '8.5px Circular Std, system-ui';
+    ctx.fillStyle = '#475569';
+    // Markdown: Überschriften hervorheben
+    const lines = n.content.split('\n').slice(0, 12);
+    let ly = contentY;
+    for (const rawLine of lines) {
+      if (ly > contentY + 100) { ctx.fillText('…', n.x, ly); break; }
+      const line = rawLine.trim();
+      if (!line) { ly += 5; continue; }
+      if (line.startsWith('# ')) {
+        ctx.font = '700 9.5px Circular Std, system-ui';
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(line.slice(2).slice(0, 24), n.x, ly);
+        ctx.font = '8.5px Circular Std, system-ui';
+        ctx.fillStyle = '#475569';
+        ly += 14;
+      } else if (line.startsWith('## ')) {
+        ctx.font = '700 9px Circular Std, system-ui';
+        ctx.fillStyle = '#1e293b';
+        ctx.fillText(line.slice(3).slice(0, 26), n.x, ly);
+        ctx.font = '8.5px Circular Std, system-ui';
+        ctx.fillStyle = '#475569';
+        ly += 13;
+      } else if (line.startsWith('- ') || line.startsWith('* ')) {
+        ctx.fillText('· ' + line.slice(2).slice(0, 28), n.x, ly);
+        ly += 11;
+      } else {
+        // Normaler Fließtext — umbrechen
+        const words = line.split(' ');
+        let wLine = '';
+        for (const w of words) {
+          const test = wLine ? wLine + ' ' + w : w;
+          if (ctx.measureText(test).width > maxW && wLine) {
+            ctx.fillText(wLine, n.x, ly); wLine = w; ly += 11;
+            if (ly > contentY + 100) break;
+          } else wLine = test;
+        }
+        if (wLine && ly <= contentY + 100) { ctx.fillText(wLine, n.x, ly); ly += 11; }
+      }
     }
-    if(line&&ly<=ry+ph-14) ctx.fillText(line,n.x,ly);
   }
-  ctx.globalAlpha=1; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+
+  ctx.globalAlpha = 1; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
 }
 
 
