@@ -568,10 +568,38 @@ async function handleChat(
     activeSessionId = session.id;
   }
 
+  // ── Spezialfall: Nutzer fragt nach verfügbaren Dokumenten ────────────────────
+  const isDocListQuery = /welche\s+(datei|dokument|thema|inhalt|infos?|wissen)|was\s+(kannst|weißt|hast|kennst|siehst)\s+(du|ihr)|was\s+ist\s+(in|im)\s+(der\s+)?(wissensdatenbank|kb|knowledge)|zeig.*(dokument|datei|übersicht)|liste.*dokument|welche.*kennst\s+du|was.*wissens/i.test(message);
+
+  if (isDocListQuery) {
+    // Return document list directly without RAG (saves costs + always correct)
+    const { data: allDocsForList } = await supabase.schema("knowledge").from("documents")
+      .select("title, chunk_count, tags").eq("embedding_status", "done").order("title");
+
+    const listText = allDocsForList?.map((d: Record<string, unknown>) => {
+      const tags = Array.isArray(d.tags) && d.tags.length > 0 ? ` _(${(d.tags as string[]).join(", ")})_` : "";
+      return `• **${d.title}**${tags}`;
+    }).join("\n") ?? "– Keine Dokumente vorhanden";
+
+    const directResponse = `In meiner Wissensdatenbank habe ich aktuell **${allDocsForList?.length ?? 0} Dokumente**:\n\n${listText}\n\nZu welchem Thema kann ich dir helfen?`;
+
+    await supabase.schema("knowledge").from("chat_messages").insert([
+      { session_id: activeSessionId, role: "user", content: message, sources: [] },
+      { session_id: activeSessionId, role: "assistant", content: directResponse, sources: [], prompt_tokens: 0, completion_tokens: 0 },
+    ]);
+
+    return corsResponse(origin, {
+      response: directResponse,
+      sources: [],
+      session_id: activeSessionId,
+      usage: { prompt_tokens: 0, completion_tokens: 0 },
+    });
+  }
+
   // Embed user message
   let queryEmbedding: number[];
   try {
-    // Hard limit: max 80 chat messages per day
+    // Hard limit: max 300 chat messages per day
     const chatLimitErr = await checkHardLimit("chat", origin);
     if (chatLimitErr) return chatLimitErr;
 
@@ -643,25 +671,24 @@ async function handleChat(
   }
 
   const systemPrompt = `Du bist ROOTS-KI, der interne Wissensassistent von ROOTS Brand Strategy Consulting.
-Du hast Zugriff auf die interne Wissensdatenbank mit folgenden Dokumenten:
-
-${docList || "– (noch keine Dokumente geladen)"}
-
-WICHTIGE REGELN:
-- Beantworte Fragen NUR auf Basis der gefundenen Dokument-Auszüge unten
-- Wenn Auszüge gefunden wurden: Antworte direkt, konkret und vollständig basierend auf dem Inhalt
-- Nenne immer den Dokumenttitel als Quelle (z.B. "Laut 'Laufwerkstruktur'...")
-- Wenn keine passenden Auszüge gefunden wurden: Sage klar "Dazu habe ich kein Dokument in der Wissensdatenbank"
-- Sage NIEMALS "Ich kann keine Dateien einsehen" — du hast tatsächlich Zugriff auf die obigen Dokumente
-- Antworte immer auf Deutsch, präzise und strukturiert
-- Bei Listen oder Schritten: Nutze Markdown-Formatierung
+Du beantwortest Fragen ausschließlich auf Basis der internen Wissensdatenbank.
 
 ${contextText
-  ? `GEFUNDENE DOKUMENT-AUSZÜGE (nach Relevanz sortiert):
+  ? `RELEVANTE AUSZÜGE AUS DER WISSENSDATENBANK:
 ${contextText}
 
-Beantworte die Frage basierend auf diesen Auszügen.`
-  : "HINWEIS: Für diese Frage wurden keine passenden Auszüge gefunden. Weise den Nutzer darauf hin, dass du kein relevantes Dokument in der Wissensdatenbank hast, und erkläre welche Themen du abdecken kannst (basierend auf der Dokumentliste oben)."
+---
+ANWEISUNGEN:
+1. Beantworte die Frage DIREKT und VOLLSTÄNDIG basierend auf den obigen Auszügen
+2. Nenne die Dokumentquelle in Klammern, z.B.: (Quelle: Laufwerkstruktur)
+3. Strukturiere komplexe Antworten mit Markdown (Listen, Überschriften)
+4. Wenn die Auszüge die Frage nur teilweise beantworten, sage was du weißt und was fehlt
+5. Antworte auf Deutsch`
+  : `HINWEIS: Für diese konkrete Frage wurden keine passenden Auszüge gefunden.
+Verfügbare Dokumente in der Wissensdatenbank:
+${docList}
+
+Teile dem Nutzer mit, dass du zu diesem spezifischen Thema kein Dokument hast, und schlage vor, zu welchen der obigen Themen du helfen kannst.`
 }`;
 
   // ── Provider-Routing: Claude → Anthropic, GPT/o1 → OpenAI ─────────────────
