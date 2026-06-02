@@ -570,6 +570,40 @@ async function handleChat(
     activeSessionId = session.id;
   }
 
+  // ── Spezialfall: Capabilities-Frage → direkte Antwort ohne RAG ───────────────
+  const isCapabilityQuery = /^(was|wie)\s+(kannst|machst|tust|bist)\s+(du|ihr)\s*(alles|so)?\??$/i.test(message.trim()) ||
+    /was\s+kann\s+(ich\s+)?mit\s+dir\s+(machen|anfangen|tun)|wofür\s+(bist|kann|kannst)\s+du|wer\s+bist\s+du|stell\s+(dich|dir)\s+vor|was\s+sind\s+deine\s+(fähigkeiten|funktionen|aufgaben)/i.test(message);
+
+  if (isCapabilityQuery) {
+    const capResponse = `Ich bin **ROOTS-KI**, der interne Wissensassistent von ROOTS Brand Strategy Consulting. Hier ist, wobei ich helfen kann:
+
+**📚 Wissensdatenbank**
+Ich beantworte Fragen zu internen Prozessen, Onboarding, Laufwerken, Tools und Guidelines — basierend auf den hochgeladenen Dokumenten.
+
+**💼 Business & Consulting**
+Allgemeine Fragen zu Strategie, Präsentationen, Meetings, Projekten und Beratungsmethoden.
+
+**✉️ Kommunikation**
+Tipps für E-Mails, Feedback, Dokumentation und professionelle Kommunikation.
+
+**🚀 Produktivität**
+Arbeitsorganisation, Prioritäten setzen, Tools und Arbeitsmethoden.
+
+**🎯 Marketing & Branding**
+Fragen zu Brand Strategy, Positionierung und Marketing-Konzepten.
+
+---
+Was ich **nicht** mache: Code schreiben, Schulaufgaben, persönliche Beratung oder Themen außerhalb des Arbeitsumfelds.
+
+Womit kann ich heute helfen?`;
+
+    await supabase.schema("knowledge").from("chat_messages").insert([
+      { session_id: activeSessionId, role: "user", content: message, sources: [] },
+      { session_id: activeSessionId, role: "assistant", content: capResponse, sources: [], prompt_tokens: 0, completion_tokens: 0 },
+    ]);
+    return corsResponse(origin, { response: capResponse, sources: [], session_id: activeSessionId, usage: { prompt_tokens: 0, completion_tokens: 0 } });
+  }
+
   // ── Spezialfall: Nutzer fragt gezielt nach Dokumenten in der KB ──────────────
   // Enge Regex: nur wenn explizit nach Dateien/Dokumenten in der KB gefragt wird
   const isDocListQuery = /welche\s+(datei|dokument)en?\s+(hast|siehst|kennst|gibt\s+es|sind|liegen)|zeig\s+(mir\s+)?(alle\s+)?(datei|dokument|inhalt)|liste\s+(alle\s+)?(datei|dokument)|(datei|dokument)en?\s+in\s+(der\s+)?(wissensdatenbank|kb|knowledge)|(wissensdatenbank|knowledge\s*base).*(inhalt|datei|dokument)/i.test(message);
@@ -664,9 +698,11 @@ async function handleChat(
     } catch { /* query expansion optional */ }
   }
 
-  // Deduplicate chunks by document (max 2 chunks per doc to avoid flooding context)
+  // Deduplicate + filter by minimum similarity (noise below 50% → not shown as source)
+  const MIN_SOURCE_SIMILARITY = 0.50; // only cite docs that are genuinely relevant
   const chunksByDoc: Record<string, number> = {};
   const dedupedChunks = chunks.filter((chunk: Record<string, unknown>) => {
+    if ((chunk.similarity as number) < 0.35) return false; // still use for context if >= 0.35
     const docId = chunk.document_id as string;
     chunksByDoc[docId] = (chunksByDoc[docId] || 0) + 1;
     return chunksByDoc[docId] <= 2;
@@ -678,6 +714,8 @@ async function handleChat(
   const docList = allDocs?.map((d: Record<string, unknown>) => `• ${d.title}`).join("\n") ?? "";
 
   // Build sources + context text
+  // sources array: only include chunks above MIN_SOURCE_SIMILARITY (shown to user as citations)
+  // contextText: all chunks (including lower quality ones) for LLM context
   const sources: Array<{
     document_id: string;
     title: string;
@@ -689,17 +727,21 @@ async function handleChat(
   let contextText = "";
   if (dedupedChunks.length > 0) {
     for (const chunk of dedupedChunks) {
+      const sim = chunk.similarity as number;
       const sourceEntry = {
         document_id: chunk.document_id as string,
         title: chunk.document_title as string,
         excerpt: (chunk.chunk_content as string).slice(0, 300),
-        similarity: chunk.similarity as number,
+        similarity: sim,
         heading: (chunk.heading as string) ?? null,
       };
-      // Only add to sources if not already listed
-      if (!sources.find(s => s.document_id === sourceEntry.document_id && s.heading === sourceEntry.heading)) {
-        sources.push(sourceEntry);
+      // Only show as citation if genuinely relevant (≥ 50%)
+      if (sim >= MIN_SOURCE_SIMILARITY) {
+        if (!sources.find(s => s.document_id === sourceEntry.document_id && s.heading === sourceEntry.heading)) {
+          sources.push(sourceEntry);
+        }
       }
+      // Include in LLM context regardless (LLM decides if it's useful)
       contextText += `\n\n---\n**${chunk.document_title}**${
         chunk.heading ? ` › ${chunk.heading}` : ""
       }\n${chunk.chunk_content}`;
