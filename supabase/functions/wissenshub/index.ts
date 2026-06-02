@@ -40,6 +40,9 @@ function corsResponse(
   });
 }
 
+
+const jsonResponse = corsResponse;
+
 function errorResponse(
   requestOrigin: string | null,
   message: string,
