@@ -801,51 +801,46 @@
     .btn-icon:hover { background: var(--surface); color: var(--ink); }
     .btn-icon.danger:hover { background: rgba(220,38,38,.08); color: var(--danger); }
 
-    .graph-controlbar {
-      position: absolute;
-      top: .85rem;
-      left: .85rem;
-      right: .85rem;
-      z-index: 8;
-      display: flex;
-      align-items: center;
-      gap: .55rem;
-      flex-wrap: wrap;
-      pointer-events: none;
-    }
-    .graph-controlbar > * { pointer-events: auto; }
-    .graph-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: .42rem;
-      min-height: 34px;
-      padding: 0 .82rem;
-      border: 1px solid rgba(226,232,240,.82);
-      border-radius: var(--radius-pill);
-      background: rgba(255,255,255,.78);
-      color: var(--ink);
-      backdrop-filter: blur(16px);
-      box-shadow: 0 10px 28px rgba(15,23,42,.1);
-      font-size: .78rem;
-      font-weight: 800;
-    }
-    .graph-pill button {
-      border: none;
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
-      font: inherit;
-      font-weight: 800;
-      padding: .25rem .35rem;
-      border-radius: 999px;
-    }
-    .graph-pill button.active, .graph-pill button:hover { background: var(--brand-light); color: var(--brand); }
-    .graph-hint {
-      margin-left: auto;
-      color: var(--muted);
-      max-width: 360px;
-      line-height: 1.4;
-    }
+    /* ── Graph v2.0 ───────────────────────────────────────────────── */
+    /* Control Bar */
+    .graph-controlbar-v2 { position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:rgba(10,18,35,.85);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.1);border-radius:999px;padding:6px 14px;z-index:20;box-shadow:0 4px 24px rgba(0,0,0,.4); }
+    .graph-cb-group { display:flex;align-items:center;gap:4px; }
+    .graph-cb-sep { width:1px;height:20px;background:rgba(255,255,255,.12);margin:0 4px; }
+    .graph-cb-btn { display:flex;align-items:center;gap:5px;padding:5px 10px;border:none;border-radius:999px;background:transparent;color:rgba(255,255,255,.55);font-size:.75rem;font-family:inherit;cursor:pointer;transition:all .15s;white-space:nowrap; }
+    .graph-cb-btn:hover { background:rgba(255,255,255,.1);color:#fff; }
+    .graph-cb-btn.active { background:rgba(32,110,251,.3);color:#60a5fa;border:1px solid rgba(32,110,251,.4); }
+    .graph-cb-btn i { font-size:.72rem; }
+    .graph-zoom-label { font-size:.72rem;color:rgba(255,255,255,.4);min-width:36px;text-align:center;font-variant-numeric:tabular-nums; }
+    /* Level indicator */
+    .graph-level-indicator { display:flex;gap:5px;align-items:center;margin-left:6px;padding-left:10px;border-left:1px solid rgba(255,255,255,.12); }
+    .graph-level-dot { width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.2);transition:all .3s; }
+    .graph-level-dot.active { background:#60a5fa;box-shadow:0 0 8px #3b82f6; }
+    /* Hover Context Panel */
+    .graph-ctx-panel { position:absolute;right:14px;top:60px;width:220px;background:rgba(10,18,35,.92);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:14px;z-index:30;box-shadow:0 8px 32px rgba(0,0,0,.5);font-size:.8rem;color:#e2e8f0;transition:opacity .2s; }
+    .gcp-header { display:flex;gap:10px;align-items:flex-start;margin-bottom:10px; }
+    .gcp-icon { width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0; }
+    .gcp-title { font-weight:700;font-size:.83rem;color:#f1f5f9;line-height:1.3; }
+    .gcp-sub { font-size:.71rem;color:#64748b;margin-top:2px; }
+    .gcp-meta { display:flex;flex-direction:column;gap:4px;margin-bottom:10px;font-size:.73rem;color:#94a3b8; }
+    .gcp-meta span { display:flex;align-items:center;gap:5px; }
+    .gcp-meta i { width:12px;color:#475569; }
+    .gcp-section-label { font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#475569;margin-bottom:5px; }
+    .gcp-similar { margin-bottom:10px; }
+    .gcp-similar-item { display:flex;align-items:center;gap:6px;padding:3px 0;font-size:.73rem;color:#94a3b8;cursor:pointer; }
+    .gcp-similar-item:hover { color:#60a5fa; }
+    .gcp-sim-bar { height:3px;border-radius:2px;background:rgba(32,110,251,.4);flex-shrink:0; }
+    .gcp-actions { display:flex;gap:6px; }
+    .gcp-btn-primary { flex:1;padding:6px;border:none;border-radius:8px;background:#2563eb;color:#fff;font-size:.75rem;font-family:inherit;cursor:pointer;font-weight:600; }
+    .gcp-btn-primary:hover { background:#1d4ed8; }
+    .gcp-btn-ghost { flex:1;padding:6px;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:transparent;color:#94a3b8;font-size:.75rem;font-family:inherit;cursor:pointer; }
+    .gcp-btn-ghost:hover { border-color:rgba(255,255,255,.3);color:#e2e8f0; }
+    /* Minimap */
+    .graph-minimap-wrap { position:absolute;bottom:14px;right:14px;width:140px;height:90px;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.12);background:rgba(5,10,20,.8);z-index:20; }
+    #graph-minimap { display:block;width:100%;height:100%; }
+    .graph-minimap-viewport { position:absolute;border:1px solid rgba(96,165,250,.6);border-radius:2px;pointer-events:none;background:rgba(96,165,250,.08); }
+    /* Scroll hint */
+    .graph-scroll-hint { position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:.72rem;color:rgba(255,255,255,.3);display:flex;align-items:center;gap:.4rem;pointer-events:none;animation:pulse-hint 3s ease-in-out infinite; }
+    @keyframes pulse-hint { 0%,100%{opacity:.3} 50%{opacity:.7} }
 
     /* Status badges */
     .status-badge {
@@ -2054,24 +2049,71 @@
         <div class="dash-content" id="doc-content">
           <div class="doc-grid" id="doc-grid"></div>
           <div id="doc-list" style="display:none;width:100%;flex-direction:column;gap:0"></div>
-          <div id="doc-graph-wrap" style="display:none;width:100%;height:100%;position:relative">
-            <div class="graph-controlbar">
-              <div class="graph-pill">
-                <i class="fa-solid fa-route" style="color:var(--brand)"></i>
-                <button id="graph-mode-mindmap" class="active" onclick="setGraphMode('mindmap')">Mindmap</button>
-                <button id="graph-mode-cluster" onclick="setGraphMode('cluster')">Cluster</button>
+          <div id="doc-graph-wrap" style="display:none;width:100%;height:100%;position:relative;background:#050a14;border-radius:12px;overflow:hidden">
+            <!-- Partikel-Hintergrund -->
+            <canvas id="graph-particles" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas>
+            <!-- Graph-Canvas -->
+            <canvas id="graph-canvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
+
+            <!-- Control Bar oben -->
+            <div class="graph-controlbar-v2">
+              <div class="graph-cb-group">
+                <button class="graph-cb-btn" onclick="navGraph(-1)" title="Rauszoomen"><i class="fa-solid fa-minus"></i></button>
+                <div id="graph-zoom-label" class="graph-zoom-label">50%</div>
+                <button class="graph-cb-btn" onclick="navGraph(1)" title="Reinzoomen"><i class="fa-solid fa-plus"></i></button>
               </div>
-              <div class="graph-pill">
-                <button onclick="resetGraphView()"><i class="fa-solid fa-crosshairs"></i> Zentrieren</button>
-                <button onclick="reheatGraph()"><i class="fa-solid fa-arrows-rotate"></i> Neu ordnen</button>
+              <div class="graph-cb-sep"></div>
+              <div class="graph-cb-group">
+                <button class="graph-cb-btn active" id="gbtn-folder" onclick="setGraphGrouping('folder')" title="Nach Ordner">
+                  <i class="fa-solid fa-folder"></i> Ordner
+                </button>
+                <button class="graph-cb-btn" id="gbtn-tag" onclick="setGraphGrouping('tag')" title="Nach Tag">
+                  <i class="fa-solid fa-tag"></i> Tag
+                </button>
               </div>
-              <div class="graph-pill graph-hint"><i class="fa-solid fa-hand-pointer"></i> Ziehen zum Bewegen, Mausrad zum Zoomen, Hover zeigt Zusammenhänge.</div>
+              <div class="graph-cb-sep"></div>
+              <div class="graph-cb-group">
+                <button class="graph-cb-btn" onclick="fitGraphView()" title="Alles anzeigen"><i class="fa-solid fa-expand"></i></button>
+                <button class="graph-cb-btn" onclick="reheatGraphV2()" title="Neu anordnen"><i class="fa-solid fa-rotate"></i></button>
+              </div>
+              <!-- Level-Indikator -->
+              <div class="graph-level-indicator">
+                <div class="graph-level-dot" id="glvl-1" title="Galaxy"></div>
+                <div class="graph-level-dot" id="glvl-2" title="Cluster"></div>
+                <div class="graph-level-dot active" id="glvl-3" title="Dokumente"></div>
+                <div class="graph-level-dot" id="glvl-4" title="Inhalt"></div>
+              </div>
             </div>
-            <canvas id="graph-canvas" style="width:100%;height:100%;border-radius:12px"></canvas>
-            <div id="graph-tooltip" style="position:absolute;display:none;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:.8rem;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.12);max-width:220px;z-index:10">
-              <div id="graph-tt-title" style="font-weight:600;color:var(--ink);margin-bottom:4px"></div>
-              <div id="graph-tt-tags" style="color:var(--muted)"></div>
-              <div id="graph-tt-chunks" style="color:var(--muted);font-size:.75rem;margin-top:3px"></div>
+
+            <!-- Hover Context Panel -->
+            <div id="graph-context-panel" class="graph-ctx-panel" style="display:none">
+              <div id="gcp-header" class="gcp-header">
+                <div id="gcp-icon" class="gcp-icon"></div>
+                <div>
+                  <div id="gcp-title" class="gcp-title"></div>
+                  <div id="gcp-sub" class="gcp-sub"></div>
+                </div>
+              </div>
+              <div id="gcp-meta" class="gcp-meta"></div>
+              <div id="gcp-similar" class="gcp-similar" style="display:none">
+                <div class="gcp-section-label">Ähnliche Dokumente</div>
+                <div id="gcp-similar-list"></div>
+              </div>
+              <div id="gcp-actions" class="gcp-actions">
+                <button class="gcp-btn-primary" id="gcp-open">Öffnen</button>
+                <button class="gcp-btn-ghost" id="gcp-nav">Navigieren</button>
+              </div>
+            </div>
+
+            <!-- Minimap -->
+            <div class="graph-minimap-wrap">
+              <canvas id="graph-minimap" width="140" height="90"></canvas>
+              <div id="graph-minimap-viewport" class="graph-minimap-viewport"></div>
+            </div>
+
+            <!-- Scroll hint -->
+            <div class="graph-scroll-hint" id="graph-scroll-hint">
+              <i class="fa-solid fa-scroll"></i> Scroll zum Erkunden der Ebenen
             </div>
           </div>
         </div>
@@ -4716,470 +4758,797 @@ window.selectModel = selectModel;
 window.toggleKeyVisibility = toggleKeyVisibility;
 window.saveAiSettings = saveAiSettings;
 
-// ─── Wissensgraph / Mindmap ──────────────────────────────────────────────────
-let _graphRunning = false;
-let _graphAnim = null;
-let _graphScene = null;
-let _graphDrag = null;
+// ─── Wissensgraph v2.0 ─────────────────────────────────────────────────────────
 
-window.setDocView = function(view) {
-  state.docView = view;
-  const gridEl  = document.getElementById('doc-grid');
-  const listEl  = document.getElementById('doc-list');
-  const graphEl = document.getElementById('doc-graph-wrap');
+// ── Konstanten ────────────────────────────────────────────────────────────────
+const G_L1 = 0.28;   // Galaxy → Cluster
+const G_L2 = 0.75;   // Cluster → Documents
+const G_L3 = 1.8;    // Documents → Content
 
-  ['cards','list','graph'].forEach(n => {
-    const btn = document.getElementById(`btn-view-${n}`);
-    if (!btn) return;
-    const active = view === n;
-    btn.style.background = active ? 'var(--bg)' : 'transparent';
-    btn.style.color      = active ? 'var(--ink)' : 'var(--muted)';
-  });
-
-  if (view === 'graph') {
-    gridEl.style.display  = 'none';
-    listEl.style.display  = 'none';
-    graphEl.style.display = 'block';
-    initKnowledgeGraph();
-  } else if (view === 'list') {
-    gridEl.style.display  = 'none';
-    listEl.style.display  = 'block';
-    graphEl.style.display = 'none';
-    if (typeof stopGraph === 'function') stopGraph();
-    renderDocuments();
-  } else {
-    gridEl.style.display  = '';
-    listEl.style.display  = 'none';
-    graphEl.style.display = 'none';
-    if (typeof stopGraph === 'function') stopGraph();
-    renderDocuments();
-  }
+// ── Zustand ────────────────────────────────────────────────────────────────────
+let _gv = {
+  zoom: 0.5, panX: 0, panY: 0,
+  nodes: [], edges: [],
+  hover: null, selected: null,
+  dragging: false, dragNode: null,
+  lastMX: 0, lastMY: 0,
+  particles: [],
+  energy: 200,
+  running: false,
+  animId: null,
+  grouping: 'folder',
+  level: 2,
+  transitioning: false,
+  width: 800, height: 600,
 };
 
-window.setGraphMode = function(mode) {
-  state.graphMode = mode;
-  document.getElementById('graph-mode-mindmap')?.classList.toggle('active', mode === 'mindmap');
-  document.getElementById('graph-mode-cluster')?.classList.toggle('active', mode === 'cluster');
-  initKnowledgeGraph();
-};
+// ── GSAP-Animationsziel (für smooth zoom/pan) ─────────────────────────────────
+const _gAnim = { zoom: 0.5, panX: 0, panY: 0 };
+let _gTween = null;
 
-function zoomToFit() {
-  if (!_graphScene || !_graphScene.nodes.length) return;
-  const { nodes, width, height } = _graphScene;
-  const pad = 60;
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  nodes.forEach(n => {
-    minX = Math.min(minX, n.x - n.r);
-    maxX = Math.max(maxX, n.x + n.r);
-    minY = Math.min(minY, n.y - n.r);
-    maxY = Math.max(maxY, n.y + n.r);
-  });
-  const bw = maxX - minX + pad * 2;
-  const bh = maxY - minY + pad * 2;
-  const zoom = Math.min(1.2, Math.min(width / bw, height / bh));
-  const cx = (minX + maxX) / 2;
-  const cy = (minY + maxY) / 2;
-  _graphScene.zoom = zoom;
-  _graphScene.panX = (width / 2 - cx) * zoom;
-  _graphScene.panY = (height / 2 - cy) * zoom;
-  _graphScene.energy = 1; // freeze simulation, just redraw
-  const canvas = document.getElementById('graph-canvas');
-  if (canvas) {
-    const ctx = canvas.getContext('2d');
-    ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
-    drawGraph(ctx, _graphScene);
-  }
+function _gSync() {
+  _gv.zoom = _gAnim.zoom;
+  _gv.panX = _gAnim.panX;
+  _gv.panY = _gAnim.panY;
 }
 
-window.resetGraphView = function() {
-  if (!_graphScene) return;
-  zoomToFit();
-  _graphScene.energy = 110;
-};
-
-window.reheatGraph = function() {
-  if (!_graphScene) return initKnowledgeGraph();
-  _graphScene.nodes.forEach((node, index) => {
-    const angle = index / Math.max(1, _graphScene.nodes.length) * Math.PI * 2;
-    node.vx += Math.cos(angle) * 2.2;
-    node.vy += Math.sin(angle) * 2.2;
-  });
-  _graphScene.energy = 180;
-  startGraphLoop();
-};
-
-function stopGraph() {
-  if (_graphAnim) cancelAnimationFrame(_graphAnim);
-  _graphRunning = false;
-  _graphAnim = null;
-}
-
+// ── Initialisierung ────────────────────────────────────────────────────────────
 function initKnowledgeGraph() {
   stopGraph();
-  const canvas = document.getElementById('graph-canvas');
-  const wrap = document.getElementById('doc-graph-wrap');
-  canvas.width = Math.max(640, wrap.clientWidth || 800) * window.devicePixelRatio;
-  canvas.height = Math.max(440, wrap.clientHeight || 600) * window.devicePixelRatio;
-  canvas.style.width = `${wrap.clientWidth || 800}px`;
-  canvas.style.height = `${wrap.clientHeight || 600}px`;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
-  const width = canvas.width / window.devicePixelRatio;
-  const height = canvas.height / window.devicePixelRatio;
-  const docs = state.documents || [];
+  const canvas   = document.getElementById('graph-canvas');
+  const pCanvas  = document.getElementById('graph-particles');
+  const wrap     = document.getElementById('doc-graph-wrap');
+  if (!canvas || !wrap) return;
 
+  _gv.width  = wrap.clientWidth  || 800;
+  _gv.height = wrap.clientHeight || 600;
+
+  canvas.width  = _gv.width  * devicePixelRatio;
+  canvas.height = _gv.height * devicePixelRatio;
+  canvas.style.width  = _gv.width  + 'px';
+  canvas.style.height = _gv.height + 'px';
+
+  if (pCanvas) {
+    pCanvas.width  = _gv.width  * devicePixelRatio;
+    pCanvas.height = _gv.height * devicePixelRatio;
+    pCanvas.style.width  = _gv.width  + 'px';
+    pCanvas.style.height = _gv.height + 'px';
+  }
+
+  const ctx  = canvas.getContext('2d');
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+
+  if (pCanvas) {
+    const pctx = pCanvas.getContext('2d');
+    pctx.scale(devicePixelRatio, devicePixelRatio);
+  }
+
+  const docs = state.documents || [];
   if (!docs.length && !state.folders.length) {
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = '#64748b';
-    ctx.font = '14px Circular Std, sans-serif';
-    ctx.fillText('Keine Dokumente oder Ordner für die Mindmap', width / 2 - 130, height / 2);
+    _drawEmpty(ctx);
     return;
   }
 
-  _graphScene = buildGraphScene(docs, width, height);
-  attachGraphEvents(canvas, wrap);
-  startGraphLoop();
-  // Nach Simulation: Zoom-to-fit damit alle Knoten sichtbar sind
-  setTimeout(() => zoomToFit(), 1800);
+  _buildGraph();
+  _initParticles();
+  _attachGraphEventsV2(canvas, wrap);
+  fitGraphView();
+  _gv.running = true;
+  _loop();
+  setTimeout(() => _showScrollHint(), 1000);
 }
 
-function buildGraphScene(docs, width, height) {
-  const colors = ['#206efb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
-  const nodes = [];
-  const edges = [];
-  const nodeById = new Map();
-  const addNode = (node) => {
-    if (nodeById.has(node.id)) return nodeById.get(node.id);
+// ── Graphaufbau ────────────────────────────────────────────────────────────────
+function _buildGraph() {
+  const { width: W, height: H } = _gv;
+  const docs = state.documents || [];
+  const colors = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b'];
+  const nodes = [], edges = [];
+  const byId = new Map();
+
+  const addNode = (n) => {
+    if (byId.has(n.id)) return byId.get(n.id);
     const angle = nodes.length / Math.max(1, docs.length + state.folders.length) * Math.PI * 2;
-    const radius = Math.min(width, height) * (node.type === 'doc' ? .32 : .2);
-    const created = {
-      ...node,
-      x: width / 2 + Math.cos(angle) * radius + (Math.random() - .5) * 20,
-      y: height / 2 + Math.sin(angle) * radius + (Math.random() - .5) * 20,
-      vx: 0,
-      vy: 0,
+    const r = Math.min(W, H) * .3;
+    const created = { ...n,
+      x: W/2 + Math.cos(angle)*r + (Math.random()-.5)*40,
+      y: H/2 + Math.sin(angle)*r + (Math.random()-.5)*40,
+      vx:0, vy:0,
     };
     nodes.push(created);
-    nodeById.set(node.id, created);
+    byId.set(n.id, created);
     return created;
   };
-  const addEdge = (from, to, weight = 1, kind = 'related') => edges.push({ from, to, weight, kind });
 
-  // 4a: No central root node — folders connect via proximity only
-  const folderIds = ['root', ...state.folders.map(folder => folder.id), ...docs.map(doc => doc.folder_id || 'root')];
-  const activeFolderIds = [...new Set(folderIds)];
-  activeFolderIds.forEach((folderId, index) => {
-    const folder = state.folders.find(item => item.id === folderId);
-    const nodeId = `folder:${folderId}`;
-    addNode({
-      id: nodeId,
-      title: folder?.name || 'Root',
-      type: 'folder',
-      r: 18,
-      color: folder?.color || colors[index % colors.length],
+  if (_gv.grouping === 'folder') {
+    // Root-Ordner
+    state.folders.filter(f => !f.parent_id).forEach((f, i) => {
+      addNode({ id:'f:'+f.id, label:f.name, type:'folder', r:22, color:f.color||colors[i%colors.length], folderId:f.id });
     });
-    const parentId = folder?.parent_id ? `folder:${folder.parent_id}` : null;
-    if (parentId) addEdge(parentId, nodeId, 1.6, 'folder');
-  });
+    // Unterordner
+    state.folders.filter(f => f.parent_id).forEach((f, i) => {
+      const n = addNode({ id:'f:'+f.id, label:f.name, type:'subfolder', r:16, color:f.color||colors[i%colors.length], folderId:f.id });
+      const parent = byId.get('f:'+f.parent_id);
+      if (parent) edges.push({ a:parent, b:n, kind:'folder', w:2 });
+    });
+    // Dokumente
+    docs.forEach((doc, i) => {
+      const tags = Array.isArray(doc.tags) ? doc.tags : [];
+      const r = Math.max(8, Math.min(18, 8 + Math.sqrt(doc.chunk_count||1)*1.5));
+      const folder = state.folders.find(f => f.id === doc.folder_id);
+      const color = folder?.color || colors[i%colors.length];
+      const n = addNode({ id:'d:'+doc.id, label:doc.title||doc.filename||'Dok', type:'doc', r, color,
+        docId:doc.id, tags, chunks:doc.chunk_count||0,
+        uploader:doc.uploader_name||'', date:doc.created_at||'',
+        size:doc.file_size_bytes||0, content: null, folderId: doc.folder_id||null });
+      const fNode = byId.get('f:'+doc.folder_id);
+      if (fNode) edges.push({ a:fNode, b:n, kind:'contains', w:1.5 });
+    });
+  } else {
+    // Tag-Gruppierung
+    const allTags = [...new Set(docs.flatMap(d => Array.isArray(d.tags)?d.tags:[]))];
+    allTags.forEach((tag, i) => {
+      addNode({ id:'t:'+tag, label:'#'+tag, type:'tag', r:18, color:colors[i%colors.length], tagName:tag });
+    });
+    docs.forEach((doc, i) => {
+      const tags = Array.isArray(doc.tags)?doc.tags:[];
+      const n = addNode({ id:'d:'+doc.id, label:doc.title||'Dok', type:'doc', r:10, color:'#94a3b8',
+        docId:doc.id, tags, chunks:doc.chunk_count||0, folderId:doc.folder_id });
+      tags.forEach(tag => {
+        const tNode = byId.get('t:'+tag);
+        if (tNode) edges.push({ a:tNode, b:n, kind:'tag', w:1.2 });
+      });
+    });
+    // Ungrouped
+    docs.filter(d => !(Array.isArray(d.tags)&&d.tags.length)).forEach(doc => {
+      const n = byId.get('d:'+doc.id);
+      if (n && !edges.find(e => e.b===n||e.a===n)) n.color = '#374151';
+    });
+  }
 
-  docs.forEach((doc, index) => {
-    const folderId = doc.folder_id || 'root';
-    const docNode = addNode({
-      id: `doc:${doc.id}`,
-      docId: doc.id,
-      title: doc.title || doc.filename || 'Dokument',
-      type: 'doc',
-      tags: Array.isArray(doc.tags) ? doc.tags : [],
-      chunks: doc.chunk_count || 1,
-      r: Math.max(9, Math.min(21, 9 + Math.sqrt(doc.chunk_count || 1) * 2)),
-      color: colors[index % colors.length],
-      docContent: doc.content ? doc.content.slice(0, 300) : null,
-    });
-    addEdge(`folder:${folderId}`, docNode.id, state.graphMode === 'mindmap' ? 1.8 : .8, 'contains');
-    if (state.graphMode === 'mindmap') {
-      docNode.x += (index % 2 ? 1 : -1) * 80;
-    }
-    (Array.isArray(doc.tags) ? doc.tags : []).slice(0, 5).forEach(tag => {
-      const tagNode = addNode({ id: `tag:${tag}`, title: `#${tag}`, type: 'tag', r: 10, color: '#94a3b8' });
-      addEdge(tagNode.id, docNode.id, .72, 'tag');
-    });
-  });
-
-  if (state.graphMode === 'cluster') {
-    const docNodes = nodes.filter(node => node.type === 'doc');
-    for (let i = 0; i < docNodes.length; i++) {
-      for (let j = i + 1; j < docNodes.length; j++) {
-        const shared = docNodes[i].tags.filter(tag => docNodes[j].tags.includes(tag)).length;
-        if (shared) addEdge(docNodes[i].id, docNodes[j].id, shared * .52, 'shared');
-      }
+  // Tag-Ähnlichkeitsedges zwischen Docs (simulierte Semantik)
+  const docNodes = nodes.filter(n => n.type === 'doc');
+  for (let i = 0; i < docNodes.length; i++) {
+    for (let j = i+1; j < docNodes.length; j++) {
+      const shared = docNodes[i].tags.filter(t => docNodes[j].tags.includes(t)).length;
+      if (shared > 0) edges.push({ a:docNodes[i], b:docNodes[j], kind:'similar', w:shared*0.8 });
     }
   }
 
-  return {
-    nodes,
-    edges: edges.map(edge => ({ ...edge, a: nodeById.get(edge.from), b: nodeById.get(edge.to) })).filter(edge => edge.a && edge.b),
-    nodeById,
-    width,
-    height,
-    zoom: 1,
-    panX: 0,
-    panY: 0,
-    hover: null,
-    energy: 220,
-  };
+  _gv.nodes = nodes;
+  _gv.edges = edges;
+  _gv.energy = 220;
 }
 
-function startGraphLoop() {
-  if (_graphRunning) return;
-  _graphRunning = true;
-  const canvas = document.getElementById('graph-canvas');
-  const ctx = canvas.getContext('2d');
-  function loop() {
-    if (!_graphRunning || !_graphScene) return;
-    tickGraph(_graphScene);
-    drawGraph(ctx, _graphScene);
-    _graphScene.energy *= .985;
-    if (_graphScene.energy > 1 || _graphScene.hover) _graphAnim = requestAnimationFrame(loop);
-    else _graphRunning = false;
+// ── Partikel ───────────────────────────────────────────────────────────────────
+function _initParticles() {
+  _gv.particles = Array.from({length: 120}, (_, i) => ({
+    x: Math.random() * _gv.width,
+    y: Math.random() * _gv.height,
+    r: Math.random() * 1.2 + 0.3,
+    vx: (Math.random() - .5) * 0.15,
+    vy: (Math.random() - .5) * 0.15,
+    a: Math.random() * 0.5 + 0.1,
+    phase: Math.random() * Math.PI * 2,
+  }));
+}
+
+function _drawParticles(ctx, t) {
+  const { width: W, height: H } = _gv;
+  ctx.clearRect(0, 0, W, H);
+  _gv.particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+    if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+    const alpha = p.a * (0.5 + 0.5 * Math.sin(t * 0.001 + p.phase));
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(148,163,184,${alpha})`;
+    ctx.fill();
+  });
+}
+
+// ── Hauptloop ──────────────────────────────────────────────────────────────────
+let _loopT = 0;
+function _loop() {
+  if (!_gv.running) return;
+  _loopT++;
+  _gSync();
+  const canvas  = document.getElementById('graph-canvas');
+  const pCanvas = document.getElementById('graph-particles');
+  if (!canvas) { _gv.running = false; return; }
+
+  const ctx  = canvas.getContext('2d');
+  const pctx = pCanvas?.getContext('2d');
+
+  if (pctx) _drawParticles(pctx, _loopT);
+
+  if (_gv.energy > 0.5) {
+    _tick();
+    _gv.energy *= .986;
   }
-  loop();
+
+  _draw(ctx);
+  _updateMinimap();
+  _updateLevelIndicator();
+
+  _gv.animId = requestAnimationFrame(_loop);
 }
 
-function tickGraph(scene) {
-  const { nodes, edges, width, height } = scene;
-  const repel = state.graphMode === 'mindmap' ? 6200 : 4200;
+// ── Physik ─────────────────────────────────────────────────────────────────────
+function _tick() {
+  const { nodes, edges, width: W, height: H } = _gv;
+  const repel = 5000;
   for (let i = 0; i < nodes.length; i++) {
-    for (let j = i + 1; j < nodes.length; j++) {
+    for (let j = i+1; j < nodes.length; j++) {
       const a = nodes[i], b = nodes[j];
-      const dx = b.x - a.x, dy = b.y - a.y;
-      const dist2 = dx * dx + dy * dy + 28;
-      const force = repel / dist2;
-      const dist = Math.sqrt(dist2);
-      a.vx -= force * dx / dist; a.vy -= force * dy / dist;
-      b.vx += force * dx / dist; b.vy += force * dy / dist;
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const d2 = dx*dx + dy*dy + 30;
+      const f = repel / d2;
+      const d = Math.sqrt(d2);
+      a.vx -= f*dx/d; a.vy -= f*dy/d;
+      b.vx += f*dx/d; b.vy += f*dy/d;
     }
   }
-  edges.forEach(edge => {
-    const dx = edge.b.x - edge.a.x, dy = edge.b.y - edge.a.y;
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-    const target = edge.kind === 'folder' ? 118 : edge.kind === 'tag' ? 72 : state.graphMode === 'mindmap' ? 92 : 118;
-    const force = (dist - target) * .012 * edge.weight;
-    edge.a.vx += force * dx / dist; edge.a.vy += force * dy / dist;
-    edge.b.vx -= force * dx / dist; edge.b.vy -= force * dy / dist;
+  edges.forEach(e => {
+    const dx = e.b.x-e.a.x, dy = e.b.y-e.a.y;
+    const d = Math.sqrt(dx*dx+dy*dy)||1;
+    const tgt = e.kind==='folder'?130 : e.kind==='tag'?90 : e.kind==='similar'?110 : 100;
+    const f = (d-tgt) * 0.009 * e.w;
+    e.a.vx += f*dx/d; e.a.vy += f*dy/d;
+    e.b.vx -= f*dx/d; e.b.vy -= f*dy/d;
   });
-  nodes.forEach(node => {
-    const centerStrength = node.type === 'folder' ? .006 : .003;
-    node.vx += (width / 2 - node.x) * centerStrength;
-    node.vy += (height / 2 - node.y) * centerStrength;
-    node.vx *= .82;
-    node.vy *= .82;
-    node.x += node.vx;
-    node.y += node.vy;
+  nodes.forEach(n => {
+    const cs = n.type==='folder'?.035 : n.type==='tag'?.025 : .003;
+    n.vx += (W/2 - n.x) * cs;
+    n.vy += (H/2 - n.y) * cs;
+    n.vx *= .83; n.vy *= .83;
+    n.x += n.vx; n.y += n.vy;
   });
 }
 
-function drawGraph(ctx, scene) {
-  const { width, height, nodes, edges, hover, zoom, panX, panY } = scene;
+// ── Rendering ─────────────────────────────────────────────────────────────────
+function _draw(ctx) {
+  const { zoom: z, panX, panY, width: W, height: H, nodes, edges, hover } = _gv;
+
+  // Background
+  ctx.clearRect(0, 0, W, H);
+  const bg = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*.7);
+  bg.addColorStop(0, '#070f1f');
+  bg.addColorStop(1, '#020609');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
   ctx.save();
-  ctx.clearRect(0, 0, width, height);
+  ctx.translate(W/2 + panX, H/2 + panY);
+  ctx.scale(z, z);
+  ctx.translate(-W/2, -H/2);
 
-  // Hintergrund
-  const bg = ctx.createLinearGradient(0,0,width,height);
-  bg.addColorStop(0,'#f8fafc'); bg.addColorStop(.55,'#eef5ff'); bg.addColorStop(1,'#f8fafc');
-  ctx.fillStyle = bg; ctx.fillRect(0,0,width,height);
+  const level = _getLevel(z);
+  const showDocs = z >= G_L1;
+  const showLabels = z >= 0.45;
+  const showTags = z >= G_L2;
+  const showPostIt = z >= G_L3;
 
-  ctx.translate(width/2 + panX, height/2 + panY);
-  ctx.scale(zoom, zoom);
-  ctx.translate(-width/2, -height/2);
-
-  // Level of Detail Schwellen
-  const LOD_DOCS    = 0.38;
-  const LOD_LABELS  = 0.55;
-  const LOD_TAGS    = 1.1;
-  const LOD_POSTIT  = 1.5;
-  const LOD_TEXT    = 2.2;
-
-  const showDocs   = zoom >= LOD_DOCS;
-  const showLabels = zoom >= LOD_LABELS;
-  const showTags   = zoom >= LOD_TAGS;
-  const showPostIt = zoom >= LOD_POSTIT;
-  const showText   = zoom >= LOD_TEXT;
-
-  // Hover-Verbindungen
+  // Connected nodes for hover glow
   const connected = hover ? new Set([hover.id]) : null;
   if (hover) edges.forEach(e => {
     if (e.a.id===hover.id||e.b.id===hover.id) { connected.add(e.a.id); connected.add(e.b.id); }
   });
 
-  // Kanten
-  edges.forEach(edge => {
-    if (!showDocs && (edge.a.type==='doc'||edge.b.type==='doc')) return;
-    if (!showTags  && (edge.a.type==='tag'||edge.b.type==='tag')) return;
-    const active = !connected||(connected.has(edge.a.id)&&connected.has(edge.b.id));
-    ctx.beginPath(); ctx.moveTo(edge.a.x,edge.a.y);
-    const mx=(edge.a.x+edge.b.x)/2, my=(edge.a.y+edge.b.y)/2-(edge.kind==='tag'?8:0);
-    ctx.quadraticCurveTo(mx,my,edge.b.x,edge.b.y);
-    ctx.strokeStyle = active ? edgeColor(edge.kind,edge.weight) : 'rgba(148,163,184,.06)';
-    ctx.lineWidth   = active ? Math.max(1,edge.weight*1.4) : 0.5;
+  // Edges
+  edges.forEach(e => {
+    if (!showDocs && e.kind !== 'folder') return;
+    if (e.kind==='tag' && !showTags) return;
+    const active = !connected || (connected.has(e.a.id)&&connected.has(e.b.id));
+    const alpha = active ? (e.kind==='similar'?0.22:0.35) : 0.05;
+
+    if (e.kind === 'similar' && active) {
+      // Gradient edge für Ähnlichkeit
+      const grad = ctx.createLinearGradient(e.a.x, e.a.y, e.b.x, e.b.y);
+      grad.addColorStop(0, `${e.a.color}44`);
+      grad.addColorStop(1, `${e.b.color}44`);
+      ctx.strokeStyle = grad;
+    } else {
+      const col = e.kind==='folder'?'rgba(148,163,184,' : e.kind==='tag'?'rgba(96,165,250,' : 'rgba(148,163,184,';
+      ctx.strokeStyle = col + alpha + ')';
+    }
+    ctx.lineWidth = e.kind==='folder' ? 1.5 : 1;
+    ctx.beginPath();
+    const mx=(e.a.x+e.b.x)/2, my=(e.a.y+e.b.y)/2 - (e.kind==='tag'?12:0);
+    ctx.moveTo(e.a.x, e.a.y);
+    ctx.quadraticCurveTo(mx, my, e.b.x, e.b.y);
     ctx.stroke();
   });
 
-  // Knoten
-  nodes.forEach(node => {
-    if (node.type==='doc' && !showDocs) return;
-    if (node.type==='tag' && !showTags) return;
-    const active = !connected||connected.has(node.id);
-    ctx.globalAlpha = active ? 1 : .15;
+  // Nodes
+  nodes.forEach(n => {
+    if (!showDocs && n.type==='doc') return;
+    if (n.type==='tag' && !showTags) return;
 
-    // POST-IT Modus (close zoom, docs as cards)
-    if (node.type==='doc' && showPostIt) {
-      const pw = showText ? 160 : 120, ph = showText ? 90 : 58;
-      ctx.shadowColor=`${node.color}33`; ctx.shadowBlur=10;
-      ctx.fillStyle='#fff';
-      ctx.strokeStyle=active&&hover?.id===node.id ? node.color : `${node.color}88`;
-      ctx.lineWidth=1.5;
-      const rx=node.x-pw/2, ry=node.y-ph/2;
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(rx,ry,pw,ph,7);
-      else { ctx.moveTo(rx+7,ry); ctx.lineTo(rx+pw-7,ry); ctx.quadraticCurveTo(rx+pw,ry,rx+pw,ry+7); ctx.lineTo(rx+pw,ry+ph-7); ctx.quadraticCurveTo(rx+pw,ry+ph,rx+pw-7,ry+ph); ctx.lineTo(rx+7,ry+ph); ctx.quadraticCurveTo(rx,ry+ph,rx,ry+ph-7); ctx.lineTo(rx,ry+7); ctx.quadraticCurveTo(rx,ry,rx+7,ry); ctx.closePath(); }
-      ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+    const isHover = hover?.id === n.id;
+    const active  = !connected || connected.has(n.id);
+    ctx.globalAlpha = active ? 1 : 0.12;
 
-      // Farbbalken oben
-      ctx.fillStyle=node.color;
-      ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(rx,ry,pw,5,{upperLeft:7,upperRight:7,lowerLeft:0,lowerRight:0});
-      else { ctx.rect(rx,ry,pw,5); }
-      ctx.fill();
-
-      ctx.textAlign='center'; ctx.textBaseline='top';
-
-      if (showText && node.docContent) {
-        ctx.font=`600 9px Circular Std,sans-serif`; ctx.fillStyle='#0f172a';
-        const title=node.title.length>22?node.title.slice(0,21)+'…':node.title;
-        ctx.fillText(title, node.x, ry+9);
-        ctx.font=`8px Circular Std,sans-serif`; ctx.fillStyle='#475569';
-        const preview=node.docContent.slice(0,120);
-        const words=preview.split(' '); let line=''; let ly=ry+21;
-        for(const w of words){
-          const test=line?line+' '+w:w;
-          if(ctx.measureText(test).width>pw-12&&line){
-            ctx.fillText(line,node.x,ly); line=w; ly+=10;
-            if(ly>ry+ph-14){ctx.fillText(line+'…',node.x,ly);break;}
-          } else line=test;
-        }
-        if(ly<=ry+ph-14) ctx.fillText(line,node.x,ly);
-      } else {
-        ctx.font=`600 10px Circular Std,sans-serif`; ctx.fillStyle='#0f172a';
-        const title=node.title.length>18?node.title.slice(0,17)+'…':node.title;
-        ctx.fillText(title,node.x,ry+10);
-        if(Array.isArray(node.tags)&&node.tags.length){
-          ctx.font=`8.5px Circular Std,sans-serif`; ctx.fillStyle=node.color;
-          ctx.fillText('#'+node.tags.slice(0,2).join(' #'),node.x,ry+26);
-        }
-      }
-      ctx.globalAlpha=1; return;
+    // Post-it mode
+    if (n.type==='doc' && showPostIt) {
+      _drawPostIt(ctx, n, isHover, z);
+      ctx.globalAlpha = 1;
+      return;
     }
 
-    // NORMALER KREIS
-    ctx.shadowColor=`${node.color}55`; ctx.shadowBlur=active&&hover?.id===node.id?24:8;
-    ctx.beginPath(); ctx.arc(node.x,node.y,node.r,0,Math.PI*2);
-    ctx.fillStyle=node.color; ctx.fill(); ctx.shadowBlur=0;
-    ctx.strokeStyle='#fff'; ctx.lineWidth=node.type==='folder'?2.5:1.5; ctx.stroke();
+    // Glow
+    ctx.shadowColor = n.color + '88';
+    ctx.shadowBlur  = isHover ? 30 : (n.type==='folder'?16:10);
+
+    // Kreis
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+    if (n.type === 'folder' || n.type === 'subfolder') {
+      // Glassmorphism-ähnlich für Ordner
+      const grd = ctx.createRadialGradient(n.x-n.r*.3, n.y-n.r*.3, 0, n.x, n.y, n.r);
+      grd.addColorStop(0, n.color + 'dd');
+      grd.addColorStop(1, n.color + '88');
+      ctx.fillStyle = grd;
+    } else {
+      ctx.fillStyle = n.color + (active?'cc':'66');
+    }
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(255,255,255,' + (isHover?.6:.15) + ')';
+    ctx.lineWidth = isHover ? 2 : 1;
+    ctx.stroke();
 
     // Label
     if (showLabels) {
-      const maxCh=node.type==='folder'?16:14;
-      const label=node.title.length>maxCh?node.title.slice(0,maxCh-1)+'…':node.title;
-      ctx.font=`${node.type==='folder'?'700 ':''}${node.type==='folder'?11:10}px Circular Std,sans-serif`;
-      const tw=ctx.measureText(label).width;
-      ctx.fillStyle='rgba(255,255,255,.82)';
-      ctx.fillRect(node.x-tw/2-3,node.y+node.r+2,tw+6,13);
-      ctx.fillStyle=node.type==='folder'?node.color:'#0f172a';
-      ctx.textAlign='center'; ctx.textBaseline='top';
-      ctx.fillText(label,node.x,node.y+node.r+3);
+      const maxC = n.type==='folder'?14:12;
+      const label = n.label.length>maxC ? n.label.slice(0,maxC-1)+'…' : n.label;
+      ctx.font = `${n.type==='folder'?'700 ':''}${n.type==='folder'?11:9.5}px Circular Std, system-ui`;
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(2,6,23,.7)';
+      const py = n.y + n.r + 4;
+      ctx.fillRect(n.x-tw/2-3, py, tw+6, 13);
+      ctx.fillStyle = n.type==='folder' ? '#e2e8f0' : 'rgba(226,232,240,.8)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(label, n.x, py+1);
     }
+
+    ctx.globalAlpha = 1;
   });
-  ctx.globalAlpha=1; ctx.restore();
+
+  ctx.restore();
+  ctx.shadowBlur = 0;
 }
 
-function edgeColor(kind, weight) {
-  if (kind === 'folder') return 'rgba(15,23,42,.18)';
-  if (kind === 'tag') return 'rgba(148,163,184,.32)';
-  if (kind === 'shared') return `rgba(32,110,251,${Math.min(.42, .16 + weight * .08)})`;
-  return 'rgba(32,110,251,.22)';
+function _drawPostIt(ctx, n, isHover, z) {
+  const showContent = z >= G_L3 * 1.3;
+  const pw = showContent ? 170 : 130, ph = showContent ? 110 : 64;
+  const rx = n.x - pw/2, ry = n.y - ph/2;
+
+  // Shadow/Glow
+  ctx.shadowColor = n.color + '55';
+  ctx.shadowBlur = isHover ? 24 : 12;
+
+  // Glassmorphism card
+  ctx.fillStyle = isHover ? 'rgba(15,23,42,.95)' : 'rgba(10,16,30,.88)';
+  ctx.strokeStyle = isHover ? n.color + 'aa' : 'rgba(255,255,255,.12)';
+  ctx.lineWidth = isHover ? 1.5 : 1;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(rx, ry, pw, ph, 8);
+  else ctx.rect(rx, ry, pw, ph);
+  ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Farb-Akzentlinie oben
+  ctx.fillStyle = n.color;
+  ctx.beginPath();
+  const barH = 3;
+  if (ctx.roundRect) ctx.roundRect(rx, ry, pw, barH, {upperLeft:8, upperRight:8, lowerLeft:0, lowerRight:0});
+  else ctx.rect(rx, ry, pw, barH);
+  ctx.fill();
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+
+  if (showContent && n.content) {
+    // Volltext
+    ctx.font = '700 9.5px Circular Std,system-ui'; ctx.fillStyle = '#f1f5f9';
+    const t = n.label.length>20?n.label.slice(0,19)+'…':n.label;
+    ctx.fillText(t, n.x, ry+8);
+    ctx.font = '8.5px Circular Std,system-ui'; ctx.fillStyle = '#64748b';
+    const words = n.content.split(' '), maxW = pw-14;
+    let line='', ly=ry+22;
+    for (const w of words) {
+      const test = line?line+' '+w:w;
+      if (ctx.measureText(test).width > maxW && line) {
+        ctx.fillText(line, n.x, ly); line=w; ly+=11;
+        if (ly > ry+ph-16) { ctx.fillText(line+'…', n.x, ly); break; }
+      } else line=test;
+    }
+    if (ly <= ry+ph-16) ctx.fillText(line, n.x, ly);
+  } else {
+    // Titel + Tags
+    ctx.font = '700 10px Circular Std,system-ui'; ctx.fillStyle = '#f1f5f9';
+    const t = n.label.length>18?n.label.slice(0,17)+'…':n.label;
+    ctx.fillText(t, n.x, ry+9);
+    if (n.tags?.length) {
+      ctx.font = '9px Circular Std,system-ui'; ctx.fillStyle = n.color+'cc';
+      ctx.fillText('#'+n.tags.slice(0,2).join(' #'), n.x, ry+26);
+    }
+    if (n.chunks) {
+      ctx.font = '8px Circular Std,system-ui'; ctx.fillStyle = '#475569';
+      ctx.fillText(n.chunks+' Chunks', n.x, ry+ph-14);
+    }
+  }
 }
 
-function attachGraphEvents(canvas, wrap) {
-  const tooltip = document.getElementById('graph-tooltip');
-  const ttTitle = document.getElementById('graph-tt-title');
-  const ttTags = document.getElementById('graph-tt-tags');
-  const ttChunks = document.getElementById('graph-tt-chunks');
-  const toWorld = (event) => {
+function _drawEmpty(ctx) {
+  const { width: W, height: H } = _gv;
+  ctx.fillStyle = '#050a14'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = 'rgba(148,163,184,.3)'; ctx.font = '14px system-ui';
+  ctx.textAlign = 'center'; ctx.fillText('Keine Dokumente für den Graphen', W/2, H/2);
+}
+
+// ── Zoom/Pan ───────────────────────────────────────────────────────────────────
+function _getLevel(z) {
+  if (z < G_L1) return 1;
+  if (z < G_L2) return 2;
+  if (z < G_L3) return 3;
+  return 4;
+}
+
+function _animZoom(targetZoom, cx, cy) {
+  const { width: W, height: H } = _gv;
+  if (cx === undefined) cx = W/2; if (cy === undefined) cy = H/2;
+
+  // Korrektur damit Mauszeigerposition fixiert bleibt
+  const wCx = (cx - W/2 - _gAnim.panX) / _gAnim.zoom + W/2;
+  const wCy = (cy - H/2 - _gAnim.panY) / _gAnim.zoom + H/2;
+  const newPanX = cx - W/2 - (wCx - W/2) * targetZoom;
+  const newPanY = cy - H/2 - (wCy - H/2) * targetZoom;
+  const newZ = Math.max(0.12, Math.min(5, targetZoom));
+
+  const prevLevel = _getLevel(_gAnim.zoom);
+  const newLevel  = _getLevel(newZ);
+  const levelChange = prevLevel !== newLevel;
+
+  if (typeof gsap !== 'undefined') {
+    if (_gTween) _gTween.kill();
+    _gTween = gsap.to(_gAnim, {
+      zoom: newZ, panX: newPanX, panY: newPanY,
+      duration: levelChange ? 0.7 : 0.35,
+      ease: levelChange ? 'power3.inOut' : 'power2.out',
+      onUpdate: () => {
+        _updateZoomLabel();
+        if (levelChange) _updateLevelIndicator();
+      },
+      onComplete: () => {
+        if (levelChange && newLevel === 4) _loadDocContent();
+      }
+    });
+  } else {
+    _gAnim.zoom = newZ; _gAnim.panX = newPanX; _gAnim.panY = newPanY;
+  }
+  _updateZoomLabel();
+}
+
+function _updateZoomLabel() {
+  const el = document.getElementById('graph-zoom-label');
+  if (el) el.textContent = Math.round(_gAnim.zoom * 100) + '%';
+}
+
+function _updateLevelIndicator() {
+  const level = _getLevel(_gAnim.zoom);
+  [1,2,3,4].forEach(l => {
+    document.getElementById(`glvl-${l}`)?.classList.toggle('active', l === level);
+  });
+}
+
+// Content für Post-it laden (wenn Level 4)
+function _loadDocContent() {
+  _gv.nodes.filter(n => n.type==='doc' && !n.content).forEach(n => {
+    const doc = state.documents.find(d => d.id === n.docId);
+    if (doc?.content) n.content = doc.content.slice(0, 400);
+  });
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────────
+window.navGraph = function(dir) {
+  const factor = dir > 0 ? 1.4 : 1/1.4;
+  _animZoom(_gAnim.zoom * factor);
+};
+
+window.fitGraphView = function() {
+  const { nodes, width: W, height: H } = _gv;
+  if (!nodes.length) return;
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  nodes.forEach(n => { minX=Math.min(minX,n.x-n.r); maxX=Math.max(maxX,n.x+n.r); minY=Math.min(minY,n.y-n.r); maxY=Math.max(maxY,n.y+n.r); });
+  const bw=maxX-minX+80, bh=maxY-minY+80;
+  const z = Math.min(1.2, Math.min(W/bw, H/bh));
+  const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+  if (typeof gsap !== 'undefined') {
+    if (_gTween) _gTween.kill();
+    _gTween = gsap.to(_gAnim, {
+      zoom:z, panX:(W/2-cx)*z, panY:(H/2-cy)*z,
+      duration:0.9, ease:'power3.inOut',
+      onUpdate: _updateZoomLabel
+    });
+  } else {
+    _gAnim.zoom=z; _gAnim.panX=(W/2-cx)*z; _gAnim.panY=(H/2-cy)*z;
+  }
+  _updateZoomLabel();
+};
+
+window.reheatGraphV2 = function() {
+  const { nodes, width:W, height:H } = _gv;
+  nodes.forEach((n, i) => {
+    const a = i/nodes.length*Math.PI*2, r=Math.min(W,H)*.3;
+    n.x = W/2 + Math.cos(a)*r; n.y = H/2 + Math.sin(a)*r;
+    n.vx=0; n.vy=0;
+  });
+  _gv.energy = 200;
+};
+
+window.setGraphGrouping = function(mode) {
+  _gv.grouping = mode;
+  document.getElementById('gbtn-folder')?.classList.toggle('active', mode==='folder');
+  document.getElementById('gbtn-tag')?.classList.toggle('active', mode==='tag');
+  _buildGraph();
+  _gv.energy = 220;
+  reheatGraphV2();
+  fitGraphView();
+};
+
+// Legacy compat
+window.resetGraphView = fitGraphView;
+window.reheatGraph = reheatGraphV2;
+window.setGraphMode = function() {};
+window.zoomToFit = fitGraphView;
+
+// ── Hover Context Panel ────────────────────────────────────────────────────────
+function _showContextPanel(node, screenX, screenY) {
+  const panel = document.getElementById('graph-context-panel');
+  if (!panel) return;
+  const wrap  = document.getElementById('doc-graph-wrap');
+  const wRect = wrap?.getBoundingClientRect();
+
+  // Inhalt
+  const icon = document.getElementById('gcp-icon');
+  const isFolder = node.type==='folder'||node.type==='subfolder';
+  icon.style.background = node.color + '33';
+  icon.innerHTML = `<i class="fa-solid ${isFolder?'fa-folder':'fa-file-lines'}" style="color:${node.color}"></i>`;
+
+  document.getElementById('gcp-title').textContent = node.label;
+
+  let sub = '';
+  if (!isFolder) {
+    const folder = state.folders.find(f => f.id === node.folderId);
+    sub = [folder?.name, node.tags?.[0]].filter(Boolean).join(' · ');
+  } else {
+    const docs = state.documents.filter(d => d.folder_id === node.folderId);
+    sub = docs.length + ' Dokumente';
+  }
+  document.getElementById('gcp-sub').textContent = sub;
+
+  // Meta
+  const metaEl = document.getElementById('gcp-meta');
+  if (!isFolder) {
+    const size = node.size ? formatBytes(node.size) : '';
+    const date = node.date ? new Date(node.date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
+    metaEl.innerHTML = [
+      node.chunks ? `<span><i class="fa-solid fa-layer-group"></i>${node.chunks} Chunks</span>` : '',
+      size ? `<span><i class="fa-solid fa-weight-hanging"></i>${size}</span>` : '',
+      date ? `<span><i class="fa-regular fa-calendar"></i>${date}</span>` : '',
+      node.uploader ? `<span><i class="fa-regular fa-user"></i>${node.uploader}</span>` : '',
+    ].filter(Boolean).join('');
+  } else { metaEl.innerHTML = ''; }
+
+  // Ähnliche Docs
+  const simEl = document.getElementById('gcp-similar');
+  const simList = document.getElementById('gcp-similar-list');
+  if (!isFolder && node.tags?.length) {
+    const similar = _gv.nodes.filter(n => n.type==='doc' && n.id!==node.id &&
+      n.tags?.some(t => node.tags.includes(t))).slice(0,3);
+    if (similar.length) {
+      simEl.style.display = 'block';
+      simList.innerHTML = similar.map(s => {
+        const shared = s.tags.filter(t => node.tags.includes(t)).length;
+        const pct = Math.min(100, shared*30+40);
+        return `<div class="gcp-similar-item" onclick="openDocPreview('${s.docId}','${escHtml(s.label)}')">
+          <div class="gcp-sim-bar" style="width:${pct}%"></div>
+          <span>${escHtml(s.label.length>22?s.label.slice(0,21)+'…':s.label)}</span>
+          <span style="margin-left:auto;font-size:.68rem;color:#475569">${pct}%</span>
+        </div>`;
+      }).join('');
+    } else simEl.style.display = 'none';
+  } else simEl.style.display = 'none';
+
+  // Actions
+  const openBtn = document.getElementById('gcp-open');
+  const navBtn  = document.getElementById('gcp-nav');
+  if (isFolder) {
+    openBtn.textContent = 'Öffnen'; openBtn.onclick = () => navigateTo(node.folderId, node.label);
+    navBtn.textContent = 'Überspringen'; navBtn.onclick = () => _hideContextPanel();
+  } else {
+    openBtn.textContent = 'Vorschau'; openBtn.onclick = () => openDocPreview(node.docId, node.label);
+    navBtn.textContent  = 'Navigieren'; navBtn.onclick = () => { navigateTo(node.folderId||'', ''); };
+  }
+
+  panel.style.display = 'block';
+  // Position: rechts oder links je nach Platz
+  const px = (screenX||0) > (_gv.width*.6) ? 14 : null;
+  panel.style.right = px !== null ? px+'px' : 'auto';
+  panel.style.left  = px === null ? '14px'  : 'auto';
+}
+
+function _hideContextPanel() {
+  const p = document.getElementById('graph-context-panel');
+  if (p) p.style.display = 'none';
+}
+
+// ── Minimap ─────────────────────────────────────────────────────────────────────
+function _updateMinimap() {
+  const mm = document.getElementById('graph-minimap');
+  if (!mm) return;
+  const mW = 140, mH = 90;
+  const ctx = mm.getContext('2d');
+  const { nodes, width:W, height:H, zoom:z, panX, panY } = _gv;
+
+  ctx.clearRect(0, 0, mW, mH);
+  ctx.fillStyle = '#050a14'; ctx.fillRect(0, 0, mW, mH);
+
+  if (!nodes.length) return;
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  nodes.forEach(n => { minX=Math.min(minX,n.x); maxX=Math.max(maxX,n.x); minY=Math.min(minY,n.y); maxY=Math.max(maxY,n.y); });
+  const bw=maxX-minX+60, bh=maxY-minY+60;
+  const scale = Math.min(mW/bw, mH/bh);
+  const ox = (mW - bw*scale)/2 - (minX-30)*scale;
+  const oy = (mH - bh*scale)/2 - (minY-30)*scale;
+
+  nodes.forEach(n => {
+    const mx = n.x*scale+ox, my = n.y*scale+oy;
+    ctx.beginPath(); ctx.arc(mx, my, Math.max(1.5, n.r*scale*.6), 0, Math.PI*2);
+    ctx.fillStyle = n.type==='doc' ? n.color+'99' : n.color;
+    ctx.fill();
+  });
+
+  // Viewport-Rechteck
+  const vpEl = document.getElementById('graph-minimap-viewport');
+  if (vpEl) {
+    const vx = ((W/2 - W/2*z - panX) * scale + ox);
+    const vy = ((H/2 - H/2*z - panY) * scale + oy);
+    const vw = W * scale / z * (mW/W) * z;
+    const vh = H * scale / z * (mH/H) * z;
+    // Vereinfacht: viewport als Anteil der minimap
+    const vpW = (W/z) * scale;
+    const vpH = (H/z) * scale;
+    const vpLeft = (W/2-panX/z-W/(2*z))*scale+ox;
+    const vpTop  = (H/2-panY/z-H/(2*z))*scale+oy;
+    vpEl.style.left   = Math.max(0,vpLeft) + 'px';
+    vpEl.style.top    = Math.max(0,vpTop)  + 'px';
+    vpEl.style.width  = Math.min(mW, vpW)  + 'px';
+    vpEl.style.height = Math.min(mH, vpH)  + 'px';
+  }
+}
+
+// ── Events ─────────────────────────────────────────────────────────────────────
+function _attachGraphEventsV2(canvas, wrap) {
+  // Altes Event-Setup entfernen
+  canvas.onmousedown = canvas.onmousemove = canvas.onmouseup =
+  canvas.onwheel = canvas.onclick = canvas.ondblclick = null;
+
+  const toWorld = (ex, ey) => {
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
-    const scene = _graphScene;
+    const sx = (ex-rect.left) * (_gv.width / rect.width);
+    const sy = (ey-rect.top)  * (_gv.height/ rect.height);
     return {
-      x: (x - scene.width / 2 - scene.panX) / scene.zoom + scene.width / 2,
-      y: (y - scene.height / 2 - scene.panY) / scene.zoom + scene.height / 2,
+      x: (sx - _gv.width/2 - _gv.panX) / _gv.zoom + _gv.width/2,
+      y: (sy - _gv.height/2- _gv.panY) / _gv.zoom + _gv.height/2,
     };
   };
-  const hitTest = (point) => {
-    if (!_graphScene) return null;
-    return [..._graphScene.nodes].reverse().find(node => {
-      const dx = node.x - point.x, dy = node.y - point.y;
-      return dx * dx + dy * dy <= Math.pow(node.r + 8, 2);
+  const hitTest = (ex, ey) => {
+    const w = toWorld(ex, ey);
+    return _gv.nodes.find(n => {
+      const dx=n.x-w.x, dy=n.y-w.y;
+      const hr = _gv.zoom >= G_L3 ? 85/_gv.zoom : n.r + 10/_gv.zoom;
+      return dx*dx+dy*dy < hr*hr;
     }) || null;
   };
 
-  canvas.onmousemove = (event) => {
-    if (!_graphScene) return;
-    if (_graphDrag) {
-      _graphScene.panX = _graphDrag.panX + event.clientX - _graphDrag.x;
-      _graphScene.panY = _graphDrag.panY + event.clientY - _graphDrag.y;
-      _graphScene.energy = 12;
-      startGraphLoop();
-      return;
-    }
-    const hit = hitTest(toWorld(event));
-    _graphScene.hover = hit;
-    canvas.style.cursor = hit ? 'pointer' : 'grab';
+  // Mausrad → Zoom um Cursor
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const cx = (e.clientX-rect.left) * (_gv.width/rect.width);
+    const cy = (e.clientY-rect.top)  * (_gv.height/rect.height);
+    const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+    _animZoom(_gAnim.zoom * factor, cx, cy);
+  }, { passive: false });
+
+  // Drag/Pan
+  canvas.addEventListener('mousedown', e => {
+    const hit = hitTest(e.clientX, e.clientY);
     if (hit) {
-      ttTitle.textContent = hit.title;
-      ttTags.textContent = hit.type === 'doc' && hit.tags?.length ? `Tags: ${hit.tags.join(', ')}` : hit.type === 'folder' ? 'Ordner-Ast' : hit.type === 'tag' ? 'Tag-Verbindung' : '';
-      ttChunks.textContent = hit.type === 'doc' ? `${hit.chunks} Chunk${hit.chunks !== 1 ? 's' : ''}` : 'Hover markiert verbundene Stränge';
-      tooltip.style.display = 'block';
-      tooltip.style.left = `${event.clientX - wrap.getBoundingClientRect().left + 12}px`;
-      tooltip.style.top = `${event.clientY - wrap.getBoundingClientRect().top - 8}px`;
+      _gv.dragNode = hit; _gv.dragging = false;
     } else {
-      tooltip.style.display = 'none';
+      _gv.dragNode = null; _gv.dragging = true;
     }
-    _graphScene.energy = 10;
-    startGraphLoop();
-  };
-  canvas.onmousedown = (event) => {
-    _graphDrag = { x: event.clientX, y: event.clientY, panX: _graphScene?.panX || 0, panY: _graphScene?.panY || 0 };
-    canvas.style.cursor = 'grabbing';
-  };
-  window.onmouseup = () => { _graphDrag = null; };
-  canvas.onmouseleave = () => {
-    tooltip.style.display = 'none';
-    if (_graphScene) _graphScene.hover = null;
-  };
-  canvas.onwheel = (event) => {
-    event.preventDefault();
-    if (!_graphScene) return;
-    const next = _graphScene.zoom * (event.deltaY > 0 ? .92 : 1.08);
-    _graphScene.zoom = Math.max(.45, Math.min(2.4, next));
-    _graphScene.energy = 16;
-    startGraphLoop();
-  };
-  canvas.onclick = (event) => {
-    const hit = hitTest(toWorld(event));
-    if (!hit?.docId) return;
-    setDocView('cards');
-    window.openDocPreview?.(hit.docId);
-  };
+    _gv.lastMX = e.clientX; _gv.lastMY = e.clientY;
+  });
+  canvas.addEventListener('mousemove', e => {
+    const dx = e.clientX - _gv.lastMX;
+    const dy = e.clientY - _gv.lastMY;
+    _gv.lastMX = e.clientX; _gv.lastMY = e.clientY;
+
+    if (_gv.dragging) {
+      _gAnim.panX += dx; _gAnim.panY += dy;
+      if (_gTween) { _gTween.kill(); _gTween = null; }
+    } else if (_gv.dragNode) {
+      const scale = _gv.width / canvas.getBoundingClientRect().width;
+      _gv.dragNode.x += dx * scale / _gv.zoom;
+      _gv.dragNode.y += dy * scale / _gv.zoom;
+      _gv.dragNode.vx = 0; _gv.dragNode.vy = 0;
+    }
+
+    // Hover
+    const hit = hitTest(e.clientX, e.clientY);
+    const prev = _gv.hover;
+    _gv.hover = hit || null;
+    if (hit !== prev) {
+      canvas.style.cursor = hit ? 'pointer' : 'grab';
+      if (hit) _showContextPanel(hit, e.clientX, e.clientY);
+      else _hideContextPanel();
+    }
+  });
+  canvas.addEventListener('mouseup', () => { _gv.dragging = false; _gv.dragNode = null; });
+  canvas.addEventListener('mouseleave', () => { _gv.hover = null; _gv.dragging = false; _gv.dragNode = null; _hideContextPanel(); });
+
+  // Doppelklick → In Ordner navigieren / Dokument öffnen
+  canvas.addEventListener('dblclick', e => {
+    const hit = hitTest(e.clientX, e.clientY);
+    if (!hit) return;
+    if (hit.type==='folder'||hit.type==='subfolder') navigateTo(hit.folderId, hit.label);
+    else if (hit.type==='doc') openDocPreview(hit.docId, hit.label);
+  });
+
+  // Touch Support
+  let _lastTouchDist = 0;
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      const t = e.touches;
+      _lastTouchDist = Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const t = e.touches;
+      const dist = Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
+      const factor = dist / (_lastTouchDist || dist);
+      _lastTouchDist = dist;
+      const cx = (t[0].clientX+t[1].clientX)/2;
+      const cy = (t[0].clientY+t[1].clientY)/2;
+      const rect = canvas.getBoundingClientRect();
+      _animZoom(_gAnim.zoom * factor, (cx-rect.left)*(_gv.width/rect.width), (cy-rect.top)*(_gv.height/rect.height));
+    }
+  }, { passive: false });
+
+  canvas.style.cursor = 'grab';
+}
+
+// ── Scroll Hint ─────────────────────────────────────────────────────────────────
+function _showScrollHint() {
+  const el = document.getElementById('graph-scroll-hint');
+  if (!el) return;
+  el.style.opacity = '1';
+  setTimeout(() => { if (el) el.style.transition = 'opacity 1s'; el.style.opacity = '0'; }, 3000);
+}
+
+// ── Stop ────────────────────────────────────────────────────────────────────────
+function stopGraph() {
+  _gv.running = false;
+  if (_gv.animId) { cancelAnimationFrame(_gv.animId); _gv.animId = null; }
+  if (_gTween) { _gTween.kill(); _gTween = null; }
+  _hideContextPanel();
 }
 
 // ─── Search: Teams-Style Dropdown + Filter Pills ─────────────────────────────
@@ -5849,6 +6218,7 @@ window.RootsSyncStatusConfig = {
   }
 };
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script defer src="https://pgoutzeris-stack.github.io/ROOTS_Intranet/roots-user-bridge.js?v=20260601-final"></script>
 
 <!-- Upload Modal (Quick Upload aus Dokumente-Ansicht) -->
