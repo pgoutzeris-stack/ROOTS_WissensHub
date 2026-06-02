@@ -89,9 +89,9 @@ async function getApiKey(name: "openai" | "anthropic" | "google" | "voyage"): Pr
     openai: OPENAI_API_KEY_ENV, anthropic: ANTHROPIC_API_KEY_ENV,
     google: GOOGLE_API_KEY_ENV, voyage: VOYAGE_API_KEY_ENV,
   }[name] || "";
-  _keyCache[name] = val;
+  _keyCache[name] = val.trim();
   _keyCacheAt[name] = now;
-  return val;
+  return _keyCache[name];
 }
 
 // ---------------------------------------------------------------------------
@@ -321,7 +321,8 @@ function chunkMarkdown(content: string): Chunk[] {
 // ---------------------------------------------------------------------------
 async function handleUpload(
   body: Record<string, unknown>,
-  origin: string | null
+  origin: string | null,
+  req?: Request
 ): Promise<Response> {
   const {
     title,
@@ -347,6 +348,23 @@ async function handleUpload(
     return errorResponse(origin, "title and content are required");
   }
 
+  // Wenn kein Uploader-Name vom Frontend → aus JWT+Profil holen
+  let resolvedUploaderName = uploader_name || '';
+  let resolvedUploaderKuerzel = uploader_kuerzel || '';
+  let resolvedUploadedBy = uploaded_by || null;
+  if (req) {
+    const uploadAuth = await requireAuth(req);
+    if (uploadAuth?.userId) {
+      resolvedUploadedBy = resolvedUploadedBy || uploadAuth.userId;
+      if (!resolvedUploaderName) {
+        const { data: prof } = await getAdminClient().schema("users").from("profiles")
+          .select("full_name, kuerzel").eq("id", uploadAuth.userId).maybeSingle();
+        resolvedUploaderName = prof?.full_name || '';
+        resolvedUploaderKuerzel = prof?.kuerzel || resolvedUploaderKuerzel;
+      }
+    }
+  }
+
   const supabase = getAdminClient();
 
   const { data: doc, error } = await supabase
@@ -358,9 +376,9 @@ async function handleUpload(
       filename: filename ?? null,
       folder_id: folder_id ?? null,
       tags: tags ?? [],
-      uploader_name: uploader_name ?? null,
-      uploader_kuerzel: uploader_kuerzel ?? null,
-      uploaded_by: uploaded_by ?? null,
+      uploader_name: resolvedUploaderName || null,
+      uploader_kuerzel: resolvedUploaderKuerzel || null,
+      uploaded_by: resolvedUploadedBy ?? null,
       file_size_bytes: new TextEncoder().encode(content).length,
       embedding_status: "pending",
     })
@@ -576,15 +594,15 @@ async function handleChat(
   if (folder_id) rpcParams.filter_folder_id = folder_id;
   if (tags && tags.length > 0) rpcParams.filter_tags = tags;
 
-  const { data: matchedChunks, error: rpcErr } = await supabase.rpc(
-    "knowledge.match_chunks",
+  const { data: matchedChunks, error: rpcErr } = await supabase.schema("knowledge").rpc(
+    "match_chunks",
     rpcParams
   );
 
   // Fallback: try without schema prefix if the above fails
   let chunks = matchedChunks;
   if (rpcErr || !chunks) {
-    const { data: fallbackChunks } = await supabase.rpc("match_chunks", rpcParams);
+    const { data: fallbackChunks } = await supabase.schema("knowledge").rpc("match_chunks", rpcParams);
     chunks = fallbackChunks ?? [];
   }
 
@@ -636,8 +654,19 @@ Antworte immer auf Deutsch, präzise und hilfreich. Wenn du unsicher bist, sage 
   const isOpenAIModel = model.startsWith("gpt") || model.startsWith("o1") || model.startsWith("o3");
   const isGeminiModel = model.startsWith("gemini");
 
+  // Auto-fallback: wenn kein Anthropic-Key verfügbar und Claude-Modell, auf OpenAI wechseln
+  let effectiveModel = model;
+  let effectiveIsOpenAI = isOpenAIModel;
+  if (!isOpenAIModel && !isGeminiModel) {
+    const anthropicKey = await getApiKey("anthropic");
+    if (!anthropicKey) {
+      effectiveModel = "gpt-4o-mini";
+      effectiveIsOpenAI = true;
+    }
+  }
+
   try {
-    if (isOpenAIModel) {
+    if (effectiveIsOpenAI) {
       // ── OpenAI ──────────────────────────────────────────────────────────────
       const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -646,7 +675,7 @@ Antworte immer auf Deutsch, präzise und hilfreich. Wenn du unsicher bist, sage 
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model,
+          model: effectiveModel,
           max_tokens: 2048,
           messages: [
             { role: "system", content: systemPrompt },
@@ -695,7 +724,7 @@ Antworte immer auf Deutsch, präzise und hilfreich. Wenn du unsicher bist, sage 
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model,
+          model: effectiveModel,
           max_tokens: 2048,
           system: systemPrompt,
           messages: [{ role: "user", content: message }],
@@ -976,7 +1005,7 @@ serve(async (req: Request) => {
   try {
     switch (action) {
       case "upload":
-        return await handleUpload(body, origin);
+        return await handleUpload(body, origin, req);
 
       case "embed":
         return await handleEmbed(body, origin);

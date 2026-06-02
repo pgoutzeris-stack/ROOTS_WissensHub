@@ -1457,6 +1457,14 @@
           </select>
           <div class="active-filter-chips" id="active-tag-chips"></div>
           <div class="toolbar-spacer"></div>
+          <div class="view-toggle" style="display:flex;gap:2px;background:var(--surface-2,#f1f5f9);border-radius:8px;padding:3px">
+            <button id="btn-view-cards" class="view-toggle-btn active" onclick="setDocView('cards')" title="Kartenansicht" style="padding:5px 8px;border:none;border-radius:6px;background:var(--bg);cursor:pointer;color:var(--ink)">
+              <i class="fa-solid fa-grip"></i>
+            </button>
+            <button id="btn-view-graph" class="view-toggle-btn" onclick="setDocView('graph')" title="Wissensgraph" style="padding:5px 8px;border:none;border-radius:6px;background:transparent;cursor:pointer;color:var(--muted)">
+              <i class="fa-solid fa-diagram-project"></i>
+            </button>
+          </div>
           <button class="btn-primary" onclick="switchView('upload')">
             <i class="fa-solid fa-cloud-arrow-up"></i>
             Hochladen
@@ -1464,6 +1472,14 @@
         </div>
         <div class="dash-content" id="doc-content">
           <div class="doc-grid" id="doc-grid"></div>
+          <div id="doc-graph-wrap" style="display:none;width:100%;height:100%;position:relative">
+            <canvas id="graph-canvas" style="width:100%;height:100%;border-radius:12px"></canvas>
+            <div id="graph-tooltip" style="position:absolute;display:none;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:.8rem;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.12);max-width:220px;z-index:10">
+              <div id="graph-tt-title" style="font-weight:600;color:var(--ink);margin-bottom:4px"></div>
+              <div id="graph-tt-tags" style="color:var(--muted)"></div>
+              <div id="graph-tt-chunks" style="color:var(--muted);font-size:.75rem;margin-top:3px"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2177,8 +2193,9 @@ window.renderDocuments = function() {
 function makeDocCard(doc) {
   const card = document.createElement('div');
   card.className = 'doc-card';
-  const statusClass = doc.status === 'verarbeitet' ? 'verarbeitet' : doc.status === 'fehler' ? 'fehler' : 'pending';
-  const statusLabel = statusClass === 'verarbeitet' ? 'Verarbeitet' : statusClass === 'fehler' ? 'Fehler' : 'Ausstehend';
+  const embSt = doc.embedding_status || 'pending';
+  const statusClass = embSt === 'done' ? 'verarbeitet' : embSt === 'error' ? 'fehler' : 'pending';
+  const statusLabel = embSt === 'done' ? 'Verarbeitet' : embSt === 'error' ? 'Fehler' : embSt === 'processing' ? 'Wird verarbeitet…' : 'Ausstehend';
   const tags = Array.isArray(doc.tags) ? doc.tags : [];
   const folderName = doc.folder_name || '';
   const uploader = doc.uploader_name || 'Unbekannt';
@@ -2423,8 +2440,8 @@ window.handleUploadAll = async function() {
         file_size_bytes: uf.file.size,
         folder_id: folderId || null,
         tags,
-        uploader_name: window.RootsUser?._p?.full_name || '',
-        uploader_kuerzel: window.RootsUser?._p?.kuerzel || '',
+        uploader_name: window.RootsUser?._p?.full_name || window.RootsUser?._p?.name || window.RootsUser?._p?.display_name || '',
+        uploader_kuerzel: window.RootsUser?._p?.kuerzel || window.RootsUser?._p?.abbreviation || '',
         uploaded_by: window.RootsUser?._uid || null,
       });
       const res = await fetch(`${WISSENSHUB_API_URL}`, { method: 'POST', headers, body: payload });
@@ -2562,7 +2579,7 @@ window.sendChatMessage = async function() {
     if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
 
     const data = await res.json();
-    const reply = data.reply || '';
+    const reply = data.response || data.reply || '';
     const sources = data.sources || [];
     state.chatHistory.push({ role: 'assistant', content: reply });
 
@@ -2746,7 +2763,7 @@ function saveAiSettingsToStorage(settings) {
 
 async function openAiSettings() {
   const settings = loadAiSettings();
-  const selectedModel = settings.model || 'claude-sonnet-4-5';
+  const selectedModel = settings.model || 'gpt-4o-mini';
 
   // Render model grid
   const grid = document.getElementById('model-grid');
@@ -2861,6 +2878,212 @@ window.closeAiSettings = closeAiSettings;
 window.selectModel = selectModel;
 window.toggleKeyVisibility = toggleKeyVisibility;
 window.saveAiSettings = saveAiSettings;
+
+// ─── Wissensgraph (Canvas Force-Simulation) ─────────────────────────────────
+let _graphRunning = false;
+let _graphAnim = null;
+
+window.setDocView = function(view) {
+  const gridEl = document.getElementById('doc-grid');
+  const graphEl = document.getElementById('doc-graph-wrap');
+  const btnCards = document.getElementById('btn-view-cards');
+  const btnGraph = document.getElementById('btn-view-graph');
+  if (view === 'graph') {
+    gridEl.style.display = 'none';
+    graphEl.style.display = 'block';
+    btnCards.style.background = 'transparent';
+    btnCards.style.color = 'var(--muted)';
+    btnGraph.style.background = 'var(--bg)';
+    btnGraph.style.color = 'var(--ink)';
+    initKnowledgeGraph();
+  } else {
+    gridEl.style.display = '';
+    graphEl.style.display = 'none';
+    btnCards.style.background = 'var(--bg)';
+    btnCards.style.color = 'var(--ink)';
+    btnGraph.style.background = 'transparent';
+    btnGraph.style.color = 'var(--muted)';
+    if (_graphAnim) { cancelAnimationFrame(_graphAnim); _graphRunning = false; }
+  }
+};
+
+function initKnowledgeGraph() {
+  if (_graphRunning) { cancelAnimationFrame(_graphAnim); _graphRunning = false; }
+  const canvas = document.getElementById('graph-canvas');
+  const wrap = document.getElementById('doc-graph-wrap');
+  canvas.width = wrap.clientWidth || 800;
+  canvas.height = wrap.clientHeight || 600;
+  const W = canvas.width, H = canvas.height;
+  const ctx = canvas.getContext('2d');
+  const docs = state.documents;
+  if (!docs.length) {
+    ctx.fillStyle = 'var(--muted)'; ctx.font = '14px sans-serif';
+    ctx.fillText('Keine Dokumente', W/2-60, H/2); return;
+  }
+
+  // Color palette per folder
+  const COLORS = ['#206efb','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316'];
+  const folderIds = [...new Set(docs.map(d => d.folder_id || ''))];
+  const folderColor = {};
+  folderIds.forEach((fid, i) => folderColor[fid] = COLORS[i % COLORS.length]);
+
+  // Nodes
+  const nodes = docs.map((doc, i) => ({
+    id: doc.id, title: doc.title || doc.filename || 'Dokument',
+    tags: Array.isArray(doc.tags) ? doc.tags : [],
+    folder_id: doc.folder_id || '',
+    chunks: doc.chunk_count || 1,
+    x: W/2 + (Math.cos(i/docs.length*2*Math.PI)) * Math.min(W,H)*0.3,
+    y: H/2 + (Math.sin(i/docs.length*2*Math.PI)) * Math.min(W,H)*0.3,
+    vx: 0, vy: 0,
+    r: Math.max(8, Math.min(20, 8 + (doc.chunk_count||1)))
+  }));
+
+  // Edges (shared tags)
+  const edges = [];
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i+1; j < nodes.length; j++) {
+      const shared = nodes[i].tags.filter(t => nodes[j].tags.includes(t)).length;
+      if (shared > 0) edges.push({ s: i, t: j, w: shared });
+      // Also connect same folder (weaker)
+      else if (nodes[i].folder_id && nodes[i].folder_id === nodes[j].folder_id) {
+        edges.push({ s: i, t: j, w: 0.3 });
+      }
+    }
+  }
+
+  // Force simulation
+  const REPEL = 3000, ATTRACT = 0.008, DAMP = 0.82, CENTER = 0.003;
+  function tick() {
+    // Repulsion
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i+1; j < nodes.length; j++) {
+        const dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
+        const d2 = dx*dx + dy*dy + 1;
+        const f = REPEL / d2;
+        const fx = f * dx / Math.sqrt(d2), fy = f * dy / Math.sqrt(d2);
+        nodes[i].vx -= fx; nodes[i].vy -= fy;
+        nodes[j].vx += fx; nodes[j].vy += fy;
+      }
+    }
+    // Attraction (edges)
+    for (const e of edges) {
+      const a = nodes[e.s], b = nodes[e.t];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const d = Math.sqrt(dx*dx + dy*dy) + 1;
+      const tgt = 80 / (e.w + 0.5);
+      const f = (d - tgt) * ATTRACT;
+      a.vx += f * dx/d; a.vy += f * dy/d;
+      b.vx -= f * dx/d; b.vy -= f * dy/d;
+    }
+    // Center gravity
+    for (const n of nodes) {
+      n.vx += (W/2 - n.x) * CENTER;
+      n.vy += (H/2 - n.y) * CENTER;
+      n.vx *= DAMP; n.vy *= DAMP;
+      n.x += n.vx; n.y += n.vy;
+      n.x = Math.max(n.r+10, Math.min(W-n.r-10, n.x));
+      n.y = Math.max(n.r+10, Math.min(H-n.r-10, n.y));
+    }
+  }
+
+  // Draw
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    // Background
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface-2') || '#f8fafc';
+    ctx.fillRect(0,0,W,H);
+    // Edges
+    for (const e of edges) {
+      const a = nodes[e.s], b = nodes[e.t];
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = e.w > 0.5 ? 'rgba(32,110,251,0.25)' : 'rgba(148,163,184,0.15)';
+      ctx.lineWidth = Math.max(0.5, e.w * 1.5);
+      ctx.stroke();
+    }
+    // Nodes
+    for (const n of nodes) {
+      const color = folderColor[n.folder_id] || '#206efb';
+      // Shadow
+      ctx.shadowColor = color + '44'; ctx.shadowBlur = 10;
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+      ctx.fillStyle = color; ctx.fill();
+      ctx.shadowBlur = 0;
+      // Border
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+      // Label (short)
+      ctx.fillStyle = '#0f172a'; ctx.font = `${Math.max(9,Math.min(11,n.r))}px system-ui,sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      const label = n.title.length > 14 ? n.title.slice(0,13)+'…' : n.title;
+      ctx.fillText(label, n.x, n.y + n.r + 4);
+    }
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  }
+
+  // Tooltip
+  const tooltip = document.getElementById('graph-tooltip');
+  const ttTitle = document.getElementById('graph-tt-title');
+  const ttTags = document.getElementById('graph-tt-tags');
+  const ttChunks = document.getElementById('graph-tt-chunks');
+  canvas.onmousemove = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    let hit = null;
+    for (const n of nodes) {
+      const dx = n.x - mx, dy = n.y - my;
+      if (dx*dx + dy*dy < n.r*n.r + 100) { hit = n; break; }
+    }
+    if (hit) {
+      ttTitle.textContent = hit.title;
+      ttTags.textContent = hit.tags.length ? '🏷 ' + hit.tags.join(', ') : 'Keine Tags';
+      ttChunks.textContent = `${hit.chunks} Chunk${hit.chunks !== 1 ? 's' : ''}`;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX - wrap.getBoundingClientRect().left + 12) + 'px';
+      tooltip.style.top = (e.clientY - wrap.getBoundingClientRect().top - 10) + 'px';
+    } else {
+      tooltip.style.display = 'none';
+    }
+  };
+  canvas.onmouseleave = () => { tooltip.style.display = 'none'; };
+  canvas.onclick = function(e) {
+    const rect = canvas.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
+    for (const n of nodes) {
+      const dx = n.x - mx, dy = n.y - my;
+      if (dx*dx + dy*dy < n.r*n.r + 100) {
+        setDocView('cards');
+        // Find and highlight the doc
+        const doc = state.documents.find(d => d.id === n.id);
+        if (doc) {
+          document.getElementById('doc-search').value = doc.title;
+          renderDocuments();
+        }
+        break;
+      }
+    }
+  };
+
+  // Animation loop
+  _graphRunning = true;
+  let frame = 0;
+  function loop() {
+    if (!_graphRunning) return;
+    tick();
+    draw();
+    frame++;
+    if (frame < 300) _graphAnim = requestAnimationFrame(loop);
+    else {
+      // Settle: only draw on mouse interaction
+      draw();
+      canvas.onmousemove_orig = canvas.onmousemove;
+      _graphRunning = false;
+    }
+  }
+  loop();
+}
 
 </script>
 
