@@ -584,12 +584,12 @@ async function handleChat(
     return errorResponse(origin, `Embedding error: ${err}`, 500);
   }
 
-  // Retrieve relevant chunks via RPC
+  // Retrieve relevant chunks via RPC (lower threshold = better recall)
   const vectorStr = `[${queryEmbedding.join(",")}]`;
   const rpcParams: Record<string, unknown> = {
     query_embedding: vectorStr,
-    match_threshold: 0.5,
-    match_count: 5,
+    match_threshold: 0.35,
+    match_count: 8,
   };
   if (folder_id) rpcParams.filter_folder_id = folder_id;
   if (tags && tags.length > 0) rpcParams.filter_tags = tags;
@@ -598,15 +598,22 @@ async function handleChat(
     "match_chunks",
     rpcParams
   );
+  const chunks = (!rpcErr && matchedChunks) ? matchedChunks : [];
 
-  // Fallback: try without schema prefix if the above fails
-  let chunks = matchedChunks;
-  if (rpcErr || !chunks) {
-    const { data: fallbackChunks } = await supabase.schema("knowledge").rpc("match_chunks", rpcParams);
-    chunks = fallbackChunks ?? [];
-  }
+  // Deduplicate chunks by document (max 2 chunks per doc to avoid flooding context)
+  const chunksByDoc: Record<string, number> = {};
+  const dedupedChunks = chunks.filter((chunk: Record<string, unknown>) => {
+    const docId = chunk.document_id as string;
+    chunksByDoc[docId] = (chunksByDoc[docId] || 0) + 1;
+    return chunksByDoc[docId] <= 2;
+  });
 
-  // Build context for Claude
+  // Fetch all document titles for context (so bot knows what's available)
+  const { data: allDocs } = await supabase.schema("knowledge").from("documents")
+    .select("title").eq("embedding_status", "done").order("title");
+  const docList = allDocs?.map((d: Record<string, unknown>) => `• ${d.title}`).join("\n") ?? "";
+
+  // Build sources + context text
   const sources: Array<{
     document_id: string;
     title: string;
@@ -616,35 +623,46 @@ async function handleChat(
   }> = [];
 
   let contextText = "";
-  if (chunks && chunks.length > 0) {
-    for (const chunk of chunks) {
+  if (dedupedChunks.length > 0) {
+    for (const chunk of dedupedChunks) {
       const sourceEntry = {
-        document_id: chunk.document_id,
-        title: chunk.document_title,
-        excerpt: (chunk.chunk_content as string).slice(0, 200),
-        similarity: chunk.similarity,
-        heading: chunk.heading ?? null,
+        document_id: chunk.document_id as string,
+        title: chunk.document_title as string,
+        excerpt: (chunk.chunk_content as string).slice(0, 300),
+        similarity: chunk.similarity as number,
+        heading: (chunk.heading as string) ?? null,
       };
-      sources.push(sourceEntry);
-      contextText += `\n\n---\n**Quelle: ${chunk.document_title}**${
-        chunk.heading ? ` > ${chunk.heading}` : ""
+      // Only add to sources if not already listed
+      if (!sources.find(s => s.document_id === sourceEntry.document_id && s.heading === sourceEntry.heading)) {
+        sources.push(sourceEntry);
+      }
+      contextText += `\n\n---\n**${chunk.document_title}**${
+        chunk.heading ? ` › ${chunk.heading}` : ""
       }\n${chunk.chunk_content}`;
     }
   }
 
-  const systemPrompt = `Du bist ein intelligenter Wissensassistent für ROOTS Brand Strategy Consulting.
-Du hilfst dem Team dabei, schnell relevante Informationen aus der internen Wissensdatenbank zu finden.
+  const systemPrompt = `Du bist ROOTS-KI, der interne Wissensassistent von ROOTS Brand Strategy Consulting.
+Du hast Zugriff auf die interne Wissensdatenbank mit folgenden Dokumenten:
 
-${
-  contextText
-    ? `Nutze die folgenden Auszüge aus der Wissensdatenbank, um die Frage zu beantworten:
+${docList || "– (noch keine Dokumente geladen)"}
+
+WICHTIGE REGELN:
+- Beantworte Fragen NUR auf Basis der gefundenen Dokument-Auszüge unten
+- Wenn Auszüge gefunden wurden: Antworte direkt, konkret und vollständig basierend auf dem Inhalt
+- Nenne immer den Dokumenttitel als Quelle (z.B. "Laut 'Laufwerkstruktur'...")
+- Wenn keine passenden Auszüge gefunden wurden: Sage klar "Dazu habe ich kein Dokument in der Wissensdatenbank"
+- Sage NIEMALS "Ich kann keine Dateien einsehen" — du hast tatsächlich Zugriff auf die obigen Dokumente
+- Antworte immer auf Deutsch, präzise und strukturiert
+- Bei Listen oder Schritten: Nutze Markdown-Formatierung
+
+${contextText
+  ? `GEFUNDENE DOKUMENT-AUSZÜGE (nach Relevanz sortiert):
 ${contextText}
 
-Wenn du auf diese Quellen referenzierst, nenne den Dokumententitel.`
-    : "Für diese Frage wurden keine direkten Treffer in der Wissensdatenbank gefunden. Antworte basierend auf deinem allgemeinen Wissen und weise darauf hin, dass du keine spezifischen internen Quellen gefunden hast."
-}
-
-Antworte immer auf Deutsch, präzise und hilfreich. Wenn du unsicher bist, sage es klar.`;
+Beantworte die Frage basierend auf diesen Auszügen.`
+  : "HINWEIS: Für diese Frage wurden keine passenden Auszüge gefunden. Weise den Nutzer darauf hin, dass du kein relevantes Dokument in der Wissensdatenbank hast, und erkläre welche Themen du abdecken kannst (basierend auf der Dokumentliste oben)."
+}`;
 
   // ── Provider-Routing: Claude → Anthropic, GPT/o1 → OpenAI ─────────────────
   let assistantContent = "";
