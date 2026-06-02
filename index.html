@@ -1814,36 +1814,35 @@ async function onSessionReady(session) {
 }
 
 const IN_IFRAME = window.parent !== window;
+let _authDone = false; // prevents race-condition between timeout and auth success
 
 sb.auth.onAuthStateChange((event, session) => {
-  console.log('[WH Auth] onAuthStateChange:', event, session ? 'uid='+session.user?.id : 'no session');
   if (session) {
+    _authDone = true;
     onSessionReady(session);
   } else if (event === 'SIGNED_OUT') {
+    _authDone = false;
     showAuthOverlay();
     if (window.RootsUser) { window.RootsUser._uid = null; window.RootsUser._p = null; }
   }
 });
 
-// Bridge auth-ready: bridge has synced session from parent Intranet
 window.addEventListener('roots-auth-ready', (e) => {
-  console.log('[WH Auth] roots-auth-ready event:', e.detail?.session ? 'session synced' : 'no session');
-  if (e.detail?.session) onSessionReady(e.detail.session);
+  if (e.detail?.session) { _authDone = true; onSessionReady(e.detail.session); }
 });
 
 sb.auth.getSession().then(({ data: { session } }) => {
-  console.log('[WH Auth] getSession result:', session ? 'SESSION FOUND uid='+session.user?.id : 'NO SESSION', 'IN_IFRAME='+IN_IFRAME);
   if (session) {
+    _authDone = true;
     onSessionReady(session);
   } else if (!IN_IFRAME) {
-    // Standalone browser: no session → show login immediately
     showAuthOverlay();
   } else {
-    // Inside Intranet iframe: give bridge 2s to sync session from parent localStorage
-    // Bridge will trigger onAuthStateChange or roots-auth-ready when done
+    // iframe: wait for bridge to sync session, then show login only if still nothing
     setTimeout(() => {
+      if (_authDone) return; // auth already handled — do NOT show overlay
       sb.auth.getSession().then(({ data: { session: s2 } }) => {
-        if (!s2) showAuthOverlay(); // still nothing after 2s → show login
+        if (!_authDone && !s2) showAuthOverlay();
       });
     }, 2000);
   }
