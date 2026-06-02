@@ -1671,10 +1671,14 @@
 
     /* ── Filter Pills (eigene Zeile unter Toolbar) ─────────────────── */
     #filter-pills-bar { transition:max-height .2s; }
-    /* Pills nutzen toolbar-select Basis + active-Überschreibung */
-    #pill-all.pill-active, #pill-title.pill-active, #pill-tag.pill-active, #pill-folder.pill-active {
-      background: var(--brand); color: #fff; border-color: var(--brand);
-    }
+    /* Filter-Dropdown in Suchleiste */
+    .search-filter-opt { display:flex; align-items:center; gap:.65rem; width:100%; padding:.55rem 1rem; background:none; border:none; font-family:inherit; font-size:.83rem; color:var(--ink); cursor:pointer; text-align:left; transition:background .1s; }
+    .search-filter-opt:hover { background:var(--surface-2,#f1f5f9); }
+    .search-filter-opt.active { background:var(--brand-10,#eff6ff); color:var(--brand); font-weight:600; }
+    .search-filter-opt i { width:14px; text-align:center; font-size:.75rem; }
+    #search-filter-btn:hover { color:var(--brand) !important; background:var(--surface-2,#f1f5f9) !important; }
+    /* Active filter indicator auf dem Sliders-Icon */
+    #search-filter-btn.has-filter { color:var(--brand) !important; }
     /* Legacy smart-pill (für andere Verwendungen) */
     .smart-pill { display:inline-flex; align-items:center; gap:5px; height:38px; padding:0 .9rem; border-radius:8px; font-size:.82rem; font-weight:500; cursor:pointer; border:1px solid var(--line); background:var(--bg); color:var(--ink); transition:all .15s; white-space:nowrap; font-family:inherit; }
     .smart-pill.active { background:var(--brand); color:#fff; border-color:var(--brand); }
@@ -1863,23 +1867,34 @@
 
       <!-- ═══ DOCUMENTS VIEW ═══ -->
       <div id="view-documents" class="view-panel active" style="display:flex;flex-direction:column;height:100%">
-        <!-- Toolbar: alles in einer Zeile -->
+        <!-- Toolbar -->
         <div class="dash-toolbar" style="flex-wrap:nowrap;overflow-x:auto">
-          <!-- Filter Pills — gleiche Zeile wie toolbar-select -->
-          <button class="toolbar-select" id="pill-all"    onclick="setSearchMode('all')"    style="cursor:pointer;font-family:inherit;gap:.4rem;display:inline-flex;align-items:center"><i class="fa-solid fa-asterisk" style="font-size:.72rem"></i> Alle</button>
-          <button class="toolbar-select" id="pill-title"  onclick="setSearchMode('title')"  style="cursor:pointer;font-family:inherit;gap:.4rem;display:inline-flex;align-items:center"><i class="fa-solid fa-file" style="font-size:.72rem"></i> Dateiname</button>
-          <button class="toolbar-select" id="pill-tag"    onclick="setSearchMode('tag')"    style="cursor:pointer;font-family:inherit;gap:.4rem;display:inline-flex;align-items:center"><i class="fa-solid fa-tag" style="font-size:.72rem"></i> Tag</button>
-          <button class="toolbar-select" id="pill-folder" onclick="setSearchMode('folder')" style="cursor:pointer;font-family:inherit;gap:.4rem;display:inline-flex;align-items:center"><i class="fa-solid fa-folder" style="font-size:.72rem"></i> Ordner</button>
-          <!-- Suchfeld mit Teams-Dropdown -->
-          <div id="smart-search-wrap" style="position:relative;flex:1;min-width:140px">
-            <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:.85rem;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.85rem;pointer-events:none;z-index:1"></i>
+          <!-- Suchfeld mit Filter-Dropdown + Teams-Ergebnissen -->
+          <div id="smart-search-wrap" style="position:relative;flex:1;min-width:180px">
+            <!-- Filter-Button links in der Suchleiste -->
+            <button id="search-filter-btn"
+              onclick="toggleSearchFilterMenu(event)"
+              style="position:absolute;left:0;top:0;bottom:0;width:2.8rem;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);z-index:2;border-right:1px solid var(--line);border-radius:8px 0 0 8px;transition:color .15s"
+              title="Suchfilter">
+              <i class="fa-solid fa-sliders" style="font-size:.82rem"></i>
+            </button>
             <input type="text" class="dash-search" id="doc-search"
-              placeholder="Suchen…" autocomplete="off"
-              style="padding-left:2.4rem;width:100%;box-sizing:border-box;height:38px"
+              placeholder="Dokumente durchsuchen…" autocomplete="off"
+              style="padding-left:3.2rem;padding-right:.75rem;width:100%;box-sizing:border-box;height:38px"
               oninput="onSearchInput(this.value)"
               onfocus="onSearchFocus()"
               onblur="setTimeout(hideSearchDropdown,180)"
               onkeydown="onSearchKey(event)" />
+            <!-- Filter-Menü (erscheint beim Klick auf Sliders) -->
+            <div id="search-filter-menu"
+              style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.14);z-index:400;overflow:hidden;min-width:200px;padding:.35rem 0">
+              <div style="padding:.4rem .75rem .2rem;font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Suche in</div>
+              <button id="pill-all"    class="search-filter-opt active" onmousedown="pickSearchFilter('all',event)">   <i class="fa-solid fa-asterisk"></i> Alle Felder</button>
+              <button id="pill-title"  class="search-filter-opt"        onmousedown="pickSearchFilter('title',event)"> <i class="fa-solid fa-file"></i> Dateiname</button>
+              <button id="pill-tag"    class="search-filter-opt"        onmousedown="pickSearchFilter('tag',event)">   <i class="fa-solid fa-tag"></i> Tag</button>
+              <button id="pill-folder" class="search-filter-opt"        onmousedown="pickSearchFilter('folder',event)"><i class="fa-solid fa-folder"></i> Ordner</button>
+            </div>
+            <!-- Ergebnis-Dropdown -->
             <div id="search-dropdown"
               style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.14);z-index:300;overflow:hidden;min-width:280px">
             </div>
@@ -2085,12 +2100,8 @@
         <label class="form-label">Ordnername</label>
         <input class="form-input" id="new-folder-name" type="text" placeholder="z.B. Strategieprojekte" autocomplete="off" />
       </div>
-      <div class="form-field">
-        <label class="form-label">Übergeordneter Ordner</label>
-        <select class="form-select" id="new-folder-parent">
-          <option value="">Kein übergeordneter Ordner</option>
-        </select>
-      </div>
+      <!-- Übergeordneter Ordner: wird automatisch aus Sidebar-Kontext gesetzt -->
+      <input type="hidden" id="new-folder-parent" value="" />
       <div class="form-field">
         <label class="form-label">Beschreibung / Zweck</label>
         <input class="form-input" id="new-folder-description" type="text" placeholder="z.B. Alle SOPs für Onboarding und Training" autocomplete="off" />
@@ -2629,7 +2640,7 @@ window.selectFolder = function(el, folderId) {
 };
 
 function populateFolderSelects(folders) {
-  const selects = ['upload-folder', 'new-folder-parent'];
+  const selects = ['upload-folder']; // new-folder-parent is now a hidden input
   selects.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
@@ -4422,27 +4433,45 @@ let _ddSelectedIdx = -1;
 
 window.setSearchMode = function(mode) {
   _searchMode = mode;
-  // Update pill states (pills use toolbar-select class + pill-active)
+  // Update filter-menu active states
   ['all','title','tag','folder'].forEach(id => {
-    const el = document.getElementById(`pill-${id}`);
-    if (!el) return;
-    el.classList.toggle('pill-active', mode === id);
-    // Visual feedback: brand color background when active
-    if (mode === id) {
-      el.style.background = 'var(--brand)';
-      el.style.color = '#fff';
-      el.style.borderColor = 'var(--brand)';
-    } else {
-      el.style.background = '';
-      el.style.color = '';
-      el.style.borderColor = '';
-    }
+    document.getElementById(`pill-${id}`)?.classList.toggle('active', mode === id);
   });
-  const q = document.getElementById('doc-search')?.value.trim();
+  // Update sliders icon: blue if not 'all'
+  const filterBtn = document.getElementById('search-filter-btn');
+  if (filterBtn) filterBtn.classList.toggle('has-filter', mode !== 'all');
+  // Update placeholder
+  const placeholders = { all:'Dokumente durchsuchen…', title:'Nach Dateiname suchen…', tag:'Nach Tag suchen…', folder:'Nach Ordner suchen…' };
+  const inp = document.getElementById('doc-search');
+  if (inp) inp.placeholder = placeholders[mode] || placeholders.all;
+  const q = inp?.value.trim();
   state.search = q || '';
   renderDocuments();
   if (q) buildSearchDropdown(q);
 };
+
+window.toggleSearchFilterMenu = function(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('search-filter-menu');
+  if (!menu) return;
+  const isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'block';
+};
+
+window.pickSearchFilter = function(mode, e) {
+  e.preventDefault();
+  document.getElementById('search-filter-menu').style.display = 'none';
+  setSearchMode(mode);
+  document.getElementById('doc-search')?.focus();
+};
+
+// Close filter menu on outside click
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#search-filter-btn') && !e.target.closest('#search-filter-menu')) {
+    const menu = document.getElementById('search-filter-menu');
+    if (menu) menu.style.display = 'none';
+  }
+});
 
 window.onSearchInput = function(val) {
   state.search = val;
