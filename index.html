@@ -5060,7 +5060,7 @@ function initKnowledgeGraph() {
   }, 1000);
 }
 
-// ── Hierarchisches Radial-Layout ───────────────────────────────────────────────
+// ── Hierarchisches Radial-Layout ─────────────────────────────────────────────
 function _buildHierarchicalLayout() {
   const W = _gv.width, H = _gv.height;
   const cx = W/2, cy = H/2;
@@ -5069,106 +5069,120 @@ function _buildHierarchicalLayout() {
   const docs = state.documents || [];
   const nodes=[], edges=[], byId=new Map();
 
-  const R0 = Math.min(W,H)*0.22; // Root-Ordner Kreis-Radius
+  // Radien skalieren mit Canvas-Größe
+  const S = Math.min(W, H);
+  const R_ROOT   = S * 0.30;  // Root-Ordner Abstand vom Zentrum
+  const R_SUB    = S * 0.18;  // Unterordner Abstand vom Parent
+  const R_DOC    = S * 0.12;  // Dokument Abstand vom Parent
 
-  // ── Level 0: Root-Ordner ──
-  const roots = folders.filter(f=>!f.parent_id);
-  roots.forEach((f,i) => {
-    const angle = (i/Math.max(1,roots.length))*Math.PI*2 - Math.PI/2;
-    const tx = cx + Math.cos(angle)*R0;
-    const ty = cy + Math.sin(angle)*R0;
-    const n = _makeNode('f:'+f.id, 'folder', f.name, f.color||COLORS[i%COLORS.length], 24,
-      tx,ty, cx,cy, Z_ROOT, {folderId:f.id, angle});
+  // ── Schritt 1: Orphan-Folder anlegen (bevor Docs verarbeitet werden) ──
+  const orphanDocs = docs.filter(d => !d.folder_id);
+  if (orphanDocs.length > 0) {
+    // Platz im rechten oberen Bereich
+    const orphanTx = cx + R_ROOT * 0.85;
+    const orphanTy = cy - R_ROOT * 0.85;
+    const orphan = _makeNode('__orphan__','folder','Ohne Ordner','#94a3b8',20,
+      orphanTx, orphanTy, cx, cy, 0, {folderId:null});
+    nodes.push(orphan); byId.set('__orphan__', orphan);
+  }
+
+  // ── Schritt 2: Root-Ordner gleichmäßig im Kreis ──
+  const roots = folders.filter(f => !f.parent_id);
+  // Falls Orphan-Folder existiert, einen extra Platz reservieren
+  const totalRoots = roots.length + (orphanDocs.length>0 ? 1 : 0);
+  roots.forEach((f, i) => {
+    const angle = (i / Math.max(1, totalRoots)) * Math.PI*2 - Math.PI/2;
+    const tx = cx + Math.cos(angle)*R_ROOT;
+    const ty = cy + Math.sin(angle)*R_ROOT;
+    const n = _makeNode('f:'+f.id,'folder',f.name,
+      f.color||COLORS[i%COLORS.length], 22, tx,ty, cx,cy, 0, {folderId:f.id});
     nodes.push(n); byId.set(n.id, n);
   });
 
-  // ── Level 1: Unterordner & Dokumente in Root-Ordnern ──
-  const R_CHILD = Math.min(W,H)*0.145; // Abstand vom Eltern-Ordner
+  // Orphan-Folder Position jetzt neu berechnen (korrekter Winkel)
+  if (orphanDocs.length > 0 && byId.has('__orphan__')) {
+    const oIdx = roots.length;
+    const oAngle = (oIdx / Math.max(1, totalRoots)) * Math.PI*2 - Math.PI/2;
+    const oph = byId.get('__orphan__');
+    oph.tx = cx + Math.cos(oAngle)*R_ROOT;
+    oph.ty = cy + Math.sin(oAngle)*R_ROOT;
+    oph.x = cx; oph.y = cy; // spring start
+    oph.parentX=cx; oph.parentY=cy;
+  }
 
-  folders.filter(f=>f.parent_id).forEach((f,i) => {
-    const parent = byId.get('f:'+f.parent_id); if (!parent) return;
-    const siblings = folders.filter(sf=>sf.parent_id===f.parent_id);
+  // ── Schritt 3: Unterordner ──
+  folders.filter(f => f.parent_id).forEach(f => {
+    const parent = byId.get('f:'+f.parent_id);
+    if (!parent) return;
+    const siblings = folders.filter(sf => sf.parent_id===f.parent_id);
     const idx = siblings.indexOf(f);
-    const spread = Math.PI * Math.min(1.6, 0.4 + siblings.length*0.25);
+    const n_sib = siblings.length;
+    // Fächerwinkel: weg vom Zentrum, gleichmäßig verteilt
     const baseA = Math.atan2(parent.ty-cy, parent.tx-cx);
-    const angle = baseA + (idx/(Math.max(1,siblings.length-1))-0.5)*spread;
-    const tx = parent.tx + Math.cos(angle)*R_CHILD;
-    const ty = parent.ty + Math.sin(angle)*R_CHILD;
-    const n = _makeNode('f:'+f.id, 'subfolder', f.name, f.color||parent.color, 16,
-      tx,ty, parent.tx,parent.ty, 0, {folderId:f.id}); // sofort sichtbar
+    const maxSpread = Math.min(Math.PI*0.8, Math.PI*0.3 * n_sib);
+    const angle = n_sib===1 ? baseA
+      : baseA + ((idx/(n_sib-1)) - 0.5) * maxSpread * 2;
+    const tx = parent.tx + Math.cos(angle)*R_SUB;
+    const ty = parent.ty + Math.sin(angle)*R_SUB;
+    const n = _makeNode('f:'+f.id,'subfolder',f.name,
+      f.color||parent.color, 16, tx,ty, parent.tx,parent.ty, 0, {folderId:f.id});
     nodes.push(n); byId.set(n.id, n);
-    edges.push({a:parent, b:n, kind:'folder', w:2.5, revealAt:0}); // sofort
+    edges.push({a:parent, b:n, kind:'folder', w:2, revealAt:0});
   });
 
-  // ── Level 1: Dokumente ──
-  const R_DOC = Math.min(W,H)*0.1;
-  docs.forEach((doc,i) => {
-    const folderKey = doc.folder_id ? 'f:'+doc.folder_id : null;
-    const parentNode = folderKey && byId.has(folderKey) ? byId.get(folderKey)
-      : { tx:cx, ty:cy, color:'#94a3b8' };
-    const siblings = docs.filter(d=>d.folder_id===doc.folder_id);
+  // ── Schritt 4: Dokumente ──
+  docs.forEach((doc, globalIdx) => {
+    const fKey = doc.folder_id ? 'f:'+doc.folder_id : null;
+    const parentNode = fKey && byId.has(fKey) ? byId.get(fKey)
+      : byId.has('__orphan__') ? byId.get('__orphan__')
+      : null;
+
+    if (!parentNode) return; // Sicherheitscheck
+
+    const siblings = docs.filter(d =>
+      (d.folder_id||null) === (doc.folder_id||null));
     const idx = siblings.indexOf(doc);
-    const count = siblings.length;
-    const baseA = folderKey && byId.has(folderKey)
-      ? Math.atan2(byId.get(folderKey).ty-cy, byId.get(folderKey).tx-cx)
-      : (i/docs.length)*Math.PI*2;
-    const spread = Math.min(Math.PI*1.8, Math.PI*0.4 + count*0.22);
-    const ring = Math.floor(idx / 10);
-    const idxInRing = idx % 10;
-    const countInRing = Math.min(10, count - ring*10);
-    const angle = baseA + (idxInRing/(Math.max(1,countInRing-1))-0.5)*spread;
-    const radius = R_DOC*(1 + ring*0.7);
-    const tx = parentNode.tx + Math.cos(angle)*radius;
-    const ty = parentNode.ty + Math.sin(angle)*radius;
+    const n_sib = siblings.length;
+
+    // Richtung weg vom Zentrum (Parent → außen)
+    const baseA = Math.atan2(parentNode.ty-cy, parentNode.tx-cx);
+    // Fächer um den Parent
+    const maxSpread = Math.min(Math.PI*1.4, Math.PI*0.25 * n_sib);
+    const ringSize = 8; // Docs pro Ring
+    const ring = Math.floor(idx/ringSize);
+    const posInRing = idx % ringSize;
+    const ringCount = Math.min(ringSize, n_sib - ring*ringSize);
+    const ringAngle = ringCount===1 ? baseA
+      : baseA + ((posInRing/(ringCount-1))-0.5) * maxSpread * 2;
+    const rr = R_DOC + ring*R_DOC*0.65;
+    const tx = parentNode.tx + Math.cos(ringAngle)*rr;
+    const ty = parentNode.ty + Math.sin(ringAngle)*rr;
+
     const tags = Array.isArray(doc.tags)?doc.tags:[];
-    const r = Math.max(6, Math.min(13, 6+Math.sqrt(doc.chunk_count||1)));
-    // Viele Docs in Ordner → erst beim Zoom, wenige → eher zeigen
-    const fewDocs = siblings.length <= 3;
-    const docReveal = fewDocs ? 0.8 : Z_CHILD; // Wenige Docs früher sichtbar
-    const n = _makeNode('d:'+doc.id, 'doc', doc.title||'Dok', parentNode.color, r,
-      tx,ty, parentNode.tx,parentNode.ty, docReveal,
-      {docId:doc.id, tags, chunks:doc.chunk_count||0, uploader:doc.uploader_name||'',
-       date:doc.created_at||'', size:doc.file_size_bytes||0, content:null,
-       folderId:doc.folder_id||null});
+    const r = Math.max(7, Math.min(13, 7+Math.sqrt(doc.chunk_count||1)*0.6));
+    const fewDocs = n_sib <= 4;
+    const docReveal = fewDocs ? 0 : Z_CHILD; // wenige Docs früher
+
+    const n = _makeNode('d:'+doc.id,'doc',doc.title||'Dok',
+      parentNode.color, r, tx,ty, parentNode.tx,parentNode.ty, docReveal,
+      {docId:doc.id, tags, chunks:doc.chunk_count||0,
+       uploader:doc.uploader_name||'', date:doc.created_at||'',
+       size:doc.file_size_bytes||0, content:null, folderId:doc.folder_id||null});
     nodes.push(n); byId.set(n.id, n);
-    const fn = folderKey && byId.has(folderKey) ? byId.get(folderKey) : null;
-    if (fn) {
-      edges.push({a:fn, b:n, kind:'contains', w:1.4, revealAt:Z_CHILD});
-    } else {
-      // Kein Ordner → "Ohne Ordner"-Hub erstellen (einmalig)
-      if (!byId.has('__orphan__')) {
-        // Platzierung: rechts unten vom Zentrum
-        const oAngle = Math.PI * 0.25;
-        const oR = Math.min(W,H)*0.22;
-        const ox = cx + Math.cos(oAngle)*oR, oy = cy + Math.sin(oAngle)*oR;
-        const orphan = _makeNode('__orphan__','folder','Ohne Ordner','#94a3b8',22,
-          ox,oy,cx,cy,0,{folderId:null});
-        nodes.push(orphan); byId.set('__orphan__', orphan);
-      }
-      const orphanNode = byId.get('__orphan__');
-      n.color = '#94a3b8'; // Grau für Docs ohne Ordner
-      edges.push({a:orphanNode, b:n, kind:'contains', w:1.0, revealAt:Z_CHILD});
-    }
+
+    const fn = fKey && byId.has(fKey) ? byId.get(fKey)
+      : byId.has('__orphan__') ? byId.get('__orphan__') : null;
+    if (fn) edges.push({a:fn, b:n, kind:'contains', w:1.2, revealAt:docReveal});
   });
 
-  // ── Ähnlichkeits-Edges (nur auf Ebene 3 sichtbar) ──
+  // ── Schritt 5: Ähnlichkeits-Edges ──
   const docNodes = nodes.filter(n=>n.type==='doc');
   for (let i=0;i<docNodes.length;i++) for(let j=i+1;j<docNodes.length;j++){
     const shared = docNodes[i].tags.filter(t=>docNodes[j].tags.includes(t)).length;
-    if (shared>0) edges.push({a:docNodes[i], b:docNodes[j], kind:'similar', w:shared*0.7, revealAt:Z_SIMILAR});
+    if (shared>0) edges.push({a:docNodes[i],b:docNodes[j],kind:'similar',w:shared*0.6,revealAt:Z_SIMILAR});
   }
 
   _gv.nodes=nodes; _gv.edges=edges; _gv.byId=byId;
-}
-
-function _makeNode(id,type,label,color,r,tx,ty,px,py,revealAt,extra={}) {
-  return { id,type,label,color,r,
-    tx,ty,          // Zielposition
-    x:px, y:py,     // Startposition = Eltern (animiert zur Zielposition)
-    vx:0,vy:0,
-    parentX:px, parentY:py,
-    revealAt, revealP: revealAt <= 0 ? 1 : 0, // sofort sichtbar wenn revealAt=0
-    ...extra };
 }
 
 // ── Hauptloop ─────────────────────────────────────────────────────────────────
