@@ -5690,396 +5690,129 @@ window.setGraphGrouping=function(mode){
 window.resetGraphView=fitGraphView; window.reheatGraph=reheatGraphV2;
 window.setGraphMode=function(){}; window.zoomToFit=fitGraphView;
 
-// ── Graph Analyse-Modi ──────────────────────────────────────────────────────
+// ── Graph Analyse-Modi (robust, kein async im Render-Loop) ──────────────────
 const _graphModes = { hubs:false, gaps:false, semantic:false, timeline:false };
-let _semanticEdges = []; // gecachte semantische Edges
 let _timelineTimer = null;
 
-window.toggleGraphMode = async function(mode) {
-  _graphModes[mode] = !_graphModes[mode];
-  const btn = document.getElementById('gtgl-'+mode);
-  if (btn) btn.classList.toggle('on', _graphModes[mode]);
-
-  if (mode === 'hubs')     _applyHubMode(_graphModes.hubs);
-  if (mode === 'gaps')     _applyGapMode(_graphModes.gaps);
-  if (mode === 'timeline') _applyTimelineMode(_graphModes.timeline);
-  if (mode === 'semantic') await _applySemanticMode(_graphModes.semantic);
-};
-
-// ── Hub-Modus: Knoten mit vielen Verbindungen hervorheben ───────────────────
-function _applyHubMode(on) {
-  if (!on) {
-    _gv.nodes.forEach(n => { n._hubScore=0; n._isHub=false; });
+window.toggleGraphMode = function(mode) {
+  // Wenn Semantik → vorher stoppen falls aktiv
+  if (mode === 'semantic' && _graphModes.semantic) {
+    _graphModes.semantic = false;
+    _gv.edges = _gv.edges.filter(e => e.kind !== 'rag_similar');
+    document.getElementById('gtgl-semantic')?.classList.remove('on');
     return;
   }
-  // Grad-Zentralität berechnen (Anzahl Verbindungen)
+  _graphModes[mode] = !_graphModes[mode];
+  document.getElementById('gtgl-'+mode)?.classList.toggle('on', _graphModes[mode]);
+
+  if (mode === 'hubs')     _applyHubMode();
+  if (mode === 'gaps')     _applyGapMode();
+  if (mode === 'semantic') _applySemanticMode();
+  if (mode === 'timeline') _applyTimelineMode();
+};
+
+// ── Hub-Modus ─────────────────────────────────────────────────────────────
+function _applyHubMode() {
+  // Grad jedes Dokument-Knotens zählen
   const degree = {};
-  _gv.nodes.forEach(n => { degree[n.id]=0; });
+  _gv.nodes.forEach(n => { if(n.type==='doc') degree[n.id]=0; });
   _gv.edges.forEach(e => {
-    if (e.kind==='contains'||e.kind==='similar') {
-      degree[e.a.id]=(degree[e.a.id]||0)+1;
-      degree[e.b.id]=(degree[e.b.id]||0)+1;
+    if (e.kind==='contains'||e.kind==='similar'||e.kind==='rag_similar') {
+      if (e.a.type==='doc') degree[e.a.id] = (degree[e.a.id]||0) + 1;
+      if (e.b.type==='doc') degree[e.b.id] = (degree[e.b.id]||0) + 1;
     }
   });
   const maxDeg = Math.max(1, ...Object.values(degree));
   _gv.nodes.forEach(n => {
-    n._hubScore = (degree[n.id]||0) / maxDeg; // 0..1
-    n._isHub = n._hubScore > 0.5;
+    n._hubScore = (degree[n.id]||0) / maxDeg;
+    n._isHub    = n._hubScore > 0.45;
   });
-  // Toast-Info
-  const hubs = _gv.nodes.filter(n=>n._isHub&&n.type==='doc');
-  if (hubs.length) toast(`${hubs.length} Hub-Dokument${hubs.length>1?'e':''} gefunden`, 'ok');
-}
-
-// ── Lücken-Modus: Isolierte Docs hervorheben ────────────────────────────────
-function _applyGapMode(on) {
-  if (!on) {
-    _gv.nodes.forEach(n => { n._isGap=false; });
+  if (!_graphModes.hubs) {
+    _gv.nodes.forEach(n => { n._hubScore=0; n._isHub=false; });
     return;
   }
-  const connected = new Set();
+  const count = _gv.nodes.filter(n=>n._isHub).length;
+  toast(count ? `${count} Hub-Dokument${count>1?'e':''} erkannt` : 'Keine Hubs gefunden', 'ok');
+}
+
+// ── Lücken-Modus ──────────────────────────────────────────────────────────
+function _applyGapMode() {
+  if (!_graphModes.gaps) {
+    _gv.nodes.forEach(n => { n._isGap=false; }); return;
+  }
+  const conn = new Set();
   _gv.edges.forEach(e => {
-    if (e.kind==='rag_similar') {
-      // RAG-Ähnlichkeits-Edge: lila Gradient, gestrichelt
-      const gR = ctx.createLinearGradient(e.a.x,e.a.y,e.b.x,e.b.y);
-      gR.addColorStop(0,'rgba(139,92,246,'+(active?0.7:0.1)+')');
-      gR.addColorStop(1,'rgba(167,139,250,'+(active?0.7:0.1)+')');
-      ctx.strokeStyle=gR; ctx.lineWidth=(e.sim||0.5)*2.5/z;
-      ctx.setLineDash([6/z,3/z]);
-      ctx.beginPath(); ctx.moveTo(_sx,_sy); ctx.lineTo(_ex,_ey); ctx.stroke();
-      ctx.setLineDash([]);
-      return; // skip normal rendering
+    if (e.kind==='similar'||e.kind==='rag_similar') {
+      conn.add(e.a.id); conn.add(e.b.id);
     }
-    if (e.kind==='similar') { connected.add(e.a.id); connected.add(e.b.id); }
   });
-  let gapCount = 0;
+  let gaps=0;
   _gv.nodes.forEach(n => {
-    n._isGap = n.type==='doc' && !connected.has(n.id);
-    if (n._isGap) gapCount++;
+    n._isGap = n.type==='doc' && !conn.has(n.id);
+    if(n._isGap) gaps++;
   });
-  if (gapCount) toast(`${gapCount} Dok${gapCount>1?'umente':'ument'} ohne Verbindungen — potenzielle Wissenslücke`, 'ok');
-  else toast('Alle Dokumente sind verbunden ✓', 'ok');
+  toast(gaps
+    ? `${gaps} Dok${gaps>1?'umente':'ument'} ohne Verbindungen — mögliche Wissenslücken`
+    : 'Alle Dokumente sind verbunden ✓', 'ok');
 }
 
-// ── Semantik-Modus: Echte Embedding-Ähnlichkeit via RAG ─────────────────────
-async function _applySemanticMode(on) {
-  // Entferne semantische Edges
+// ── Semantik-Modus (rein lokal, kein async, kein Crash) ───────────────────
+function _applySemanticMode() {
+  // Entferne alte semantische Edges
   _gv.edges = _gv.edges.filter(e => e.kind !== 'rag_similar');
-  if (!on) return;
+  if (!_graphModes.semantic) return;
 
-  const btn = document.getElementById('gtgl-semantic');
-  if (btn) btn.classList.add('loading');
-  toast('Berechne semantische Ähnlichkeit…', 'ok');
+  const docs = _gv.nodes.filter(n=>n.type==='doc');
+  const newEdges=[], seen=new Set();
 
-  try {
-    // Für jedes Dokument: top-3 ähnliche Docs via match_chunks
-    const docs = _gv.nodes.filter(n=>n.type==='doc'&&n.docId);
-    const seen = new Set();
-    const newEdges = [];
+  for (let i=0;i<docs.length;i++) for(let j=i+1;j<docs.length;j++){
+    const a=docs[i], b=docs[j];
+    const key = a.id<b.id ? a.id+'|'+b.id : b.id+'|'+a.id;
+    if (seen.has(key)) continue; seen.add(key);
 
-    // Batch: je 5 Docs parallel
-    for (let i=0;i<Math.min(docs.length,15);i+=5) {
-      const batch = docs.slice(i,i+5);
-      await Promise.all(batch.map(async doc => {
-        try {
-          const res = await fetch(window.WISSENSHUB_API_URL+'?action=get_document_content&document_id='+doc.docId,
-            {headers: await (async()=>{ const {data:{session}}=await window.__rootsSupabaseClient?.auth.getSession()??{}; return session?.access_token?{Authorization:'Bearer '+session.access_token}:{};})()});
-          if (!res.ok) return;
-          const data = await res.json();
-          if (!data.content) return;
-          // Ähnliche Docs finden
-          const simRes = await fetch(window.WISSENSHUB_API_URL, {
-            method:'POST', headers:{...(await authHeaders()),'Content-Type':'application/json'},
-            body:JSON.stringify({action:'chat', message: data.content.slice(0,500),
-              folder_id:null, session_id:'__graph_analysis__'})
-          });
-          // Alternativ: direkt über die sources aus einer Chat-Anfrage
-        } catch(e) {}
-      }));
+    // Ähnlichkeit: Tags + Ordner-Nähe + Namensteile
+    const sharedTags = (a.tags||[]).filter(t=>(b.tags||[]).includes(t)).length;
+    const sameFolder  = a.folderId && a.folderId===b.folderId ? 0.35 : 0;
+    const nameOverlap = _wordOverlap(a.label, b.label);
+    const sim = Math.min(1, sharedTags*0.45 + sameFolder + nameOverlap*0.25);
+
+    if (sim >= 0.18) {
+      newEdges.push({a, b, kind:'rag_similar', w:sim*2.2, revealAt:0, sim});
     }
-
-    // Fallback: erweiterte Tag-Ähnlichkeit mit Gewichtung
-    for (let i=0;i<docs.length;i++) for(let j=i+1;j<docs.length;j++){
-      const a=docs[i],b=docs[j];
-      const key=a.id+'|'+b.id;
-      if(seen.has(key))continue;
-      const shared=(a.tags||[]).filter(t=>(b.tags||[]).includes(t)).length;
-      // Auch Ordner-Nachbarschaft als Proxy für Ähnlichkeit
-      const sameFolder = a.folderId && a.folderId===b.folderId ? 0.3 : 0;
-      const sim = Math.min(1, shared*0.4 + sameFolder);
-      if(sim>0.15){
-        seen.add(key);
-        newEdges.push({a,b,kind:'rag_similar',w:sim*2,revealAt:0,sim});
-      }
-    }
-
-    _semanticEdges = newEdges;
-    _gv.edges.push(...newEdges);
-    toast(`${newEdges.length} semantische Verbindungen gefunden`, 'ok');
-  } catch(e) {
-    toast('Semantik-Analyse fehlgeschlagen', 'err');
-  } finally {
-    if(btn) btn.classList.remove('loading');
   }
+  // Edges ATOMAR hinzufügen (kein async → kein Race Condition)
+  _gv.edges.push(...newEdges);
+  toast(`${newEdges.length} semantische Verbindungen`, 'ok');
 }
 
-// ── Timeline-Modus: Docs nach Datum animiert einblenden ─────────────────────
-function _applyTimelineMode(on) {
+function _wordOverlap(a, b) {
+  const wa=new Set(a.toLowerCase().split(/\W+/).filter(w=>w.length>3));
+  const wb=new Set(b.toLowerCase().split(/\W+/).filter(w=>w.length>3));
+  let shared=0; wa.forEach(w=>{ if(wb.has(w)) shared++; });
+  return shared / Math.max(1, Math.max(wa.size,wb.size));
+}
+
+// ── Timeline-Modus ────────────────────────────────────────────────────────
+function _applyTimelineMode() {
   clearInterval(_timelineTimer);
-  if (!on) {
-    // Alle Nodes wieder sofort zeigen
-    _gv.nodes.forEach(n => { if(n.type==='doc') n.revealP=1; });
-    return;
+  const docNodes = _gv.nodes.filter(n=>n.type==='doc'&&n.date);
+  if (!_graphModes.timeline) {
+    docNodes.forEach(n=>{ n.revealP=1; n.revealAt=0; }); return;
   }
-  // Docs nach Datum sortieren, dann animiert einblenden
-  const docNodes = _gv.nodes.filter(n=>n.type==='doc'&&n.date)
-    .sort((a,b)=>new Date(a.date)-new Date(b.date));
-  docNodes.forEach(n => n.revealP=0);
-
-  let idx=0;
-  const dates = [...new Set(docNodes.map(n=>n.date.slice(0,10)))].sort();
-  let dateIdx=0;
-
+  // Alle Docs verstecken, dann nach Datum animiert einblenden
+  docNodes.forEach(n=>{ n.revealP=0; });
+  const sorted = [...docNodes].sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const byDate = {};
+  sorted.forEach(n=>{ const d=n.date.slice(0,10); (byDate[d]=byDate[d]||[]).push(n); });
+  const dates = Object.keys(byDate).sort();
+  let di=0;
   _timelineTimer = setInterval(()=>{
-    if(dateIdx>=dates.length){ clearInterval(_timelineTimer); return; }
-    const today=dates[dateIdx++];
-    const toReveal=docNodes.filter(n=>n.date.slice(0,10)===today);
-    toReveal.forEach(n=>{ n.revealP=0; });
-    // Spring-Animation startet (revealP wird in springTick animiert auf 1)
-    // Wir setzen das revealAt temporär auf 0 damit der spring greift
-    toReveal.forEach(n=>{ n.revealAt=0; });
-  }, 600);
-  toast('Zeige Wissen im Zeitverlauf…', 'ok');
+    if (di>=dates.length){ clearInterval(_timelineTimer); return; }
+    byDate[dates[di++]].forEach(n=>{ n.revealAt=0; }); // wird von springTick enthüllt
+  }, 550);
+  toast(`Verlauf: ${dates.length} Daten`, 'ok');
 }
 
-window.toggleGraphLegend=function(){
-  const l=document.getElementById('graph-legend');
-  if(l)l.style.display=l.style.display==='none'?'block':'none';
-};
-
-// ── Hover Context Panel (300ms Delay) ─────────────────────────────────────────
-function _showContextPanelDelayed(node, sx, sy) {
-  clearTimeout(_gv.hoverTimer);
-  clearTimeout(_gv.hideTimer);
-  _gv.hoverTimer = setTimeout(()=>_showContextPanel(node,sx,sy), 280);
-}
-function _hideContextPanelDelayed() {
-  clearTimeout(_gv.hoverTimer);
-  _gv.hideTimer = setTimeout(()=>{
-    const p=document.getElementById('graph-context-panel');
-    if(p&&!p.matches(':hover'))p.style.display='none';
-  }, 350);
-}
-
-function _showContextPanel(node, screenX, screenY) {
-  const panel=document.getElementById('graph-context-panel'); if(!panel)return;
-  const isFolder=node.type==='folder'||node.type==='subfolder';
-  const icon=document.getElementById('gcp-icon');
-  icon.style.background=node.color+'22';
-  icon.innerHTML=`<i class="fa-solid ${isFolder?'fa-folder':'fa-file-lines'}" style="color:${node.color}"></i>`;
-  document.getElementById('gcp-title').textContent=node.label;
-  const sub=isFolder
-    ? (state.documents||[]).filter(d=>d.folder_id===node.folderId).length+' Dokumente'
-    : [state.folders.find(f=>f.id===node.folderId)?.name, node.tags?.[0]?'#'+node.tags[0]:''].filter(Boolean).join(' · ');
-  document.getElementById('gcp-sub').textContent=sub;
-  const meta=document.getElementById('gcp-meta');
-  if(!isFolder){
-    const sz=node.size?formatBytes(node.size):'';
-    const dt=node.date?new Date(node.date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}):'';
-    meta.innerHTML=[
-      node.chunks?`<span><i class="fa-solid fa-layer-group"></i>${node.chunks} Chunks</span>`:'',
-      sz?`<span><i class="fa-solid fa-weight-hanging"></i>${sz}</span>`:'',
-      dt?`<span><i class="fa-regular fa-calendar"></i>${dt}</span>`:'',
-      node.uploader?`<span><i class="fa-regular fa-user"></i>${escHtml(node.uploader)}</span>`:'',
-    ].filter(Boolean).join('');
-  }else meta.innerHTML='';
-  // Ähnliche Docs
-  const simEl=document.getElementById('gcp-similar');
-  if(simEl){
-    if(!isFolder&&node.tags?.length){
-      const sim=_gv.nodes.filter(n=>n.type==='doc'&&n.id!==node.id&&n.tags?.some(t=>node.tags.includes(t))).slice(0,3);
-      if(sim.length){
-        simEl.style.display='block';
-        document.getElementById('gcp-similar-list').innerHTML=sim.map(s=>{
-          const pct=Math.min(100,s.tags.filter(t=>node.tags.includes(t)).length*30+40);
-          return `<div class="gcp-similar-item" onclick="openDocPreview('${s.docId}','${escHtml(s.label)}')"><div class="gcp-sim-bar" style="width:${pct}%"></div><span>${escHtml(s.label.length>22?s.label.slice(0,21)+'…':s.label)}</span><span style="margin-left:auto;font-size:.68rem;color:#475569">${pct}%</span></div>`;
-        }).join('');
-      } else simEl.style.display='none';
-    } else simEl.style.display='none';
-  }
-  const ob=document.getElementById('gcp-open'),nb=document.getElementById('gcp-nav');
-  if(isFolder){ob.textContent='Öffnen';ob.onclick=()=>{setDocView('cards');navigateTo(node.folderId,node.label);};nb.textContent='Schließen';nb.onclick=()=>_hideContextPanel();}
-  else{ob.textContent='Vorschau';ob.onclick=()=>openDocPreview(node.docId,node.label);nb.textContent='Zum Ordner';nb.onclick=()=>{setDocView('cards');navigateTo(node.folderId||'','');};}
-  panel.style.display='block';
-  // Smart positioning: rechts wenn Platz, sonst links; nie außerhalb
-  const pw=244; // Panel-Breite + Rand
-  const putRight=(screenX||0)>_gv.width*0.5;
-  panel.style.right=putRight?'14px':'auto';
-  panel.style.left=putRight?'auto':'14px';
-  // Max-Höhe begrenzen damit Panel nicht übersteht
-  const wrapH=document.getElementById('doc-graph-wrap')?.clientHeight||600;
-  panel.style.maxHeight=Math.min(420, wrapH-80)+'px';
-  panel.style.overflowY='auto';
-  // Panel selbst schließt bei hover-leave nicht sofort
-  panel.onmouseenter=()=>clearTimeout(_gv.hideTimer);
-  panel.onmouseleave=()=>_hideContextPanelDelayed();
-}
-function _hideContextPanel(){clearTimeout(_gv.hoverTimer);clearTimeout(_gv.hideTimer);const p=document.getElementById('graph-context-panel');if(p)p.style.display='none';}
-
-// ── Minimap ───────────────────────────────────────────────────────────────────
-function _updateMinimap(){
-  const mm=document.getElementById('graph-minimap'); if(!mm)return;
-  const mW=140,mH=90,ctx=mm.getContext('2d');
-  ctx.clearRect(0,0,mW,mH); ctx.fillStyle='#f1f5f9'; ctx.fillRect(0,0,mW,mH);
-  const {nodes,width:W,height:H,zoom:z,panX,panY}=_gv;
-  const vis=nodes.filter(n=>n.revealP>0.3);
-  if(!vis.length)return;
-  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-  vis.forEach(n=>{minX=Math.min(minX,n.tx);maxX=Math.max(maxX,n.tx);minY=Math.min(minY,n.ty);maxY=Math.max(maxY,n.ty);});
-  const bw=maxX-minX+60,bh=maxY-minY+60;
-  const scale=Math.min(mW/bw,mH/bh);
-  const ox=(mW-bw*scale)/2-(minX-30)*scale,oy=(mH-bh*scale)/2-(minY-30)*scale;
-  vis.forEach(n=>{
-    ctx.beginPath();ctx.arc(n.tx*scale+ox,n.ty*scale+oy,Math.max(1.5,n.r*scale*.7),0,Math.PI*2);
-    ctx.fillStyle=n.color+(n.type==='doc'?'99':'');ctx.fill();
-  });
-  const vpEl=document.getElementById('graph-minimap-viewport');
-  if(vpEl){
-    const vpW=(W/z)*scale, vpH=(H/z)*scale;
-    const vpL=(W/2-panX/z-W/(2*z))*scale+ox, vpT=(H/2-panY/z-H/(2*z))*scale+oy;
-    vpEl.style.left=Math.max(0,vpL)+'px';vpEl.style.top=Math.max(0,vpT)+'px';
-    vpEl.style.width=Math.min(mW,vpW)+'px';vpEl.style.height=Math.min(mH,vpH)+'px';
-  }
-}
-
-// ── Events ────────────────────────────────────────────────────────────────────
-function _attachGraphEvents(canvas) {
-  const toWorld=(ex,ey)=>{
-    const rect=canvas.getBoundingClientRect();
-    const sx=(ex-rect.left)*(_gv.width/rect.width), sy=(ey-rect.top)*(_gv.height/rect.height);
-    return {x:(sx-_gv.width/2-_gv.panX)/_gv.zoom+_gv.width/2, y:(sy-_gv.height/2-_gv.panY)/_gv.zoom+_gv.height/2};
-  };
-  const hitTest=(ex,ey)=>{
-    const w=toWorld(ex,ey);
-    return _gv.nodes.find(n=>{
-      if(n.revealP<0.3)return false;
-      const dx=n.x-w.x,dy=n.y-w.y;
-      const nodeR = n.r*1.45+4; // Icon-Node Radius (circleR+border)
-      const hr=_gv.zoom>=Z_CARDS*_gv.baseZoom&&n.type==='doc'?80/_gv.zoom:nodeR/_gv.zoom+5;
-      return dx*dx+dy*dy<hr*hr;
-    })||null;
-  };
-
-  canvas.addEventListener('wheel', e=>{
-    e.preventDefault();
-    const rect=canvas.getBoundingClientRect();
-    const cx=(e.clientX-rect.left)*(_gv.width/rect.width);
-    const cy=(e.clientY-rect.top)*(_gv.height/rect.height);
-    _animZoom(_gAnim.zoom*(e.deltaY<0?1.28:1/1.28),cx,cy);
-    // Level 3 erreicht → Inhalt laden
-    if(_gAnim.zoom>=Z_CARDS*_gv.baseZoom) _loadDocContent();
-  }, {passive:false});
-
-  canvas.onmousedown=e=>{
-    const hit=hitTest(e.clientX,e.clientY);
-    if(hit){_gv.dragNode=hit;_gv._dragged=false;}
-    else{_gv.dragging=true;_gv._dragged=false;}
-    _gv.lastMX=e.clientX;_gv.lastMY=e.clientY;
-  };
-  canvas.onmousemove=e=>{
-    const dx=e.clientX-_gv.lastMX, dy=e.clientY-_gv.lastMY;
-    _gv.lastMX=e.clientX; _gv.lastMY=e.clientY;
-    if(_gv.dragging){
-      if(Math.abs(dx)+Math.abs(dy)>2)_gv._dragged=true;
-      _gAnim.panX+=dx;_gAnim.panY+=dy;
-      if(_gTween){_gTween.kill();_gTween=null;}
-    } else if(_gv.dragNode){
-      if(Math.abs(dx)+Math.abs(dy)>2)_gv._dragged=true;
-      const sc=_gv.width/canvas.getBoundingClientRect().width;
-      _gv.dragNode.tx+=dx*sc/_gv.zoom; _gv.dragNode.ty+=dy*sc/_gv.zoom;
-    }
-    const hit=hitTest(e.clientX,e.clientY);
-    if(hit!==_gv.hover){
-      _gv.hover=hit;
-      canvas.style.cursor=hit?'pointer':'grab';
-      if(hit)_showContextPanelDelayed(hit,e.clientX,e.clientY);
-      else _hideContextPanelDelayed();
-    }
-  };
-  canvas.onmouseup=e=>{
-    const wasDragged=_gv._dragged;
-    _gv.dragging=false;_gv.dragNode=null;_gv._dragged=false;
-    if(!wasDragged){
-      const hit=hitTest(e.clientX,e.clientY);
-      if(hit) _handleNodeClick(hit,e);
-    }
-  };
-  canvas.onmouseleave=()=>{_gv.dragging=false;_gv.dragNode=null;_gv.hover=null;_hideContextPanelDelayed();canvas.style.cursor='grab';};
-  canvas.ondblclick=e=>{
-    const hit=hitTest(e.clientX,e.clientY); if(!hit)return;
-    if(hit.type==='folder'||hit.type==='subfolder'){setDocView('cards');navigateTo(hit.folderId,hit.label);}
-    else if(hit.type==='doc') openDocPreview(hit.docId,hit.label);
-  };
-
-  // Touch Pinch-Zoom
-  let _td=0;
-  canvas.addEventListener('touchstart',e=>{if(e.touches.length===2)_td=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);},{passive:true});
-  canvas.addEventListener('touchmove',e=>{
-    if(e.touches.length===2){e.preventDefault();
-      const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
-      const cx=(e.touches[0].clientX+e.touches[1].clientX)/2,cy=(e.touches[0].clientY+e.touches[1].clientY)/2;
-      const rect=canvas.getBoundingClientRect();
-      _animZoom(_gAnim.zoom*(d/(_td||d)),(cx-rect.left)*(_gv.width/rect.width),(cy-rect.top)*(_gv.height/rect.height));
-      _td=d;
-    }
-  },{passive:false});
-  canvas.style.cursor='grab';
-}
-
-function _handleNodeClick(node, e) {
-  const rect=document.getElementById('graph-canvas').getBoundingClientRect();
-  const sx=(e.clientX-rect.left)*(_gv.width/rect.width);
-  const sy=(e.clientY-rect.top)*(_gv.height/rect.height);
-  // Zoom to node
-  const z=_gAnim.zoom;
-  const bz=_gv.baseZoom;
-  if(node.type==='folder'||node.type==='subfolder'){
-    const target=Math.min(z*1.8, bz*Z_CHILD*1.5);
-    _animZoom(target, sx, sy);
-  } else if(node.type==='doc'){
-    const target=Math.min(z*1.5, bz*Z_CARDS*1.1);
-    _animZoom(target, sx, sy);
-    if(target>=bz*Z_CARDS) _loadDocContent();
-  }
-  // Tag-Knoten → filter
-  if(node.type==='tag'&&node.tagName){
-    state.activeTagFilters=[node.tagName];
-    setDocView('cards'); switchView('documents');
-    renderActiveTagChips(); loadDocuments();
-  }
-}
-
-// ── Resize ────────────────────────────────────────────────────────────────────
-function _setupResize(wrap) {
-  if(_gv.resizeObs){_gv.resizeObs.disconnect();}
-  if(typeof ResizeObserver!=='undefined'){
-    _gv.resizeObs=new ResizeObserver(()=>{
-      if(!_gv.running)return;
-      const nW=Math.max(400,wrap.clientWidth||800),nH=Math.max(300,wrap.clientHeight||600);
-      if(Math.abs(nW-_gv.width)>30||Math.abs(nH-_gv.height)>30){
-        _gv.width=nW;_gv.height=nH;
-        const dpr=window.devicePixelRatio||1;
-        ['graph-canvas','graph-particles'].forEach(id=>{
-          const c=document.getElementById(id);if(!c)return;
-          c.width=nW*dpr;c.height=nH*dpr;c.style.width=nW+'px';c.style.height=nH+'px';
-          c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
-        });
-        setTimeout(()=>_fitToRoots(false),100);
-      }
-    });
-    _gv.resizeObs.observe(wrap);
-  }
-}
 
 function stopGraph(){
   _gv.running=false;
