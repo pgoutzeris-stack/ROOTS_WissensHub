@@ -5104,12 +5104,12 @@ function initKnowledgeGraph() {
 
 function _makeNode(id,type,label,color,r,tx,ty,px,py,revealAt,extra={}) {
   return { id,type,label,color,r,
-    tx,ty,          // Zielposition
-    x:px, y:py,     // Startposition = Eltern (spring animation)
-    vx:0,vy:0,
+    bx:tx, by:ty,   // Basis-Zielposition (NIEMALS verändern!)
+    tx,ty,          // Zielposition (nur kleine Repulsions-Korrekturen)
+    x:px, y:py,     // Aktuelle Position (spring animation)
     parentX:px, parentY:py,
     revealAt,
-    revealP: revealAt <= 0 ? 1 : 0,  // sofort sichtbar wenn revealAt=0
+    revealP: revealAt <= 0 ? 1 : 0,
     ...extra };
 }
 
@@ -5124,9 +5124,9 @@ function _buildHierarchicalLayout() {
 
   // Radien skalieren mit Canvas-Größe
   const S = Math.min(W, H);
-  const R_ROOT   = S * 0.32;  // Root-Ordner
-  const R_SUB    = S * 0.20;  // Unterordner (mehr Abstand)
-  const R_DOC    = S * 0.15;  // Dokument (mehr Abstand)
+  const R_ROOT   = S * 0.34;  // Root-Ordner
+  const R_SUB    = S * 0.22;  // Unterordner
+  const R_DOC    = S * 0.16;  // Dokument
 
   // ── Schritt 1: Orphan-Folder anlegen (bevor Docs verarbeitet werden) ──
   const orphanDocs = docs.filter(d => !d.folder_id);
@@ -5266,63 +5266,61 @@ function _graphLoop() {
 
 // ── Spring-Animation (ersetzt Physics-Chaos) ──────────────────────────────────
 function _springTick() {
-  const z = _gv.zoom;
-  // Zoom relativ zum Übersichts-Zoom
+  const z   = _gv.zoom;
   const relZ = z / Math.max(0.001, _gv.baseZoom);
 
-  // Focus-Punkt: Maus in Weltkoordinaten (Fallback: Zentrum)
+  // ── Focus-Punkt (stabil: Maus oder Zentrum) ────────────────────────────
   const fw = _gFocus.wx ?? _gv.width/2;
   const fh = _gFocus.wy ?? _gv.height/2;
-  // Einfluss-Radius: entspricht ~1 Ordner-Abstand in Weltkoordinaten
-  const focusR = Math.min(_gv.width, _gv.height) * 0.28;
+  const focusR = Math.min(_gv.width, _gv.height) * 0.30;
 
+  // ── 1. Reveal-Logik (basiert auf STABILEN bx/by, nicht tx/ty) ─────────
   _gv.nodes.forEach(n => {
-    // Distanz des Ziel-Positions vom Focus (nicht aktuelle Position — stabiler)
-    const dx = n.tx - fw, dy = n.ty - fh;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    // Sanftes Falloff: exponentiell statt linear
-    const normalizedDist = Math.max(0, dist - focusR*0.2) / focusR;
-    const distFactor = n.revealAt <= 0 ? 1.0
-      : 1.0 + normalizedDist * normalizedDist * 1.8; // quadratisch = schärferer Fokus
-    const effectiveReveal = n.revealAt * distFactor;
-    const shouldReveal = relZ >= effectiveReveal || n.revealAt === 0;
-    const targetP = shouldReveal ? 1 : 0;
-    // Geschwindigkeit: nahe Nodes schneller enthüllt, weite langsamer
-    const dx2=n.tx-fw, dy2=n.ty-fh, d2=Math.sqrt(dx2*dx2+dy2*dy2);
-    const speed = shouldReveal
-      ? Math.max(0.06, 0.14 * Math.max(0, 1 - d2/(focusR*2))) // nahe: 0.14, weit: 0.06
-      : 0.10;
-    n.revealP += (targetP - n.revealP) * speed; // smooth ease
-    if (n.revealP < 0.001) n.revealP = 0;
-    if (n.revealP > 0.999) n.revealP = 1;
+    if (n.revealAt <= 0) { n.revealP = 1; return; }
 
-    // Spring zu Zielposition + Dynamisches Spacing beim Zoom
-    const ease = n.revealP*n.revealP*(3-2*n.revealP);
-    // Spacing skaliert: docs breiten sich beim Zoom aus, subfolders leicht
-    const spread = n.type==='doc'      ? Math.max(1.0, relZ*0.55)
-                 : n.type==='subfolder' ? Math.max(1.0, relZ*0.25)
-                 : 1.0;
-    const scaledTx = n.parentX + (n.tx - n.parentX)*spread;
-    const scaledTy = n.parentY + (n.ty - n.parentY)*spread;
-    n.x = n.parentX + (scaledTx - n.parentX)*ease;
-    n.y = n.parentY + (scaledTy - n.parentY)*ease;
+    // Distanz der stabilen Basis-Position zum Focus
+    const dx = n.bx - fw, dy = n.by - fh;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    const norm = Math.max(0, dist - focusR*0.15) / focusR;
+    // Quadratisches Falloff: nahe der Maus = gleiche Schwelle, weit weg = höhere Schwelle
+    const distFactor = 1.0 + norm * norm * 1.6;
+    const shouldReveal = relZ >= n.revealAt * distFactor;
+
+    // Konstante Geschwindigkeit (kein Variieren mehr → kein Instabilität)
+    n.revealP += (shouldReveal ? 1 : 0) * 0.08 - n.revealP * 0.08;
+    if (n.revealP < 0.005) n.revealP = 0;
+    if (n.revealP > 0.995) n.revealP = 1;
   });
 
-  // Abstoßung: stärker für gerade erscheinende Knoten (frischer Reveal)
-  const revealed = _gv.nodes.filter(n=>n.revealP>0.05);
-  for (let i=0;i<revealed.length;i++) for(let j=i+1;j<revealed.length;j++){
-    const a=revealed[i], b=revealed[j];
-    const dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy+1;
-    const circA=(a.r||8)*1.55, circB=(b.r||8)*1.55;
-    // Knoten die gerade erscheinen bekommen Extra-Abstand (verhindert initiales Überlappen)
-    const freshBoost = (a.revealP < 0.6 || b.revealP < 0.6) ? 1.8 : 1.0;
-    const minD=(circA+circB)*1.6*freshBoost + 14;
+  // ── 2. Position-Spring: Parent → Ziel (KEIN dynamisches Spread!) ──────
+  // Nodes bewegen sich zur fixen Zielposition tx/ty
+  // tx/ty startet gleich wie bx/by, wird nur leicht durch Repulsion angepasst
+  _gv.nodes.forEach(n => {
+    const ease = n.revealP * n.revealP * (3 - 2*n.revealP); // smoothstep
+    n.x = n.parentX + (n.tx - n.parentX) * ease;
+    n.y = n.parentY + (n.ty - n.parentY) * ease;
+  });
+
+  // ── 3. Repulsion: Überlappungen vermeiden (bounded durch bx/by) ────────
+  // Nur aktuelle Positionen als Basis — keine tx/ty Modifikation mehr
+  // Stattdessen: direkte Position-Korrektur
+  const vis = _gv.nodes.filter(n => n.revealP > 0.1);
+  for (let i=0;i<vis.length;i++) for(let j=i+1;j<vis.length;j++) {
+    const a=vis[i], b=vis[j];
+    const dx=b.x-a.x, dy=b.y-a.y;
+    const d2=dx*dx+dy*dy+1;
+    const rA=(a.r||8)*1.5, rB=(b.r||8)*1.5;
+    const minD = rA+rB+12;
     if (d2 < minD*minD) {
       const d=Math.sqrt(d2)||1;
-      // Stärkere Kraft für neue Knoten
-      const force=(minD-d)*0.055*freshBoost;
-      a.tx -= (dx/d)*force; a.ty -= (dy/d)*force;
-      b.tx += (dx/d)*force; b.ty += (dy/d)*force;
+      const push=(minD-d)*0.5; // direkte Positionskorrektur, kein Aufschaukeln
+      const nx=dx/d*push*0.5, ny=dy/d*push*0.5;
+      // Korrektur bounded: max 20px von bx/by entfernt
+      const maxOff=20;
+      a.tx = a.bx + Math.max(-maxOff, Math.min(maxOff, a.tx-a.bx-nx));
+      a.ty = a.by + Math.max(-maxOff, Math.min(maxOff, a.ty-a.by-ny));
+      b.tx = b.bx + Math.max(-maxOff, Math.min(maxOff, b.tx-b.bx+nx));
+      b.ty = b.by + Math.max(-maxOff, Math.min(maxOff, b.ty-b.by+ny));
     }
   }
 }
@@ -5585,7 +5583,7 @@ function _drawIconNode(ctx, n, isHover) {
   const x=n.x, y=n.y, r=n.r;
   const isFolder = n.type==='folder'||n.type==='subfolder';
   const iconSize = r * (isFolder ? 1.05 : 0.95);
-  const circleR  = r * 1.45 * (isHover ? 1.15 : 1.0); // Hover: 15% größer
+  const circleR  = r * 1.45; // Stabil (kein Scale-up der Edges misaligned)
 
   // ── Äußerer farbiger Ring (Glow bei Hover) ───────────────────────────────
   if (isHover) {
