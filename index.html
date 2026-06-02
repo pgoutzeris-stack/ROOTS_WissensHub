@@ -2352,13 +2352,23 @@ window.handleUploadAll = async function() {
     uf.progress = 10;
     renderFileList();
     try {
-      const formData = new FormData();
-      formData.append('file', uf.file);
-      if (folderId) formData.append('folder_id', folderId);
-      if (tags.length) formData.append('tags', tags.join(','));
-      const headers = await authHeaders();
-      // Don't set Content-Type – browser sets multipart boundary
-      const res = await fetch(`${WISSENSHUB_API_URL}?action=upload`, { method: 'POST', headers, body: formData });
+      // Read file as text (markdown)
+      const content = await uf.file.text();
+      const title = uf.file.name.replace(/\.md$/i, '');
+      const headers = { ...await authHeaders(), 'Content-Type': 'application/json' };
+      const payload = JSON.stringify({
+        action: 'upload',
+        title,
+        filename: uf.file.name,
+        content,
+        file_size_bytes: uf.file.size,
+        folder_id: folderId || null,
+        tags,
+        uploader_name: window.RootsUser?._p?.full_name || '',
+        uploader_kuerzel: window.RootsUser?._p?.kuerzel || '',
+        uploaded_by: window.RootsUser?._uid || null,
+      });
+      const res = await fetch(`${WISSENSHUB_API_URL}`, { method: 'POST', headers, body: payload });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
       uf.status = 'done'; uf.progress = 100;
       successCount++;
@@ -2652,9 +2662,11 @@ async function openAiSettings() {
 
   // Check which keys are set in Supabase (show masked placeholder, never expose value)
   const keyDbMap = { anthropic: 'api_key_anthropic', openai: 'api_key_openai', google: 'api_key_google', voyage: 'api_key_voyage' };
-  const keysRes = await sb.schema('knowledge').from('settings')
-    .select('key').in('key', Object.values(keyDbMap));
-  const storedKeys = keysRes.data || [];
+  // Route through Edge Function to avoid PostgREST schema exposure issue
+  const settingsRes = await fetch(`${WISSENSHUB_API_URL}?action=get_settings`, {
+    headers: await authHeaders()
+  }).then(r => r.ok ? r.json() : { keys: [] }).catch(() => ({ keys: [] }));
+  const storedKeys = (settingsRes.keys || []).map((k) => ({ key: k }));
   const setKeys = new Set((storedKeys || []).map(r => r.key));
   ['anthropic','openai','google','voyage'].forEach(k => {
     const inp = document.getElementById('key-' + k);
@@ -2722,8 +2734,12 @@ async function saveAiSettings() {
     inp.value = ''; // Clear field immediately after saving
   }
   if (upserts.length > 0) {
-    const { error } = await sb.schema('knowledge').from('settings').upsert(upserts, { onConflict: 'key' });
-    if (error) { toast('Fehler beim Speichern der API-Keys: ' + error.message, 'err'); return; }
+    const saveRes = await fetch(`${WISSENSHUB_API_URL}`, {
+      method: 'POST',
+      headers: { ...await authHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'save_keys', keys: Object.fromEntries(upserts.map(u => [u.key, u.value])) })
+    });
+    if (!saveRes.ok) { const e = await saveRes.json().catch(() => ({})); toast('Fehler: ' + (e.error || saveRes.status), 'err'); return; }
   }
 
   closeAiSettings();

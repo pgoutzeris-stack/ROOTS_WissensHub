@@ -101,6 +101,15 @@ function getUserClient(authHeader: string) {
 // ---------------------------------------------------------------------------
 // Auth helper
 // ---------------------------------------------------------------------------
+async function authenticateRequest(req: Request): Promise<{ userId: string } | null> {
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader) return null;
+  const client = getUserClient(authHeader);
+  const { data: { user }, error } = await client.auth.getUser();
+  if (error || !user) return null;
+  return { userId: user.id };
+}
+
 async function requireAuth(req: Request): Promise<{ userId: string } | null> {
   const authHeader = req.headers.get("authorization");
   if (!authHeader) return null;
@@ -790,18 +799,26 @@ serve(async (req: Request) => {
     return new Response(null, { status: 204, headers: getCorsHeaders(origin) });
   }
 
-  if (req.method !== "POST") {
+  // Support both GET ?action=xxx and POST { action: "xxx", ... }
+  const url = new URL(req.url);
+  let body: Record<string, unknown> = {};
+  let action: string = url.searchParams.get("action") || "";
+
+  if (req.method === "POST") {
+    const ct = req.headers.get("content-type") || "";
+    if (ct.includes("application/json")) {
+      try {
+        body = await req.json();
+        if (!action) action = (body.action as string) || "";
+      } catch {
+        return errorResponse(origin, "Invalid JSON body");
+      }
+    }
+    // multipart/form-data handled per-action below
+  } else if (req.method !== "GET") {
     return errorResponse(origin, "Method not allowed", 405);
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return errorResponse(origin, "Invalid JSON body");
-  }
-
-  const action = body.action as string;
   if (!action) {
     return errorResponse(origin, "action is required");
   }
@@ -818,7 +835,7 @@ serve(async (req: Request) => {
         return await handleChat(body, req, origin);
 
       case "folders":
-        return await handleFolders(origin);
+        return await handleFolders(origin, url);
 
       case "create_folder":
         return await handleCreateFolder(body, req, origin);
@@ -830,13 +847,45 @@ serve(async (req: Request) => {
         return await handleDeleteFolder(body, req, origin);
 
       case "documents":
-        return await handleDocuments(body, origin);
+        return await handleDocuments(body.folder_id ? body : Object.fromEntries(url.searchParams), origin);
 
       case "tags":
         return await handleTags(origin);
 
       case "delete_document":
         return await handleDeleteDocument(body, req, origin);
+
+      case "get_settings": {
+        // Return which API keys are set (not their values)
+        const admin = getAdminClient();
+        const { data } = await admin.schema("knowledge").from("settings")
+          .select("key").in("key", ["api_key_anthropic","api_key_openai","api_key_google","api_key_voyage"]);
+        const keys = (data || []).map((r: { key: string }) => r.key);
+        return new Response(JSON.stringify({ keys }), {
+          status: 200, headers: { ...getCorsHeaders(origin), "Content-Type": "application/json" }
+        });
+      }
+
+      case "save_keys": {
+        const auth = await authenticateRequest(req);
+        if (!auth) return errorResponse(origin, "Unauthorized", 401);
+        // Only admins can save keys
+        const pub = publicServiceClient();
+        const { data: prof } = await pub.schema("users").from("profiles")
+          .select("app_role").eq("id", auth.userId).maybeSingle();
+        if (prof?.app_role !== "admin") return errorResponse(origin, "Forbidden", 403);
+        const keys = body.keys as Record<string, string>;
+        const admin = getAdminClient();
+        const upserts = Object.entries(keys)
+          .filter(([, v]) => v)
+          .map(([k, v]) => ({ key: k, value: v, updated_by: auth.userId, updated_at: new Date().toISOString() }));
+        if (upserts.length > 0) {
+          await admin.schema("knowledge").from("settings").upsert(upserts, { onConflict: "key" });
+        }
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200, headers: { ...getCorsHeaders(origin), "Content-Type": "application/json" }
+        });
+      }
 
       default:
         return errorResponse(origin, `Unknown action: ${action}`, 400);
