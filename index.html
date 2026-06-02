@@ -1307,7 +1307,7 @@
 <body>
 
 <!-- ─── Auth Overlay ─── -->
-<div id="roots-auth-overlay">
+<div id="roots-auth-overlay" style="display:none">
   <div class="roots-auth-card">
     <div class="roots-auth-logo">
       <div class="logo-mark">
@@ -1813,31 +1813,40 @@ async function onSessionReady(session) {
   }
 }
 
-sb.auth.getSession().then(({ data: { session } }) => {
+const IN_IFRAME = window.parent !== window;
+
+sb.auth.onAuthStateChange((event, session) => {
+  console.log('[WH Auth] onAuthStateChange:', event, session ? 'uid='+session.user?.id : 'no session');
   if (session) {
     onSessionReady(session);
-  } else {
-    // In iframe: bridge may sync session from parent — wait 1.5s before showing login
-    // Standalone: show login immediately
-    const delay = (window.parent !== window) ? 1500 : 0;
-    setTimeout(() => {
-      sb.auth.getSession().then(({ data: { s } }) => {
-        if (!s) showAuthOverlay();
-      });
-    }, delay);
-  }
-});
-sb.auth.onAuthStateChange((event, session) => {
-  if (session) onSessionReady(session);
-  else if (event === 'SIGNED_OUT') {
+  } else if (event === 'SIGNED_OUT') {
     showAuthOverlay();
     if (window.RootsUser) { window.RootsUser._uid = null; window.RootsUser._p = null; }
   }
 });
 
-// Bridge auth-ready event: called when bridge has synced session from parent
+// Bridge auth-ready: bridge has synced session from parent Intranet
 window.addEventListener('roots-auth-ready', (e) => {
+  console.log('[WH Auth] roots-auth-ready event:', e.detail?.session ? 'session synced' : 'no session');
   if (e.detail?.session) onSessionReady(e.detail.session);
+});
+
+sb.auth.getSession().then(({ data: { session } }) => {
+  console.log('[WH Auth] getSession result:', session ? 'SESSION FOUND uid='+session.user?.id : 'NO SESSION', 'IN_IFRAME='+IN_IFRAME);
+  if (session) {
+    onSessionReady(session);
+  } else if (!IN_IFRAME) {
+    // Standalone browser: no session → show login immediately
+    showAuthOverlay();
+  } else {
+    // Inside Intranet iframe: give bridge 2s to sync session from parent localStorage
+    // Bridge will trigger onAuthStateChange or roots-auth-ready when done
+    setTimeout(() => {
+      sb.auth.getSession().then(({ data: { session: s2 } }) => {
+        if (!s2) showAuthOverlay(); // still nothing after 2s → show login
+      });
+    }, 2000);
+  }
 });
 
 document.getElementById('roots-login-form').addEventListener('submit', async (e) => {
