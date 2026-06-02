@@ -4562,6 +4562,49 @@ document.getElementById('modal-ai-settings').addEventListener('click', function(
   if (e.target === this) closeAiSettings();
 });
 
+// ─── setDocView: Kacheln / Liste / Graph umschalten ─────────────────────────
+window.setDocView = function(view) {
+  state.docView = view;
+  const gridEl  = document.getElementById('doc-grid');
+  const listEl  = document.getElementById('doc-list');
+  const graphEl = document.getElementById('doc-graph-wrap');
+  const content = document.getElementById('doc-content');
+
+  // View-Toggle-Buttons
+  ['cards','list','graph'].forEach(n => {
+    const btn = document.getElementById(`btn-view-${n}`);
+    if (!btn) return;
+    btn.style.background = view === n ? 'var(--bg)' : 'transparent';
+    btn.style.color      = view === n ? 'var(--ink)' : 'var(--muted)';
+  });
+
+  if (view === 'graph') {
+    if (gridEl)  gridEl.style.display  = 'none';
+    if (listEl)  listEl.style.display  = 'none';
+    if (graphEl) {
+      graphEl.style.display = 'block';
+      // Graph braucht explizite Höhe — dash-content overflow:auto verhindert height:100%
+      if (content) graphEl.style.height = (content.clientHeight - 40) + 'px';
+      else graphEl.style.minHeight = '500px';
+    }
+    if (typeof stopGraph === 'function') stopGraph();
+    initKnowledgeGraph();
+  } else if (view === 'list') {
+    if (gridEl)  gridEl.style.display  = 'none';
+    if (listEl)  { listEl.style.display = 'flex'; listEl.style.flexDirection = 'column'; }
+    if (graphEl) graphEl.style.display  = 'none';
+    if (typeof stopGraph === 'function') stopGraph();
+    renderDocuments();
+  } else {
+    // cards (default)
+    if (gridEl)  gridEl.style.display  = '';
+    if (listEl)  listEl.style.display  = 'none';
+    if (graphEl) graphEl.style.display = 'none';
+    if (typeof stopGraph === 'function') stopGraph();
+    renderDocuments();
+  }
+};
+
 // ─── Expose globals needed by HTML onclick attrs ───────────────────────────────
 window.switchView = window.switchView;
 window.openNewFolderModal = window.openNewFolderModal;
