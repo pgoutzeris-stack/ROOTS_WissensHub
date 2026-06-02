@@ -1890,7 +1890,7 @@
           <!-- Statische Favoriten -->
           <div class="finder-section-label">Favoriten</div>
           <button class="finder-item" id="finder-all" onclick="selectFolderFilter(null)" data-filter="all">
-            <i class="fa-solid fa-tray-arrow-down finder-item-icon" style="color:#5e9cf5"></i>
+            <i class="fa-solid fa-folder-open finder-item-icon" style="color:#5e9cf5"></i>
             <span class="finder-item-label">Alle Dokumente</span>
             <span class="finder-item-badge" id="finder-count-all">–</span>
           </button>
@@ -2679,7 +2679,7 @@ function renderFinderFolderNode(container, folder, depth) {
   btn.style.paddingLeft = (.5 + depth * .8) + 'rem';
   btn.innerHTML = `
     <i class="finder-chevron fa-solid fa-chevron-right${isOpen ? ' open' : ''}" style="${hasChildren ? '' : 'opacity:0;pointer-events:none'}"></i>
-    <i class="finder-folder-icon fa-solid ${escHtml(folder.icon || 'fa-folder')}" style="color:${escHtml(folder.color || '#206efb')}"></i>
+    <i class="finder-folder-icon fa-solid fa-folder" style="color:${escHtml(folder.color || '#206efb')}"></i>
     <span class="finder-folder-name">${escHtml(folder.name)}</span>
     <span class="finder-folder-count">${docsInFolder.length || ''}</span>`;
 
@@ -2978,9 +2978,16 @@ window.renderDocuments = function() {
   if (listEl) listEl.innerHTML = '';
 
   if (state.docView === 'list') {
+    // Liste: immer mit Ordner-Gruppierung wenn kein spezifischer Ordner aktiv
     renderListViewTable(docs);
   } else {
-    renderGroupedCards(docs, grid);
+    // Kacheln: Ordner-Gruppenansicht nur bei "Alle Dokumente"
+    // Wenn ein spezifischer Ordner ausgewählt ist → flat (keine Untergruppen)
+    if (state.activeFolderId) {
+      docs.forEach(doc => grid.appendChild(makeDocCard(doc)));
+    } else {
+      renderGroupedCards(docs, grid);
+    }
   }
 };
 
@@ -3082,8 +3089,8 @@ function makeDocCard(doc, index = 0) {
   });
   card.addEventListener('contextmenu', e => showCtxMenu(e, 'doc', doc));
   const embSt = doc.embedding_status || 'pending';
-  const statusClass = embSt === 'done' ? 'verarbeitet' : embSt === 'error' ? 'fehler' : 'pending';
-  const statusLabel = embSt === 'done' ? 'Verarbeitet' : embSt === 'error' ? 'Fehler' : embSt === 'processing' ? 'Wird verarbeitet…' : 'Ausstehend';
+  const embErr = embSt === 'error';
+  const embPending = embSt !== 'done' && embSt !== 'error';
   const tags = Array.isArray(doc.tags) ? doc.tags : [];
   const folderPath = folderPathFor(doc.folder_id);
   const uploader = doc.uploader_name || 'Unbekannt';
@@ -3091,20 +3098,23 @@ function makeDocCard(doc, index = 0) {
   const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
 
   const hl = (txt) => state.search ? highlight(escHtml(txt||''), state.search.toLowerCase()) : escHtml(txt||'');
+
+  // Status-Anzeige: nur bei Fehler/Ausstehend, sonst Tags
+  const statusBadge = embErr
+    ? `<span class="status-badge fehler" style="flex-shrink:0"><span class="status-dot"></span>Fehler</span>`
+    : embPending
+    ? `<span class="status-badge pending" style="flex-shrink:0"><span class="status-dot"></span>Ausstehend</span>`
+    : '';
+
   card.innerHTML = `
-    <div class="doc-card__header">
-      <div class="doc-card__title">${hl(doc.title || doc.file_name || 'Dokument')}</div>
-      <span class="status-badge ${statusClass}">
-        <span class="status-dot"></span>${statusLabel}
-      </span>
+    <div class="doc-card__header" style="gap:.5rem">
+      <i class="fa-solid fa-file-lines" style="color:var(--brand);font-size:.9rem;flex-shrink:0"></i>
+      <div class="doc-card__title" style="flex:1">${hl(doc.title || doc.file_name || 'Dokument')}</div>
+      ${statusBadge}
     </div>
-    ${folderPath ? `<div class="doc-card__folder">${folderPathHtml(doc.folder_id)}</div>` : '<div class="doc-card__folder"><i class="fa-solid fa-inbox"></i>Root</div>'}
-    ${doc.search_excerpt ? `<div style="font-size:.76rem;color:var(--muted);line-height:1.45;background:var(--surface);border-radius:10px;padding:.48rem .58rem">${escHtml(doc.search_excerpt)}</div>` : ''}
+    ${folderPath ? `<div class="doc-card__folder">${folderPathHtml(doc.folder_id)}</div>` : ''}
     ${tags.length ? `<div class="doc-card__tags">${tags.map(t => `<span class="tag-pill">${escHtml(t)}</span>`).join('')}</div>` : ''}
-    <div class="doc-card__size-bar" style="height:3px;background:var(--line);border-radius:2px;margin-top:auto">
-      <div style="height:100%;background:var(--brand);border-radius:2px;width:${Math.min(100, (doc.chunk_count||1) * 5)}%;transition:width .3s"></div>
-    </div>
-    <div class="doc-card__footer">
+    <div class="doc-card__footer" style="margin-top:auto">
       <div class="doc-card__meta">
         <div class="doc-avatar">${doc.avatar_url ? `<img src="${escHtml(doc.avatar_url)}" alt="${escHtml(initials)}" />` : initials}</div>
         <span class="doc-meta-text">${escHtml(uploader)} · ${date}</span>
