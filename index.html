@@ -5346,18 +5346,7 @@ function _draw(ctx) {
     // Glow bei Hover
     if (isHover) { ctx.shadowColor=n.color; ctx.shadowBlur=20; }
 
-    if (n.type==='folder' || n.type==='subfolder') {
-      _drawFolderShape(ctx, n, isHover);
-    } else {
-      // Dokument-Kreis
-      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
-      ctx.fillStyle='#ffffff';
-      ctx.fill();
-      ctx.shadowBlur=0;
-      ctx.strokeStyle=n.color;
-      ctx.lineWidth=(isHover?2.5:1.8);
-      ctx.stroke();
-    }
+    _drawIconNode(ctx, n, isHover);
 
     // Label (nur wenn genug Zoom oder Hover)
     const showLabel = n.type==='folder' || (z>0.7 && n.revealP>0.7) || isHover;
