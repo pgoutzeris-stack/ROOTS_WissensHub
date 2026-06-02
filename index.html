@@ -5115,120 +5115,130 @@ function _makeNode(id,type,label,color,r,tx,ty,px,py,revealAt,extra={}) {
 
 // ── Hierarchisches Radial-Layout ─────────────────────────────────────────────
 function _buildHierarchicalLayout() {
-  const W = _gv.width, H = _gv.height;
-  const cx = W/2, cy = H/2;
-  const COLORS = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b'];
+  const W=_gv.width, H=_gv.height, cx=W/2, cy=H/2;
+  const COLORS=['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#0ea5e9'];
   const folders = state.folders || [];
   const docs = state.documents || [];
+  const S = Math.min(W,H);
+  const RING = S * 0.205; // Abstand zwischen Tiefen-Ebenen
+
+  // ── 1. Tree-Datenmodell aufbauen ──────────────────────────────────────
+  const treeRoot = { id:'__root__', type:'root', children:[] };
+  const fNode = {};
+  folders.forEach((f,i)=>{
+    fNode[f.id] = {
+      id:'f:'+f.id, type: f.parent_id ? 'subfolder' : 'folder',
+      label:f.name, color:f.color||COLORS[i%COLORS.length],
+      folderId:f.id, children:[],
+    };
+  });
+  // Ordner-Hierarchie verknüpfen
+  folders.forEach(f=>{
+    const node=fNode[f.id];
+    if (f.parent_id && fNode[f.parent_id]) fNode[f.parent_id].children.push(node);
+    else treeRoot.children.push(node);
+  });
+  // Orphan-Ordner für Docs ohne Ordner
+  const orphan = { id:'__orphan__', type:'folder', label:'Ohne Ordner', color:'#94a3b8', folderId:null, children:[] };
+  let hasOrphan=false;
+  // Dokumente an ihre Ordner hängen
+  docs.forEach(d=>{
+    const dn = {
+      id:'d:'+d.id, type:'doc', label:d.title||d.filename||'Dok',
+      color:'#94a3b8', folderId:d.folder_id||null, docId:d.id, children:[],
+      tags:Array.isArray(d.tags)?d.tags:[], chunks:d.chunk_count||0,
+      uploader:d.uploader_name||'', date:d.created_at||'', size:d.file_size_bytes||0,
+      content:null,
+    };
+    if (d.folder_id && fNode[d.folder_id]) {
+      dn.color = fNode[d.folder_id].color;
+      fNode[d.folder_id].children.push(dn);
+    } else {
+      orphan.children.push(dn); hasOrphan=true;
+    }
+  });
+  if (hasOrphan) treeRoot.children.push(orphan);
+
+  // ── 2. Gewichte (Anzahl Blätter) berechnen ────────────────────────────
+  function weight(node){
+    if (!node.children.length){ node._w=1; return 1; }
+    node._w = node.children.reduce((s,c)=>s+weight(c),0);
+    return node._w;
+  }
+  weight(treeRoot);
+
+  // ── 3. Winkelsektoren + Positionen rekursiv zuweisen ──────────────────
+  // Jeder Knoten bekommt einen Winkel-Wedge [a0,a1]. Kinder teilen sich
+  // den Wedge nach Gewicht. → Geschwister + Äste überlappen NIE.
+  const placed = []; // {treeNode, x, y, depth, parentX, parentY, sectorW}
+  function layout(node, a0, a1, depth, parent){
+    const mid=(a0+a1)/2;
+    let x=cx, y=cy;
+    if (depth>0){
+      const radius = RING*depth;
+      x = cx + Math.cos(mid)*radius;
+      y = cy + Math.sin(mid)*radius;
+    }
+    node._x=x; node._y=y; node._depth=depth; node._angle=mid;
+    node._sectorW = a1-a0;
+    if (node.id!=='__root__'){
+      placed.push({ node, x, y, depth,
+        parentX: parent?parent._x:cx, parentY: parent?parent._y:cy });
+    }
+    // Kinder verteilen
+    let a=a0;
+    // Kinder sortieren: Unterordner zuerst, dann Docs (visuell gruppiert)
+    const kids = node.children.slice().sort((p,q)=>{
+      const ord = t => t==='subfolder'||t==='folder' ? 0 : 1;
+      return ord(p.type)-ord(q.type);
+    });
+    kids.forEach(c=>{
+      const span=(a1-a0)*(c._w/Math.max(1,node._w));
+      layout(c, a, a+span, depth+1, node);
+      a+=span;
+    });
+  }
+  layout(treeRoot, -Math.PI/2, Math.PI*1.5, 0, null);
+
+  // ── 4. Render-Knoten + Edges erzeugen ─────────────────────────────────
   const nodes=[], edges=[], byId=new Map();
-
-  // Radien skalieren mit Canvas-Größe
-  const S = Math.min(W, H);
-  const R_ROOT   = S * 0.34;  // Root-Ordner
-  const R_SUB    = S * 0.22;  // Unterordner
-  const R_DOC    = S * 0.16;  // Dokument
-
-  // ── Schritt 1: Orphan-Folder anlegen (bevor Docs verarbeitet werden) ──
-  const orphanDocs = docs.filter(d => !d.folder_id);
-  if (orphanDocs.length > 0) {
-    // Platz im rechten oberen Bereich
-    const orphanTx = cx + R_ROOT * 0.85;
-    const orphanTy = cy - R_ROOT * 0.85;
-    const orphan = _makeNode('__orphan__','folder','Ohne Ordner','#94a3b8',20,
-      orphanTx, orphanTy, cx, cy, 0, {folderId:null});
-    nodes.push(orphan); byId.set('__orphan__', orphan);
-  }
-
-  // ── Schritt 2: Root-Ordner gleichmäßig im Kreis ──
-  const roots = folders.filter(f => !f.parent_id);
-  // Falls Orphan-Folder existiert, einen extra Platz reservieren
-  const totalRoots = roots.length + (orphanDocs.length>0 ? 1 : 0);
-  roots.forEach((f, i) => {
-    const angle = (i / Math.max(1, totalRoots)) * Math.PI*2 - Math.PI/2;
-    const tx = cx + Math.cos(angle)*R_ROOT;
-    const ty = cy + Math.sin(angle)*R_ROOT;
-    const n = _makeNode('f:'+f.id,'folder',f.name,
-      f.color||COLORS[i%COLORS.length], 22, tx,ty, cx,cy, 0, {folderId:f.id});
+  placed.forEach(p=>{
+    const t=p.node;
+    let revealAt;
+    if (t.type==='folder' || t.type==='subfolder') revealAt=0; // Ordner immer
+    else {
+      // Docs: in kleinen Ordnern sofort, in großen erst beim Zoom
+      const parentFolder = folders.find(f=>f.id===t.folderId) || (t.folderId===null?orphan:null);
+      const sibCount = t.folderId
+        ? docs.filter(d=>d.folder_id===t.folderId).length
+        : orphan.children.length;
+      revealAt = sibCount<=4 ? 0 : Z_CHILD;
+    }
+    const r = t.type==='folder' ? 22 : t.type==='subfolder' ? 16
+            : Math.max(7, Math.min(13, 7+Math.sqrt(t.chunks||1)*0.6));
+    const n = _makeNode(t.id, t.type, t.label, t.color, r,
+      p.x, p.y, p.parentX, p.parentY, revealAt,
+      { folderId:t.folderId, docId:t.docId, tags:t.tags||[], chunks:t.chunks||0,
+        uploader:t.uploader||'', date:t.date||'', size:t.size||0, content:null });
     nodes.push(n); byId.set(n.id, n);
   });
-
-  // Orphan-Folder Position jetzt neu berechnen (korrekter Winkel)
-  if (orphanDocs.length > 0 && byId.has('__orphan__')) {
-    const oIdx = roots.length;
-    const oAngle = (oIdx / Math.max(1, totalRoots)) * Math.PI*2 - Math.PI/2;
-    const oph = byId.get('__orphan__');
-    oph.tx = cx + Math.cos(oAngle)*R_ROOT;
-    oph.ty = cy + Math.sin(oAngle)*R_ROOT;
-    oph.x = cx; oph.y = cy; // spring start
-    oph.parentX=cx; oph.parentY=cy;
-  }
-
-  // ── Schritt 3: Unterordner ──
-  folders.filter(f => f.parent_id).forEach(f => {
-    const parent = byId.get('f:'+f.parent_id);
-    if (!parent) return;
-    const siblings = folders.filter(sf => sf.parent_id===f.parent_id);
-    const idx = siblings.indexOf(f);
-    const n_sib = siblings.length;
-    // Fächerwinkel: weg vom Zentrum, gleichmäßig verteilt
-    const baseA = Math.atan2(parent.ty-cy, parent.tx-cx);
-    const maxSpread = Math.min(Math.PI*0.8, Math.PI*0.3 * n_sib);
-    const angle = n_sib===1 ? baseA
-      : baseA + ((idx/(n_sib-1)) - 0.5) * maxSpread * 2;
-    const tx = parent.tx + Math.cos(angle)*R_SUB;
-    const ty = parent.ty + Math.sin(angle)*R_SUB;
-    const n = _makeNode('f:'+f.id,'subfolder',f.name,
-      f.color||parent.color, 16, tx,ty, parent.tx,parent.ty, 0, {folderId:f.id});
-    nodes.push(n); byId.set(n.id, n);
-    edges.push({a:parent, b:n, kind:'folder', w:2, revealAt:0});
+  // Hierarchie-Edges
+  placed.forEach(p=>{
+    const t=p.node;
+    if (t.type==='subfolder') {
+      const parent = byId.get('f:'+(folders.find(f=>f.id===t.folderId)?.parent_id));
+      const self = byId.get(t.id);
+      if (parent && self) edges.push({a:parent,b:self,kind:'folder',w:2,revealAt:0});
+    } else if (t.type==='doc') {
+      const pid = t.folderId ? 'f:'+t.folderId : '__orphan__';
+      const parent = byId.get(pid), self = byId.get(t.id);
+      const self2 = byId.get(t.id);
+      if (parent && self2) edges.push({a:parent,b:self2,kind:'contains',w:1.2,revealAt:self2.revealAt});
+    }
   });
+  // Orphan-Folder Edge zu seinen Docs ist über contains schon abgedeckt
 
-  // ── Schritt 4: Dokumente ──
-  docs.forEach((doc, globalIdx) => {
-    const fKey = doc.folder_id ? 'f:'+doc.folder_id : null;
-    const parentNode = fKey && byId.has(fKey) ? byId.get(fKey)
-      : byId.has('__orphan__') ? byId.get('__orphan__')
-      : null;
-
-    if (!parentNode) return; // Sicherheitscheck
-
-    const siblings = docs.filter(d =>
-      (d.folder_id||null) === (doc.folder_id||null));
-    const idx = siblings.indexOf(doc);
-    const n_sib = siblings.length;
-
-    // Richtung weg vom Zentrum (Parent → außen)
-    const baseA = Math.atan2(parentNode.ty-cy, parentNode.tx-cx);
-    // Fächer um den Parent
-    const maxSpread = Math.min(Math.PI*1.4, Math.PI*0.25 * n_sib);
-    const ringSize = 8; // Docs pro Ring
-    const ring = Math.floor(idx/ringSize);
-    const posInRing = idx % ringSize;
-    const ringCount = Math.min(ringSize, n_sib - ring*ringSize);
-    const ringAngle = ringCount===1 ? baseA
-      : baseA + ((posInRing/(ringCount-1))-0.5) * maxSpread * 2;
-    const rr = R_DOC + ring*R_DOC*0.65;
-    const tx = parentNode.tx + Math.cos(ringAngle)*rr;
-    const ty = parentNode.ty + Math.sin(ringAngle)*rr;
-
-    const tags = Array.isArray(doc.tags)?doc.tags:[];
-    const r = Math.max(7, Math.min(13, 7+Math.sqrt(doc.chunk_count||1)*0.6));
-    const fewDocs = n_sib <= 4;
-    const docReveal = fewDocs ? 0 : Z_CHILD; // wenige Docs früher
-
-    const n = _makeNode('d:'+doc.id,'doc',doc.title||'Dok',
-      parentNode.color, r, tx,ty, parentNode.tx,parentNode.ty, docReveal,
-      {docId:doc.id, tags, chunks:doc.chunk_count||0,
-       uploader:doc.uploader_name||'', date:doc.created_at||'',
-       size:doc.file_size_bytes||0, content:null, folderId:doc.folder_id||null});
-    nodes.push(n); byId.set(n.id, n);
-
-    const fn = fKey && byId.has(fKey) ? byId.get(fKey)
-      : byId.has('__orphan__') ? byId.get('__orphan__') : null;
-    if (fn) edges.push({a:fn, b:n, kind:'contains', w:1.2, revealAt:docReveal});
-  });
-
-  // ── Schritt 5: Ähnlichkeits-Edges ──
+  // ── 5. Ähnlichkeits-Edges (geteilte Tags) ─────────────────────────────
   const docNodes = nodes.filter(n=>n.type==='doc');
   for (let i=0;i<docNodes.length;i++) for(let j=i+1;j<docNodes.length;j++){
     const shared = docNodes[i].tags.filter(t=>docNodes[j].tags.includes(t)).length;
@@ -5236,6 +5246,7 @@ function _buildHierarchicalLayout() {
   }
 
   _gv.nodes=nodes; _gv.edges=edges; _gv.byId=byId;
+  _gv.ringSize = RING; // für focusR in springTick
 }
 
 // ── Hauptloop ─────────────────────────────────────────────────────────────────
@@ -5266,61 +5277,50 @@ function _graphLoop() {
 
 // ── Spring-Animation (ersetzt Physics-Chaos) ──────────────────────────────────
 function _springTick() {
-  const z   = _gv.zoom;
+  const z = _gv.zoom;
   const relZ = z / Math.max(0.001, _gv.baseZoom);
 
-  // ── Focus-Punkt (stabil: Maus oder Zentrum) ────────────────────────────
+  // Focus-Punkt: Maus in Weltkoordinaten (Fallback: Zentrum)
   const fw = _gFocus.wx ?? _gv.width/2;
   const fh = _gFocus.wy ?? _gv.height/2;
-  const focusR = Math.min(_gv.width, _gv.height) * 0.30;
+  // Focus-Radius in WELT-Einheiten (~1.6 Ring-Abstände) → konsistent bei jedem Zoom
+  const focusR = (_gv.ringSize || _gv.width*0.2) * 1.6;
 
-  // ── 1. Reveal-Logik (basiert auf STABILEN bx/by, nicht tx/ty) ─────────
+  // ── 1. Reveal-Logik (stabile bx/by) ───────────────────────────────────
   _gv.nodes.forEach(n => {
     if (n.revealAt <= 0) { n.revealP = 1; return; }
-
-    // Distanz der stabilen Basis-Position zum Focus
     const dx = n.bx - fw, dy = n.by - fh;
     const dist = Math.sqrt(dx*dx + dy*dy);
-    const norm = Math.max(0, dist - focusR*0.15) / focusR;
-    // Quadratisches Falloff: nahe der Maus = gleiche Schwelle, weit weg = höhere Schwelle
-    const distFactor = 1.0 + norm * norm * 1.6;
+    const norm = Math.max(0, dist - focusR*0.5) / focusR;
+    const distFactor = 1.0 + norm * norm * 1.4; // weiter weg = höhere Schwelle
     const shouldReveal = relZ >= n.revealAt * distFactor;
-
-    // Konstante Geschwindigkeit (kein Variieren mehr → kein Instabilität)
-    n.revealP += (shouldReveal ? 1 : 0) * 0.08 - n.revealP * 0.08;
-    if (n.revealP < 0.005) n.revealP = 0;
-    if (n.revealP > 0.995) n.revealP = 1;
+    n.revealP += ((shouldReveal ? 1 : 0) - n.revealP) * 0.09;
+    if (n.revealP < 0.004) n.revealP = 0;
+    if (n.revealP > 0.996) n.revealP = 1;
   });
 
-  // ── 2. Position-Spring: Parent → Ziel (KEIN dynamisches Spread!) ──────
-  // Nodes bewegen sich zur fixen Zielposition tx/ty
-  // tx/ty startet gleich wie bx/by, wird nur leicht durch Repulsion angepasst
+  // ── 2. Position-Spring zur fixen Zielposition ─────────────────────────
   _gv.nodes.forEach(n => {
-    const ease = n.revealP * n.revealP * (3 - 2*n.revealP); // smoothstep
+    const ease = n.revealP * n.revealP * (3 - 2*n.revealP);
     n.x = n.parentX + (n.tx - n.parentX) * ease;
     n.y = n.parentY + (n.ty - n.parentY) * ease;
   });
 
-  // ── 3. Repulsion: Überlappungen vermeiden (bounded durch bx/by) ────────
-  // Nur aktuelle Positionen als Basis — keine tx/ty Modifikation mehr
-  // Stattdessen: direkte Position-Korrektur
-  const vis = _gv.nodes.filter(n => n.revealP > 0.1);
+  // ── 3. Sanfte Repulsion (nur sichtbare, gedeckelt) ────────────────────
+  const vis = _gv.nodes.filter(n => n.revealP > 0.3);
   for (let i=0;i<vis.length;i++) for(let j=i+1;j<vis.length;j++) {
     const a=vis[i], b=vis[j];
     const dx=b.x-a.x, dy=b.y-a.y;
-    const d2=dx*dx+dy*dy+1;
-    const rA=(a.r||8)*1.5, rB=(b.r||8)*1.5;
-    const minD = rA+rB+12;
+    const d2=dx*dx+dy*dy+0.01;
+    const minD = ((a.r||8)+(b.r||8))*1.6 + 16;
     if (d2 < minD*minD) {
-      const d=Math.sqrt(d2)||1;
-      const push=(minD-d)*0.5; // direkte Positionskorrektur, kein Aufschaukeln
-      const nx=dx/d*push*0.5, ny=dy/d*push*0.5;
-      // Korrektur bounded: max 20px von bx/by entfernt
-      const maxOff=20;
-      a.tx = a.bx + Math.max(-maxOff, Math.min(maxOff, a.tx-a.bx-nx));
-      a.ty = a.by + Math.max(-maxOff, Math.min(maxOff, a.ty-a.by-ny));
-      b.tx = b.bx + Math.max(-maxOff, Math.min(maxOff, b.tx-b.bx+nx));
-      b.ty = b.by + Math.max(-maxOff, Math.min(maxOff, b.ty-b.by+ny));
+      const d=Math.sqrt(d2);
+      const push=(minD-d)*0.15;
+      const nx=(dx/d)*push, ny=(dy/d)*push;
+      // tx/ty gedeckelt um max 25px von der Basis bx/by
+      const cap=(v,base)=>Math.max(base-25, Math.min(base+25, v));
+      a.tx = cap(a.tx-nx, a.bx); a.ty = cap(a.ty-ny, a.by);
+      b.tx = cap(b.tx+nx, b.bx); b.ty = cap(b.ty+ny, b.by);
     }
   }
 }
@@ -5355,64 +5355,47 @@ function _draw(ctx) {
 
   // ── Edges ──
   edges.forEach(e => {
-    const vis = Math.min(e.a.revealP, e.b.revealP);
-    if (vis < 0.05) return;
+    const minVis = Math.min(e.a.revealP, e.b.revealP);
+    if (minVis < 0.05) return;
     const eRelZ = z / Math.max(0.001, _gv.baseZoom);
-    // Folder-Kanten immer zeigen; andere nur wenn Knoten erscheinen
-    if (e.kind==='folder' && (e.a.revealP>0.1||e.b.revealP>0.1)) { /* immer */ }
-    else if (e.revealAt > 0 && eRelZ < e.revealAt*0.6) return;
-    if (Math.min(e.a.revealP, e.b.revealP) < 0.05) return;
-    const active = !conn || (conn.has(e.a.id)&&conn.has(e.b.id));
-    ctx.globalAlpha = vis * (active ? 1 : 0.15);
+    // Folder-Kanten immer; andere erst wenn ihre Knoten erscheinen
+    if (e.kind!=='folder' && e.revealAt > 0 && eRelZ < e.revealAt*0.6) return;
 
-    if (e.kind==='rag_similar') {
-      // RAG-Ähnlichkeits-Edge: lila Gradient, gestrichelt
-      const gR = ctx.createLinearGradient(e.a.x,e.a.y,e.b.x,e.b.y);
-      gR.addColorStop(0,'rgba(139,92,246,'+(active?0.7:0.1)+')');
-      gR.addColorStop(1,'rgba(167,139,250,'+(active?0.7:0.1)+')');
-      ctx.strokeStyle=gR; ctx.lineWidth=(e.sim||0.5)*2.5/z;
-      ctx.setLineDash([6/z,3/z]);
-      ctx.beginPath(); ctx.moveTo(_sx,_sy); ctx.lineTo(_ex,_ey); ctx.stroke();
-      ctx.setLineDash([]);
-      return; // skip normal rendering
-    }
-    if (e.kind==='similar') {
-      const g = ctx.createLinearGradient(e.a.x,e.a.y,e.b.x,e.b.y);
-      g.addColorStop(0, e.a.color+'66'); g.addColorStop(1, e.b.color+'66');
-      ctx.strokeStyle=g; ctx.lineWidth=1.2/z;
-      ctx.setLineDash([5/z,4/z]);
-    } else if (e.kind==='folder') {
-      ctx.strokeStyle=`rgba(32,110,251,${active?0.30:0.08})`; ctx.lineWidth=1.5/z;
-      ctx.setLineDash([]);
-    } else {
-      ctx.strokeStyle=`rgba(32,110,251,${active?0.55:0.1})`; ctx.lineWidth=1.2/z;
-      ctx.setLineDash([]);
-    }
-    // Endpunkte am Kreis-Rand (nicht im Mittelpunkt)
+    const active = !conn || (conn.has(e.a.id)&&conn.has(e.b.id));
+    ctx.globalAlpha = minVis * (active ? 1 : 0.12);
+
+    // Endpunkte am Kreis-Rand berechnen (EINMAL, vor dem Zeichnen)
     const _dx=e.b.x-e.a.x, _dy=e.b.y-e.a.y;
     const _d=Math.sqrt(_dx*_dx+_dy*_dy)||1;
-    const aCircleR=(e.a.r||8)*1.45+1, bCircleR=(e.b.r||8)*1.45+1;
-    const _sx=e.a.x+(_dx/_d)*aCircleR, _sy=e.a.y+(_dy/_d)*aCircleR;
-    const _ex=e.b.x-(_dx/_d)*bCircleR, _ey=e.b.y-(_dy/_d)*bCircleR;
-    ctx.beginPath();
+    const aR=(e.a.r||8)*1.45+1, bR=(e.b.r||8)*1.45+1;
+    const _sx=e.a.x+(_dx/_d)*aR, _sy=e.a.y+(_dy/_d)*aR;
+    const _ex=e.b.x-(_dx/_d)*bR, _ey=e.b.y-(_dy/_d)*bR;
+
     if (e.kind==='rag_similar') {
-      // RAG-Ähnlichkeits-Edge: lila Gradient, gestrichelt
-      const gR = ctx.createLinearGradient(e.a.x,e.a.y,e.b.x,e.b.y);
-      gR.addColorStop(0,'rgba(139,92,246,'+(active?0.7:0.1)+')');
-      gR.addColorStop(1,'rgba(167,139,250,'+(active?0.7:0.1)+')');
+      const gR=ctx.createLinearGradient(_sx,_sy,_ex,_ey);
+      gR.addColorStop(0,`rgba(139,92,246,${active?0.7:0.12})`);
+      gR.addColorStop(1,`rgba(167,139,250,${active?0.7:0.12})`);
       ctx.strokeStyle=gR; ctx.lineWidth=(e.sim||0.5)*2.5/z;
       ctx.setLineDash([6/z,3/z]);
       ctx.beginPath(); ctx.moveTo(_sx,_sy); ctx.lineTo(_ex,_ey); ctx.stroke();
       ctx.setLineDash([]);
-      return; // skip normal rendering
-    }
-    if (e.kind==='similar') {
+    } else if (e.kind==='similar') {
+      const g=ctx.createLinearGradient(_sx,_sy,_ex,_ey);
+      g.addColorStop(0,e.a.color+'55'); g.addColorStop(1,e.b.color+'55');
+      ctx.strokeStyle=g; ctx.lineWidth=1.2/z;
+      ctx.setLineDash([5/z,4/z]);
       const mx=(_sx+_ex)/2, my=(_sy+_ey)/2-10/z;
-      ctx.moveTo(_sx,_sy); ctx.quadraticCurveTo(mx,my,_ex,_ey);
-    } else {
-      ctx.moveTo(_sx,_sy); ctx.lineTo(_ex,_ey);
+      ctx.beginPath(); ctx.moveTo(_sx,_sy); ctx.quadraticCurveTo(mx,my,_ex,_ey); ctx.stroke();
+      ctx.setLineDash([]);
+    } else if (e.kind==='folder') {
+      ctx.strokeStyle=`rgba(100,116,139,${active?0.4:0.12})`; ctx.lineWidth=2/z;
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(_sx,_sy); ctx.lineTo(_ex,_ey); ctx.stroke();
+    } else { // contains
+      ctx.strokeStyle=`rgba(32,110,251,${active?0.45:0.1})`; ctx.lineWidth=1.4/z;
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.moveTo(_sx,_sy); ctx.lineTo(_ex,_ey); ctx.stroke();
     }
-    ctx.stroke();
   });
   ctx.setLineDash([]); ctx.globalAlpha=1;
 
@@ -5922,7 +5905,7 @@ function _attachGraphEvents(canvas) {
     _gv.dragging=false;_gv.dragNode=null;_gv._dragged=false;
     if(!wasDragged){const hit=hitTest(e.clientX,e.clientY);if(hit)_handleNodeClick(hit,e);}
   };
-  canvas.onmouseleave=()=>{_gv.dragging=false;_gv.dragNode=null;_gv.hover=null;_gFocus.wx=null;_gFocus.wy=null;_hideContextPanelDelayed();canvas.style.cursor='grab';};
+  canvas.onmouseleave=()=>{_gv.dragging=false;_gv.dragNode=null;_gv.hover=null;_hideContextPanelDelayed();canvas.style.cursor='grab';}; // Focus bleibt erhalten → kein Springen
   canvas.ondblclick=e=>{
     const hit=hitTest(e.clientX,e.clientY);if(!hit)return;
     if(hit.type==='folder'||hit.type==='subfolder'){setDocView('cards');navigateTo(hit.folderId,hit.label);}
