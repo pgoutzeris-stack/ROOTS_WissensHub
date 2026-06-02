@@ -1797,24 +1797,29 @@ function showAuthOverlay() {
 async function onSessionReady(session) {
   if (!session) return;
   hideAuthOverlay();
-  if (window.RootsUser) {
-    await window.RootsUser._loadAndMount(sb);
-    document.dispatchEvent(new CustomEvent('roots-profile-ready'));
+  try {
+    if (window.RootsUser) {
+      await window.RootsUser._loadAndMount(sb);
+      document.dispatchEvent(new CustomEvent('roots-profile-ready'));
+    }
+    const { data: prof } = await sb.schema('users').from('profiles')
+      .select('app_role').eq('id', session.user.id).single().catch(() => ({ data: null }));
+    state.isAdmin = prof?.app_role === 'admin';
+    updateAdminSidebar();
+    await Promise.all([loadFolders(), loadTags(), loadDocuments()]);
+  } catch (err) {
+    console.error('[WissensHub] onSessionReady error:', err);
+    toast('Fehler beim Laden: ' + (err.message || err), 'err');
   }
-  // detect admin
-  const { data: prof } = await sb.schema('users').from('profiles')
-    .select('app_role').eq('id', session.user.id).single().catch(() => ({ data: null }));
-  state.isAdmin = prof?.app_role === 'admin';
-  updateAdminSidebar();
-  await Promise.all([loadFolders(), loadTags(), loadDocuments()]);
 }
 
 sb.auth.getSession().then(({ data: { session } }) => {
   if (session) onSessionReady(session);
+  else showAuthOverlay(); // no session → always show login
 });
 sb.auth.onAuthStateChange((event, session) => {
   if (session) onSessionReady(session);
-  else if (event === 'SIGNED_OUT') {
+  else {
     showAuthOverlay();
     if (window.RootsUser) { window.RootsUser._uid = null; window.RootsUser._p = null; }
   }
@@ -2718,7 +2723,6 @@ window.saveAiSettings = saveAiSettings;
 
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://pgoutzeris-stack.github.io/ROOTS_Intranet/roots-user-bridge.js?v=20260601-final"></script>
 </body>
 </html>
