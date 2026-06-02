@@ -5840,6 +5840,8 @@ function _applyTimelineMode() {
 }
 
 
+function _hideContextPanel(){const p=document.getElementById("graph-context-panel");if(p)p.style.display="none";}
+
 function stopGraph(){
   _gv.running=false;
   if(_gv.animId){cancelAnimationFrame(_gv.animId);_gv.animId=null;}
