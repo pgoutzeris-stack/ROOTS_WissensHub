@@ -3126,13 +3126,18 @@ window.renderDocuments = function() {
 
   grid.className = `doc-grid doc-layout-${state.docView === 'graph' ? 'cards' : state.docView}`;
 
-  if (!docs.length) {
+  // Empty-State nur wenn wirklich gar nichts in diesem Ordner (keine Docs UND keine Unterordner)
+  const subfolderCount = state.activeFolderId
+    ? state.folders.filter(f => f.parent_id === state.activeFolderId).length
+    : 0;
+
+  if (!docs.length && !subfolderCount) {
     grid.innerHTML = `
       <div class="empty-state" style="grid-column:1/-1">
         <div class="empty-state__icon"><i class="fa-solid fa-file-lines"></i></div>
         <div class="empty-state__title">${state.search || state.activeTagFilters.length ? 'Keine Dokumente gefunden' : 'Noch keine Dokumente'}</div>
         <div class="empty-state__text">${state.search || state.activeTagFilters.length ? 'Versuche einen anderen Suchbegriff oder ändere die Filter.' : 'Lade deine ersten Markdown-Dokumente hoch, um sie durchsuchbar zu machen.'}</div>
-        ${!state.search && !state.activeTagFilters.length ? '<button class="btn-primary" onclick="switchView(\'upload\')"><i class="fa-solid fa-cloud-arrow-up"></i> Jetzt hochladen</button>' : ''}
+        ${!state.search && !state.activeTagFilters.length ? '<button class="btn-primary" onclick="openQuickUpload()"><i class="fa-solid fa-cloud-arrow-up"></i> Jetzt hochladen</button>' : ''}
       </div>`;
     return;
   }
