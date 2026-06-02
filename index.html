@@ -2409,6 +2409,7 @@ initSupabase();
 const state = {
   view: 'documents',
   documents: [],
+  allDocs: [],       // alle Docs ungefiltert — für Subfolder-Zähler
   folders: [],
   tags: [],
   activeFolderId: '',
@@ -2901,9 +2902,10 @@ async function loadDocuments() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const { documents, total } = await res.json();
     state.documents = documents || [];
-    // Gesamtzahl nur aktualisieren wenn kein Ordner-Filter aktiv
+    // Gesamtzahl + allDocs Cache nur aktualisieren wenn kein Filter aktiv
     if (!state.activeFolderId && !state.search && !state.activeTagFilters.length) {
       state.totalDocuments = total ?? state.documents.length;
+      state.allDocs = [...state.documents]; // Cache aller Docs für Subfolder-Zähler
     }
     const displayTotal = state.totalDocuments ?? total ?? state.documents.length;
     const legacyCountEl = document.getElementById('folder-count-all');
@@ -2983,43 +2985,58 @@ window.renderDocuments = function() {
     renderListViewTable(docs);
   } else {
     if (state.activeFolderId) {
-      // Spezifischer Ordner aktiv: Unterordner als Ordner-Kacheln zuerst, dann Dokumente
+      // Finder-Navigation: Unterordner zuerst, Dokumente nur wenn keine Unterordner
       const subfolders = state.folders.filter(f => f.parent_id === state.activeFolderId);
-      if (subfolders.length) {
-        // Unterordner-Header
-        const subHdr = document.createElement('div');
-        subHdr.style.cssText = 'grid-column:1/-1;font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:.25rem 0 .1rem';
-        subHdr.textContent = 'Unterordner';
-        grid.appendChild(subHdr);
-        // Unterordner-Kacheln
-        subfolders.forEach(f => {
-          const card = document.createElement('div');
-          card.className = 'doc-card';
-          card.style.cursor = 'pointer';
-          const docCount = state.documents.filter(d => d.folder_id === f.id).length;
-          card.innerHTML = `
-            <div class="doc-card__header">
-              <i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')};font-size:1.1rem;margin-right:.4rem"></i>
-              <div class="doc-card__title" style="flex:1">${escHtml(f.name)}</div>
-            </div>
-            <div style="font-size:.76rem;color:var(--muted);margin-top:.3rem">${docCount} Dokument${docCount!==1?'e':''}</div>`;
-          card.onclick = () => {
-            state.activeFolderId = f.id;
-            state.activeFilter = 'folder';
-            renderFinderTree();
-            loadDocuments();
-          };
-          grid.appendChild(card);
-        });
-        // Dateien-Header wenn vorhanden
-        if (docs.length) {
-          const docHdr = document.createElement('div');
-          docHdr.style.cssText = 'grid-column:1/-1;font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:.5rem 0 .1rem;border-top:1px solid var(--line);margin-top:.25rem';
-          docHdr.textContent = 'Dokumente';
-          grid.appendChild(docHdr);
+      const docsCache = state.allDocs.length ? state.allDocs : state.documents;
+
+      // Unterordner-Kacheln (immer)
+      subfolders.forEach(f => {
+        const card = document.createElement('div');
+        card.className = 'doc-card';
+        card.style.cursor = 'pointer';
+        // Zähler aus allDocs Cache für korrekte Anzahl
+        const directDocs = docsCache.filter(d => d.folder_id === f.id).length;
+        const subCount   = state.folders.filter(sf => sf.parent_id === f.id).length;
+        const meta = [
+          directDocs ? `${directDocs} Datei${directDocs!==1?'en':''}` : '',
+          subCount   ? `${subCount} Unterordner` : ''
+        ].filter(Boolean).join(' · ') || 'Leer';
+        card.innerHTML = `
+          <div class="doc-card__header" style="gap:.5rem">
+            <i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')};font-size:1.1rem;flex-shrink:0"></i>
+            <div class="doc-card__title" style="flex:1">${escHtml(f.name)}</div>
+          </div>
+          <div style="font-size:.76rem;color:var(--muted);margin-top:.4rem">${escHtml(meta)}</div>`;
+        card.onclick = () => {
+          state.activeFolderId = f.id;
+          state.activeFilter = 'folder';
+          renderFinderTree();
+          loadDocuments();
+        };
+        grid.appendChild(card);
+      });
+
+      // Dokumente: nur zeigen wenn KEINE Unterordner (oder wenn Unterordner + docs gemischt)
+      if (docs.length) {
+        if (subfolders.length) {
+          // Trennlinie zwischen Unterordnern und Dateien
+          const sep = document.createElement('div');
+          sep.style.cssText = 'grid-column:1/-1;border-top:1px solid var(--line);margin:.5rem 0 .25rem;padding-top:.4rem;font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em';
+          sep.textContent = 'Dateien in diesem Ordner';
+          grid.appendChild(sep);
         }
+        docs.forEach(doc => grid.appendChild(makeDocCard(doc)));
       }
-      docs.forEach(doc => grid.appendChild(makeDocCard(doc)));
+
+      // Leerer Ordner
+      if (!subfolders.length && !docs.length) {
+        grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+          <div class="empty-state__icon"><i class="fa-solid fa-folder-open"></i></div>
+          <div class="empty-state__title">Ordner ist leer</div>
+          <div class="empty-state__text">Lade Dokumente hoch oder erstelle Unterordner.</div>
+          <button class="btn-primary" onclick="switchView('upload')"><i class="fa-solid fa-cloud-arrow-up"></i> Hochladen</button>
+        </div>`;
+      }
     } else {
       renderGroupedCards(docs, grid);
     }
@@ -3170,11 +3187,67 @@ function makeDocCard(doc, index = 0) {
 // makeDocListRow ist oben definiert (neuere Version mit drag+contextmenu)
 
 // ─── Abschnitt 3: List-View Table (folder-grouped) ────────────────────────────
+function renderFolderDrillList(docs, listEl) {
+  const subfolders = state.folders.filter(f => f.parent_id === state.activeFolderId);
+  const docsCache  = state.allDocs.length ? state.allDocs : docs;
+  let html = `<table class="doc-table"><thead><tr>
+    <th>Name</th><th>Inhalt</th><th>Geändert</th><th></th>
+  </tr></thead><tbody>`;
+
+  // Unterordner-Zeilen
+  subfolders.forEach(f => {
+    const directDocs = docsCache.filter(d => d.folder_id === f.id).length;
+    const subCount   = state.folders.filter(sf => sf.parent_id === f.id).length;
+    const meta = [
+      directDocs ? `${directDocs} Datei${directDocs!==1?'en':''}` : '',
+      subCount   ? `${subCount} Unterordner` : ''
+    ].filter(Boolean).join(', ') || 'Leer';
+    html += `<tr class="doc-table-row" style="cursor:pointer" onclick="(function(){state.activeFolderId='${f.id}';state.activeFilter='folder';renderFinderTree();loadDocuments();})()">
+      <td class="doc-table-name"><i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')};margin-right:.5rem"></i><strong>${escHtml(f.name)}</strong></td>
+      <td style="font-size:.76rem;color:var(--muted)">${escHtml(meta)}</td>
+      <td style="font-size:.75rem;color:var(--muted)">—</td>
+      <td class="doc-table-actions"><button class="btn-icon-sm" onclick="event.stopPropagation();showCtxMenu(event,'folder',${JSON.stringify(f).replace(/"/g,'&quot;')})" title="Mehr"><i class="fa-solid fa-ellipsis"></i></button></td>
+    </tr>`;
+  });
+
+  // Trennlinie wenn beides vorhanden
+  if (subfolders.length && docs.length) {
+    html += `<tr><td colspan="4" style="padding:.2rem .75rem;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;background:var(--surface-2,#f8fafc)">Dateien</td></tr>`;
+  }
+
+  // Dokument-Zeilen mit vollen Infos
+  docs.forEach(doc => {
+    const tags = Array.isArray(doc.tags) ? doc.tags : [];
+    const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
+    const time = doc.created_at ? new Date(doc.created_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) : '';
+    const size = doc.file_size_bytes ? formatBytes(doc.file_size_bytes) : '–';
+    const docJson = JSON.stringify(doc).replace(/"/g,'&quot;');
+    html += `<tr class="doc-table-row" oncontextmenu="showCtxMenu(event,'doc',${docJson})">
+      <td class="doc-table-name"><i class="fa-solid fa-file-lines" style="color:var(--brand);margin-right:.4rem;font-size:.76rem"></i><span onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" style="cursor:pointer">${escHtml(doc.title||'Dokument')}</span></td>
+      <td>${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.65rem">${escHtml(t)}</span>`).join('') || `<span style="font-size:.75rem;color:var(--muted)">${escHtml(size)}</span>`}</td>
+      <td style="font-size:.75rem;color:var(--muted);white-space:nowrap">${date} ${time}<br><span style="font-size:.68rem">${escHtml(doc.uploader_name||'')}</span></td>
+      <td class="doc-table-actions">
+        <button class="btn-icon-sm" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" title="Vorschau"><i class="fa-solid fa-eye"></i></button>
+        <button class="btn-icon-sm" onclick="showCtxMenu(event,'doc',${docJson})" title="Mehr"><i class="fa-solid fa-ellipsis"></i></button>
+      </td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  listEl.innerHTML = html;
+}
+
 function renderListViewTable(docs) {
   const listEl = document.getElementById('doc-list');
   if (!listEl) return;
 
-  // Gruppe nach Ordner
+  // Wenn spezifischer Ordner aktiv: Unterordner als Zeilen zuerst
+  if (state.activeFolderId) {
+    renderFolderDrillList(docs, listEl);
+    return;
+  }
+
+  // Alle-Ansicht: nach Ordner gruppiert
   const folderGroups = state.folders
     .map(f => ({ folder: f, docs: docs.filter(d => d.folder_id === f.id) }))
     .filter(g => g.docs.length > 0);
