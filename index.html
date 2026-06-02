@@ -1885,18 +1885,18 @@
               onfocus="onSearchFocus()"
               onblur="setTimeout(hideSearchDropdown,180)"
               onkeydown="onSearchKey(event)" />
-            <!-- Filter-Menü (erscheint beim Klick auf Sliders) -->
+            <!-- Filter-Menü: position:fixed damit overflow:hidden vom Toolbar nicht clippt -->
             <div id="search-filter-menu"
-              style="display:none;position:absolute;top:calc(100% + 4px);left:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.14);z-index:400;overflow:hidden;min-width:200px;padding:.35rem 0">
+              style="display:none;position:fixed;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:99999;overflow:hidden;min-width:200px;padding:.35rem 0">
               <div style="padding:.4rem .75rem .2rem;font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Suche in</div>
               <button id="pill-all"    class="search-filter-opt active" onmousedown="pickSearchFilter('all',event)">   <i class="fa-solid fa-asterisk"></i> Alle Felder</button>
               <button id="pill-title"  class="search-filter-opt"        onmousedown="pickSearchFilter('title',event)"> <i class="fa-solid fa-file"></i> Dateiname</button>
               <button id="pill-tag"    class="search-filter-opt"        onmousedown="pickSearchFilter('tag',event)">   <i class="fa-solid fa-tag"></i> Tag</button>
               <button id="pill-folder" class="search-filter-opt"        onmousedown="pickSearchFilter('folder',event)"><i class="fa-solid fa-folder"></i> Ordner</button>
             </div>
-            <!-- Ergebnis-Dropdown -->
+            <!-- Ergebnis-Dropdown: position:fixed damit overflow nicht clippt -->
             <div id="search-dropdown"
-              style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.14);z-index:300;overflow:hidden;min-width:280px">
+              style="display:none;position:fixed;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.18);z-index:99998;overflow:hidden;min-width:280px;max-height:360px;overflow-y:auto">
             </div>
           </div>
           <!-- Sort -->
@@ -4473,9 +4473,15 @@ window.setSearchMode = function(mode) {
 window.toggleSearchFilterMenu = function(e) {
   e.stopPropagation();
   const menu = document.getElementById('search-filter-menu');
-  if (!menu) return;
+  const btn  = document.getElementById('search-filter-btn');
+  if (!menu || !btn) return;
   const isOpen = menu.style.display !== 'none';
-  menu.style.display = isOpen ? 'none' : 'block';
+  if (isOpen) { menu.style.display = 'none'; return; }
+  // Position: unter dem Suchfeld (fixed)
+  const rect = btn.getBoundingClientRect();
+  menu.style.top  = (rect.bottom + 4) + 'px';
+  menu.style.left = rect.left + 'px';
+  menu.style.display = 'block';
 };
 
 window.pickSearchFilter = function(mode, e) {
@@ -4528,9 +4534,19 @@ window.onSearchKey = function(e) {
   }
 };
 
+function positionDropdownFixed(dd, inputId) {
+  const inp = document.getElementById(inputId);
+  if (!inp || !dd) return;
+  const rect = inp.getBoundingClientRect();
+  dd.style.top   = (rect.bottom + 4) + 'px';
+  dd.style.left  = rect.left + 'px';
+  dd.style.width = rect.width + 'px';
+}
+
 function buildSearchDropdown(q) {
   const dd = document.getElementById('search-dropdown');
   if (!dd) return;
+  positionDropdownFixed(dd, 'doc-search');
   const ql = q.toLowerCase();
 
   const matchDoc = d => {
