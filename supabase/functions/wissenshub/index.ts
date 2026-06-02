@@ -94,6 +94,85 @@ async function getApiKey(name: "openai" | "anthropic" | "google" | "voyage"): Pr
   return val;
 }
 
+// ---------------------------------------------------------------------------
+// Daily budget guard — max $5/day across embed + chat
+// ---------------------------------------------------------------------------
+const DAILY_LIMIT_USD = 5.0;
+
+// Token cost constants (USD per 1 token)
+const COST = {
+  embed_input:       0.02  / 1_000_000, // text-embedding-3-small
+  gpt4o_input:       2.50  / 1_000_000,
+  gpt4o_output:     10.00  / 1_000_000,
+  gpt4o_mini_input:  0.15  / 1_000_000,
+  gpt4o_mini_output: 0.60  / 1_000_000,
+  claude_input:      3.00  / 1_000_000, // claude-sonnet conservative
+  claude_output:    15.00  / 1_000_000,
+};
+
+function estimateEmbedCost(chars: number): number {
+  const tokens = Math.ceil(chars / 4);
+  return tokens * COST.embed_input;
+}
+
+function estimateChatCost(model: string, inputTokens: number, outputTokens: number): number {
+  if (model.includes("gpt-4o-mini")) {
+    return inputTokens * COST.gpt4o_mini_input + outputTokens * COST.gpt4o_mini_output;
+  }
+  if (model.includes("gpt")) {
+    return inputTokens * COST.gpt4o_input + outputTokens * COST.gpt4o_output;
+  }
+  // Claude / default
+  return inputTokens * COST.claude_input + outputTokens * COST.claude_output;
+}
+
+async function checkBudget(estimatedCost: number, origin: string | null): Promise<Response | null> {
+  try {
+    const admin = getAdminClient();
+    const { data } = await admin.rpc("check_daily_budget", { p_estimated_cost: estimatedCost });
+    if (!data?.ok) {
+      return new Response(JSON.stringify({
+        error: "daily_budget_exceeded",
+        message: `Tageslimit erreicht: $${data?.spent_today ?? "?"} von $${DAILY_LIMIT_USD} verbraucht. Limit wird morgen zurückgesetzt.`,
+        spent_today: data?.spent_today,
+        limit: data?.limit,
+        remaining: data?.remaining,
+      }), {
+        status: 429,
+        headers: { ...getCorsHeaders(origin), "Content-Type": "application/json" },
+      });
+    }
+  } catch (e) {
+    console.error("Budget check failed (allowing request):", e);
+    // Fail open — don't block on check errors
+  }
+  return null; // ok to proceed
+}
+
+async function logUsage(
+  operation: "embed" | "chat",
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  costUsd: number,
+  documentId?: string,
+  userId?: string,
+): Promise<void> {
+  try {
+    const admin = getAdminClient();
+    await admin.schema("knowledge").from("usage_log").insert({
+      operation, model,
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
+      cost_usd: costUsd,
+      document_id: documentId || null,
+      user_id: userId || null,
+    });
+  } catch (e) {
+    console.error("Failed to log usage:", e);
+  }
+}
+
 // User-scoped client from JWT
 function publicServiceClient() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
@@ -325,6 +404,16 @@ async function handleEmbed(
 
   try {
     const chunks = chunkMarkdown(doc.content);
+    
+    // Budget check before calling OpenAI
+    const estimatedCost = estimateEmbedCost(doc.content.length);
+    const budgetErr = await checkBudget(estimatedCost, origin);
+    if (budgetErr) {
+      await supabase.schema("knowledge").from("documents")
+        .update({ embedding_status: "error", embedding_error: "Tageslimit ($5/Tag) erreicht", updated_at: new Date().toISOString() })
+        .eq("id", document_id);
+      return budgetErr;
+    }
 
     // Delete old chunks (re-embed scenario)
     await supabase
@@ -334,6 +423,7 @@ async function handleEmbed(
       .eq("document_id", document_id);
 
     let successCount = 0;
+    let lastChunkError = "";
     for (const chunk of chunks) {
       try {
         const embedding = await embedText(chunk.content);
@@ -350,6 +440,7 @@ async function handleEmbed(
         successCount++;
       } catch (chunkErr) {
         console.error(`Chunk ${chunk.index} embedding failed:`, chunkErr);
+        lastChunkError = String(chunkErr);
       }
     }
 
@@ -365,10 +456,17 @@ async function handleEmbed(
       })
       .eq("id", document_id);
 
+    // Log embedding usage
+    const totalChars = chunks.reduce((sum, ch) => sum + ch.content.length, 0);
+    const inputTokens = Math.ceil(totalChars / 4);
+    const cost = inputTokens * (0.02 / 1_000_000);
+    await logUsage("embed", "text-embedding-3-small", inputTokens, 0, cost, document_id);
+
     return corsResponse(origin, {
       document_id,
       chunks_total: chunks.length,
       chunks_embedded: successCount,
+      last_error: lastChunkError || undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -439,6 +537,10 @@ async function handleChat(
   // Embed user message
   let queryEmbedding: number[];
   try {
+    // Budget check before embedding query
+    const queryBudgetErr = await checkBudget(estimateEmbedCost(message.length), origin);
+    if (queryBudgetErr) return queryBudgetErr;
+
     queryEmbedding = await embedText(message);
   } catch (err) {
     return errorResponse(origin, `Embedding error: ${err}`, 500);

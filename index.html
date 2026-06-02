@@ -1939,7 +1939,13 @@ async function loadFolders() {
     const res = await fetch(`${WISSENSHUB_API_URL}?action=folders`, {
       headers: await authHeaders()
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      if (res.status === 429 && errData.error === 'daily_budget_exceeded') {
+        throw new Error(`⚠️ Tageslimit erreicht: $${errData.spent_today} von $${errData.limit} heute verbraucht. Limit: $5/Tag. Morgen wieder verfügbar.`);
+      }
+      throw new Error(errData.message || errData.error || `HTTP ${res.status}`);
+    }
     const { folders } = await res.json();
     state.folders = folders || [];
     renderFolderTree(state.folders);
@@ -2369,7 +2375,13 @@ window.handleUploadAll = async function() {
         uploaded_by: window.RootsUser?._uid || null,
       });
       const res = await fetch(`${WISSENSHUB_API_URL}`, { method: 'POST', headers, body: payload });
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        if (res.status === 429 && e.error === 'daily_budget_exceeded') {
+          throw new Error(`⚠️ Tageslimit erreicht: $${e.spent_today} von $${e.limit} heute. Morgen wieder verfügbar.`);
+        }
+        throw new Error(e.error || e.message || `HTTP ${res.status}`);
+      }
       uf.status = 'done'; uf.progress = 100;
       successCount++;
     } catch (err) {
