@@ -532,12 +532,14 @@ async function handleChat(
     folder_id,
     tags,
     model = "gpt-4o-mini",
+    history = [],
   } = body as {
     message: string;
     session_id?: string;
     folder_id?: string;
     tags?: string[];
     model?: string;
+    history?: Array<{role: string; content: string}>;
   };
 
   if (!message) {
@@ -626,7 +628,40 @@ async function handleChat(
     "match_chunks",
     rpcParams
   );
-  const chunks = (!rpcErr && matchedChunks) ? matchedChunks : [];
+  let chunks = (!rpcErr && matchedChunks) ? matchedChunks : [];
+
+  // Query Expansion: wenn keine Chunks → Anfrage umformulieren und nochmal suchen
+  if (chunks.length === 0) {
+    try {
+      const rephraseRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${await getApiKey("openai")}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "gpt-4o-mini", max_tokens: 80,
+          messages: [
+            { role: "system", content: "Reformuliere die Frage auf 2 verschiedene Arten für eine semantische Suche. Nur die 2 Varianten, eine pro Zeile." },
+            { role: "user", content: message }
+          ],
+        }),
+      });
+      if (rephraseRes.ok) {
+        const rephraseData = await rephraseRes.json();
+        const variants = (rephraseData.choices?.[0]?.message?.content || "").split("\n").filter(Boolean).slice(0, 2);
+        for (const variant of variants) {
+          const varEmbed = await embedText(variant);
+          const { data: varChunks } = await supabase.schema("knowledge").rpc("match_chunks", {
+            query_embedding: `[${varEmbed.join(",")}]`,
+            match_threshold: 0.30,
+            match_count: 5,
+          });
+          if (varChunks && varChunks.length > 0) {
+            chunks.push(...varChunks);
+            break;
+          }
+        }
+      }
+    } catch { /* query expansion optional */ }
+  }
 
   // Deduplicate chunks by document (max 2 chunks per doc to avoid flooding context)
   const chunksByDoc: Record<string, number> = {};
@@ -692,10 +727,6 @@ Teile dem Nutzer mit, dass du zu diesem spezifischen Thema kein Dokument hast, u
 }`;
 
   // ── Provider-Routing: Claude → Anthropic, GPT/o1 → OpenAI ─────────────────
-  let assistantContent = "";
-  let promptTokens = 0;
-  let completionTokens = 0;
-
   const isOpenAIModel = model.startsWith("gpt") || model.startsWith("o1") || model.startsWith("o3");
   const isGeminiModel = model.startsWith("gemini");
 
@@ -710,114 +741,181 @@ Teile dem Nutzer mit, dass du zu diesem spezifischen Thema kein Dokument hast, u
     }
   }
 
-  try {
-    if (effectiveIsOpenAI) {
-      // ── OpenAI ──────────────────────────────────────────────────────────────
-      const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${await getApiKey("openai")}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: effectiveModel,
-          max_tokens: 2048,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: message },
-          ],
-        }),
-      });
-      if (!openaiRes.ok) {
-        const errText = await openaiRes.text();
-        return errorResponse(origin, `OpenAI API error: ${errText}`, 502);
-      }
-      const openaiJson = await openaiRes.json();
-      assistantContent = openaiJson.choices?.[0]?.message?.content ?? "Keine Antwort erhalten.";
-      promptTokens = openaiJson.usage?.prompt_tokens ?? 0;
-      completionTokens = openaiJson.usage?.completion_tokens ?? 0;
+  // ── Streaming Response via SSE ──────────────────────────────────────────────
+  const finalModel = effectiveModel;
+  const finalIsOpenAI = effectiveIsOpenAI;
 
-    } else if (isGeminiModel) {
-      // ── Google Gemini ────────────────────────────────────────────────────────
-      const geminiKey = await getApiKey("google");
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
-        {
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const enc = new TextEncoder();
+
+  const sendEvent = async (data: unknown) => {
+    await writer.write(enc.encode(`data: ${JSON.stringify(data)}\n\n`));
+  };
+
+  // Async background task: stream LLM, then save to DB
+  (async () => {
+    let assistantContent = "";
+    let promptTokens = 0;
+    let completionTokens = 0;
+
+    try {
+      if (finalIsOpenAI) {
+        const oRes = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { Authorization: `Bearer ${await getApiKey("openai")}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: systemPrompt + "\n\n" + message }] }],
+            model: finalModel, max_tokens: 2048, stream: true,
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...history.slice(-10).map((h: {role: string; content: string}) => ({ role: h.role as "user"|"assistant", content: h.content })),
+              { role: "user", content: message },
+            ],
           }),
+        });
+        if (!oRes.ok) {
+          const errText = await oRes.text();
+          await sendEvent({ error: `OpenAI error: ${errText}` });
+          await writer.close(); return;
         }
-      );
-      if (!geminiRes.ok) {
-        const errText = await geminiRes.text();
-        return errorResponse(origin, `Gemini API error: ${errText}`, 502);
+        const reader = oRes.body!.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const d = line.slice(6).trim();
+            if (d === "[DONE]") continue;
+            try {
+              const j = JSON.parse(d);
+              const delta = j.choices?.[0]?.delta?.content || "";
+              if (delta) { assistantContent += delta; await sendEvent({ delta }); }
+              if (j.usage) { promptTokens = j.usage.prompt_tokens || 0; completionTokens = j.usage.completion_tokens || 0; }
+            } catch { /* skip malformed */ }
+          }
+        }
+      } else if (!isGeminiModel) {
+        // Anthropic streaming
+        const aRes = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "x-api-key": await getApiKey("anthropic"), "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: finalModel, max_tokens: 2048, stream: true,
+            system: systemPrompt,
+            messages: [
+              ...history.slice(-10).map((h: {role: string; content: string}) => ({ role: h.role as "user"|"assistant", content: h.content })),
+              { role: "user", content: message },
+            ],
+          }),
+        });
+        if (!aRes.ok) {
+          const errText = await aRes.text();
+          await sendEvent({ error: `Anthropic error: ${errText}` });
+          await writer.close(); return;
+        }
+        const reader = aRes.body!.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const d = line.slice(6).trim();
+            try {
+              const j = JSON.parse(d);
+              if (j.type === "content_block_delta" && j.delta?.text) {
+                assistantContent += j.delta.text;
+                await sendEvent({ delta: j.delta.text });
+              }
+              if (j.type === "message_delta") {
+                promptTokens = j.usage?.input_tokens || promptTokens;
+                completionTokens = j.usage?.output_tokens || 0;
+              }
+            } catch { /* skip */ }
+          }
+        }
+      } else {
+        // Gemini non-streaming fallback (no streaming API used here)
+        const geminiKey = await getApiKey("google");
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${finalModel}:generateContent?key=${geminiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: systemPrompt + "\n\n" + message }] }],
+            }),
+          }
+        );
+        if (!geminiRes.ok) {
+          const errText = await geminiRes.text();
+          await sendEvent({ error: `Gemini error: ${errText}` });
+          await writer.close(); return;
+        }
+        const geminiJson = await geminiRes.json();
+        assistantContent = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "Keine Antwort erhalten.";
+        promptTokens = geminiJson.usageMetadata?.promptTokenCount ?? 0;
+        completionTokens = geminiJson.usageMetadata?.candidatesTokenCount ?? 0;
+        await sendEvent({ delta: assistantContent });
       }
-      const geminiJson = await geminiRes.json();
-      assistantContent = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "Keine Antwort erhalten.";
-      promptTokens = geminiJson.usageMetadata?.promptTokenCount ?? 0;
-      completionTokens = geminiJson.usageMetadata?.candidatesTokenCount ?? 0;
 
-    } else {
-      // ── Anthropic Claude (default) ───────────────────────────────────────────
-      const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": await getApiKey("anthropic"),
-          "anthropic-version": "2023-06-01",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: effectiveModel,
-          max_tokens: 2048,
-          system: systemPrompt,
-          messages: [{ role: "user", content: message }],
-        }),
-      });
-      if (!anthropicRes.ok) {
-        const errText = await anthropicRes.text();
-        return errorResponse(origin, `Anthropic API error: ${errText}`, 502);
-      }
-      const anthropicJson = await anthropicRes.json();
-      assistantContent = anthropicJson.content?.[0]?.text ?? "Keine Antwort erhalten.";
-      promptTokens = anthropicJson.usage?.input_tokens ?? 0;
-      completionTokens = anthropicJson.usage?.output_tokens ?? 0;
+      // Generate follow-up suggestions (quick separate call, non-streaming)
+      let suggestions: string[] = [];
+      try {
+        const sugRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${await getApiKey("openai")}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "gpt-4o-mini", max_tokens: 120,
+            messages: [
+              { role: "system", content: "Schlage 3 kurze Folgefragen auf Deutsch vor, die der Nutzer als nächstes stellen könnte. Nur die Fragen, eine pro Zeile, kein Numbering, keine Erklärung." },
+              { role: "user", content: `Frage: ${message}\nAntwort: ${assistantContent.slice(0, 400)}` },
+            ],
+          }),
+        });
+        if (sugRes.ok) {
+          const sugData = await sugRes.json();
+          suggestions = (sugData.choices?.[0]?.message?.content || "").split("\n").filter((s: string) => s.trim().length > 5).slice(0, 3);
+        }
+      } catch { /* suggestions optional */ }
+
+      // Send done event with sources + suggestions
+      await sendEvent({ done: true, sources, session_id: activeSessionId, suggestions });
+
+      // Save messages to DB
+      await supabase.schema("knowledge").from("chat_messages").insert([
+        { session_id: activeSessionId, role: "user", content: message, sources: [] },
+        { session_id: activeSessionId, role: "assistant", content: assistantContent, sources, prompt_tokens: promptTokens, completion_tokens: completionTokens },
+      ]);
+      await supabase.schema("knowledge").from("chat_sessions").update({ updated_at: new Date().toISOString() }).eq("id", activeSessionId);
+
+      // Log usage
+      const cost = estimateChatCost(finalModel, promptTokens, completionTokens);
+      await logUsage("chat", finalModel, promptTokens, completionTokens, cost, undefined, auth?.userId);
+
+    } catch (err) {
+      await sendEvent({ error: String(err) }).catch(() => {});
+    } finally {
+      await writer.close().catch(() => {});
     }
-  } catch (err) {
-    return errorResponse(origin, `AI API call failed: ${err}`, 500);
-  }
+  })();
 
-  // Persist messages
-  await supabase.schema("knowledge").from("chat_messages").insert([
-    {
-      session_id: activeSessionId,
-      role: "user",
-      content: message,
-      sources: [],
+  return new Response(readable, {
+    headers: {
+      ...getCorsHeaders(origin),
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
     },
-    {
-      session_id: activeSessionId,
-      role: "assistant",
-      content: assistantContent,
-      sources: sources,
-      prompt_tokens: promptTokens,
-      completion_tokens: completionTokens,
-    },
-  ]);
-
-  // Update session updated_at
-  await supabase
-    .schema("knowledge")
-    .from("chat_sessions")
-    .update({ updated_at: new Date().toISOString() })
-    .eq("id", activeSessionId);
-
-  return corsResponse(origin, {
-    response: assistantContent,
-    sources,
-    session_id: activeSessionId,
-    usage: { prompt_tokens: promptTokens, completion_tokens: completionTokens },
   });
 }
 
@@ -1139,6 +1237,48 @@ serve(async (req: Request) => {
         return new Response(JSON.stringify({ ok: true }), {
           status: 200, headers: { ...getCorsHeaders(origin), "Content-Type": "application/json" }
         });
+      }
+
+      case "get_sessions": {
+        const sessAuth = await requireAuth(req);
+        const admin = getAdminClient();
+        const { data: sessions } = await admin.schema("knowledge").from("chat_sessions")
+          .select("id, title, model, created_at, updated_at")
+          .eq("user_id", sessAuth?.userId ?? "")
+          .order("updated_at", { ascending: false })
+          .limit(30);
+        return corsResponse(origin, { sessions: sessions || [] });
+      }
+
+      case "get_session_messages": {
+        const sessionId = body.session_id as string;
+        if (!sessionId) return errorResponse(origin, "session_id required");
+        const admin = getAdminClient();
+        const { data: messages } = await admin.schema("knowledge").from("chat_messages")
+          .select("id, role, content, sources, created_at")
+          .eq("session_id", sessionId)
+          .order("created_at", { ascending: true });
+        return corsResponse(origin, { messages: messages || [] });
+      }
+
+      case "delete_session": {
+        const delSessId = body.session_id as string;
+        if (!delSessId) return errorResponse(origin, "session_id required");
+        const admin = getAdminClient();
+        await admin.schema("knowledge").from("chat_messages").delete().eq("session_id", delSessId);
+        await admin.schema("knowledge").from("chat_sessions").delete().eq("id", delSessId);
+        return corsResponse(origin, { ok: true });
+      }
+
+      case "get_document_content": {
+        const docId = body.document_id as string || (url.searchParams.get("document_id") ?? "");
+        if (!docId) return errorResponse(origin, "document_id required");
+        const admin = getAdminClient();
+        const { data: doc } = await admin.schema("knowledge").from("documents")
+          .select("id, title, filename, content, tags, folder_id, chunk_count, uploader_name, created_at")
+          .eq("id", docId).maybeSingle();
+        if (!doc) return errorResponse(origin, "Document not found", 404);
+        return corsResponse(origin, doc);
       }
 
       default:

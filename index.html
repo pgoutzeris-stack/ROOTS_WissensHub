@@ -920,19 +920,19 @@
       color: var(--brand);
     }
     .msg__body { display: flex; flex-direction: column; gap: .5rem; min-width: 0; }
-    .msg__bubble {
+    .msg__bubble, .msg__text {
       padding: .75rem 1rem;
       border-radius: 14px;
       font-size: .9rem;
       line-height: 1.55;
       word-break: break-word;
     }
-    .msg.user .msg__bubble {
+    .msg.user .msg__bubble, .msg.user .msg__text {
       background: var(--brand);
       color: #fff;
       border-radius: 14px 4px 14px 14px;
     }
-    .msg.assistant .msg__bubble {
+    .msg.assistant .msg__bubble, .msg.assistant .msg__text {
       background: var(--bg);
       color: var(--ink);
       border: 1px solid var(--line);
@@ -1291,6 +1291,42 @@
       .upload-container { padding: 0; }
     }
 
+    /* Streaming cursor */
+    .cursor-blink { animation: blink .8s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+    /* Suggestion pills */
+    .msg__suggestions { margin-top:.75rem; display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; }
+    .suggestions-label { font-size:.72rem; color:var(--muted); margin-right:.25rem; }
+    .suggestion-pill { padding:.3rem .75rem; border:1px solid var(--brand); border-radius:999px; background:transparent; color:var(--brand); font-size:.78rem; cursor:pointer; font-family:inherit; transition:all .15s; }
+    .suggestion-pill:hover { background:var(--brand); color:#fff; }
+
+    /* Chat sessions sidebar */
+    .session-item { position:relative; padding:.5rem .75rem; border-radius:8px; cursor:pointer; transition:background .15s; margin-bottom:2px; }
+    .session-item:hover { background:var(--surface-2,#f1f5f9); }
+    .session-item.active { background:var(--brand-light,#eff6ff); }
+    .session-item-title { font-size:.8rem; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding-right:1.5rem; }
+    .session-item-meta { font-size:.7rem; color:var(--muted); margin-top:1px; }
+    .session-delete-btn { position:absolute; right:.4rem; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--muted); padding:2px 4px; border-radius:4px; opacity:0; transition:opacity .15s; font-size:.7rem; }
+    .session-item:hover .session-delete-btn { opacity:1; }
+    .session-delete-btn:hover { color:var(--danger); }
+
+    /* Source chip with click */
+    .source-chip { cursor:pointer; padding:.4rem .65rem; border:1px solid var(--line); border-radius:8px; background:var(--surface); font-size:.78rem; display:flex; align-items:center; gap:.4rem; }
+    .source-chip:hover { background:var(--brand-light,#eff6ff); border-color:var(--brand); }
+    .source-sim { font-size:.68rem; color:var(--brand); font-weight:600; margin-left:auto; }
+
+    /* Streaming message */
+    .msg.streaming .msg__text { opacity:.9; }
+    .msg__text { line-height:1.65; }
+    .msg__text h2 { font-size:1rem; margin:.75rem 0 .35rem; }
+    .msg__text h3 { font-size:.95rem; margin:.65rem 0 .3rem; }
+    .msg__text h4 { font-size:.9rem; margin:.5rem 0 .25rem; }
+    .msg__text ul, .msg__text ol { padding-left:1.25rem; margin:.35rem 0; }
+    .msg__text li { margin:.15rem 0; }
+    .msg__text code { background:var(--surface); border-radius:4px; padding:1px 5px; font-size:.85em; }
+    .msg__text p { margin:.3rem 0; }
+
     /* loading skeleton */
     .skeleton {
       background: linear-gradient(90deg, var(--surface) 25%, var(--line) 50%, var(--surface) 75%);
@@ -1544,7 +1580,17 @@
       </div>
 
       <!-- ═══ CHAT VIEW ═══ -->
-      <div id="view-chat" class="view-panel" style="display:none;flex-direction:column;height:100%">
+      <div id="view-chat" class="view-panel" style="display:none;flex-direction:row;height:100%;gap:0">
+        <!-- Sessions Sidebar -->
+        <div id="sessions-sidebar" style="width:220px;flex-shrink:0;border-right:1px solid var(--line);display:flex;flex-direction:column;height:100%;background:var(--bg)">
+          <div style="padding:.75rem;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:.78rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Gespräche</span>
+            <button class="btn-icon-sm" onclick="startNewChat()" title="Neues Gespräch"><i class="fa-solid fa-plus"></i></button>
+          </div>
+          <div id="sessions-list" style="flex:1;overflow-y:auto;padding:.5rem"></div>
+        </div>
+        <!-- Chat Main -->
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;height:100%">
         <div class="chat-topbar">
           <span class="chat-topbar__title"><i class="fa-solid fa-robot" style="color:var(--brand);margin-right:.4rem"></i>KI-Chat</span>
           <div class="chat-topbar__right">
@@ -1553,7 +1599,7 @@
               <option value="claude-opus-4-5">Claude Opus (Leistungsstark)</option>
               <option value="claude-haiku-4-5">Claude Haiku (Schnell)</option>
             </select>
-            <button class="btn-ghost" style="height:32px;font-size:.8rem;padding:0 .75rem" onclick="newConversation()">
+            <button class="btn-ghost" style="height:32px;font-size:.8rem;padding:0 .75rem" onclick="startNewChat()">
               <i class="fa-solid fa-plus"></i> Neues Gespräch
             </button>
           </div>
@@ -1579,6 +1625,7 @@
           </div>
           <div class="chat-hint">Antworten basieren auf deinen hochgeladenen Dokumenten · <span id="chat-doc-count">0 Dokumente</span> indexiert</div>
         </div>
+        </div><!-- end chat-main -->
       </div>
 
     </main>
@@ -1663,6 +1710,24 @@
     </div>
   </div>
 </div>
+<!-- ─── Document Preview Modal ─── -->
+<div class="modal-overlay" id="modal-doc-preview">
+  <div class="modal-box" style="max-width:720px;max-height:80vh;display:flex;flex-direction:column;padding:1.35rem">
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;flex-shrink:0">
+      <div style="width:36px;height:36px;border-radius:8px;background:var(--brand-light,#eff6ff);display:flex;align-items:center;justify-content:center;color:var(--brand)">
+        <i class="fa-solid fa-file-lines"></i>
+      </div>
+      <div style="flex:1;min-width:0">
+        <div id="preview-title" style="font-weight:700;font-size:1rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        <div id="preview-meta" style="font-size:.75rem;color:var(--muted);margin-top:2px"></div>
+      </div>
+      <button class="btn-close-modal" onclick="closeDocPreview()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div id="preview-tags" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:.75rem;flex-shrink:0"></div>
+    <div id="preview-content" style="overflow-y:auto;flex:1;font-size:.85rem;line-height:1.7;color:var(--ink);padding-right:4px;white-space:pre-wrap;font-family:inherit"></div>
+  </div>
+</div>
+
 <!-- ─── KI-Einstellungen Modal (Admin only) ─── -->
 <div class="modal-overlay" id="modal-ai-settings">
   <div class="modal-box" style="max-width:580px;width:100%">
@@ -1813,6 +1878,7 @@ const state = {
   chatHistory: [],
   chatLoading: false,
   isAdmin: false,
+  currentSessionId: null,
 };
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -1971,7 +2037,7 @@ window.switchView = function(view) {
     document.getElementById(`nav-${v}`)?.classList.toggle('active', v === view);
   });
   if (view === 'documents') loadDocuments();
-  if (view === 'chat') document.getElementById('chat-input')?.focus();
+  if (view === 'chat') { document.getElementById('chat-input')?.focus(); loadChatSessions(); }
 };
 
 // ─── Folders ──────────────────────────────────────────────────────────────────
@@ -2548,46 +2614,91 @@ chatInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
 });
 
-window.sendChatMessage = async function() {
-  const text = chatInput.value.trim();
+window.sendChatMessage = async function(prefillText) {
+  const text = prefillText || chatInput.value.trim();
   if (!text || state.chatLoading) return;
   state.chatLoading = true;
   btnSend.disabled = true;
   chatInput.value = '';
   chatInput.style.height = 'auto';
 
-  // Add user message
   const userProfile = window.RootsUser?._p;
   const userInitials = userProfile?.full_name ? userProfile.full_name.split(' ').map(p => p[0]).join('').slice(0,2).toUpperCase() : 'Du';
   appendMessage('user', text, [], userInitials);
 
-  // Typing indicator
   const typingEl = appendTyping();
   const chatMessages = document.getElementById('chat-messages');
   chatMessages.scrollTop = chatMessages.scrollHeight;
 
   try {
-    const model = document.getElementById('model-select').value;
+    const model = document.getElementById('model-select')?.value || 'gpt-4o-mini';
     state.chatHistory.push({ role: 'user', content: text });
 
     const res = await fetch(`${WISSENSHUB_API_URL}?action=chat`, {
       method: 'POST',
       headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, history: state.chatHistory.slice(-20), model })
+      body: JSON.stringify({ message: text, history: state.chatHistory.slice(-20), model, session_id: state.currentSessionId })
     });
 
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
-
-    const data = await res.json();
-    const reply = data.response || data.reply || '';
-    const sources = data.sources || [];
-    state.chatHistory.push({ role: 'assistant', content: reply });
+    if (!res.ok) {
+      const e = await res.json().catch(() => ({}));
+      throw new Error(e.error || `HTTP ${res.status}`);
+    }
 
     typingEl.remove();
-    appendMessage('assistant', reply, sources, 'R');
+
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('text/event-stream')) {
+      // Streaming
+      const msgEl = appendStreamingMessage('R');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let fullText = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6).trim();
+          if (!raw) continue;
+          try {
+            const evt = JSON.parse(raw);
+            if (evt.error) throw new Error(evt.error);
+            if (evt.delta) {
+              fullText += evt.delta;
+              updateStreamingMessage(msgEl, fullText);
+              chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            if (evt.done) {
+              state.chatHistory.push({ role: 'assistant', content: fullText });
+              if (evt.session_id) {
+                state.currentSessionId = evt.session_id;
+                await loadChatSessions();
+              }
+              finalizeStreamingMessage(msgEl, fullText, evt.sources || [], evt.suggestions || []);
+            }
+          } catch(parseErr) { /* skip bad line */ }
+        }
+      }
+    } else {
+      // Non-streaming fallback
+      const data = await res.json();
+      const reply = data.response || data.reply || '';
+      const sources = data.sources || [];
+      const suggestions = data.suggestions || [];
+      state.chatHistory.push({ role: 'assistant', content: reply });
+      if (data.session_id) { state.currentSessionId = data.session_id; await loadChatSessions(); }
+      appendMessage('assistant', reply, sources, 'R', suggestions);
+    }
   } catch (err) {
-    typingEl.remove();
-    appendMessage('assistant', 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut.', [], 'R');
+    if (typingEl.parentNode) typingEl.remove();
+    appendMessage('assistant', 'Entschuldigung, es ist ein Fehler aufgetreten. Bitte versuche es erneut.', [], 'R', []);
     state.chatHistory.pop();
     console.error('Chat error:', err);
   } finally {
@@ -2598,7 +2709,7 @@ window.sendChatMessage = async function() {
   }
 };
 
-function appendMessage(role, text, sources, avatarContent) {
+function appendMessage(role, text, sources, avatarContent, suggestions = []) {
   const chatMessages = document.getElementById('chat-messages');
   const msg = document.createElement('div');
   msg.className = `msg ${role}`;
@@ -2610,15 +2721,26 @@ function appendMessage(role, text, sources, avatarContent) {
         <i class="fa-solid fa-chevron-down"></i> ${sources.length} Quelle${sources.length !== 1 ? 'n' : ''}
       </button>
       <div class="sources-list" hidden>
-        ${sources.map(s => `<div class="source-card"><div class="source-card__title">${escHtml(s.title || 'Dokument')}</div><div class="source-card__excerpt">${escHtml(s.excerpt || '')}</div></div>`).join('')}
+        ${sources.map(s => `<div class="source-chip" onclick="openDocPreview('${s.document_id}','${escHtml(s.title)}')">
+          <i class="fa-solid fa-file-lines"></i>
+          <span>${escHtml(s.title)}${s.heading ? ' › ' + escHtml(s.heading) : ''}</span>
+          <span class="source-sim">${Math.round((s.similarity||0)*100)}%</span>
+        </div>`).join('')}
       </div>
+    </div>` : '';
+
+  const suggestionsHtml = (role === 'assistant' && suggestions.length) ? `
+    <div class="msg__suggestions">
+      <span class="suggestions-label">Mögliche Folgefragen:</span>
+      ${suggestions.map(s => `<button class="suggestion-pill" onclick="window.sendChatMessage(${JSON.stringify(s)})">${escHtml(s)}</button>`).join('')}
     </div>` : '';
 
   msg.innerHTML = `
     <div class="msg__avatar ${avatarClass}">${avatarContent}</div>
     <div class="msg__body">
-      <div class="msg__bubble">${formatMarkdownBasic(text)}</div>
+      <div class="msg__text">${renderMarkdown(text)}</div>
       ${sourcesHtml}
+      ${suggestionsHtml}
     </div>`;
   chatMessages.appendChild(msg);
   chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -2654,6 +2776,193 @@ window.newConversation = function() {
   chatInput.focus();
 };
 
+function appendStreamingMessage(avatarContent) {
+  const chatMessages = document.getElementById('chat-messages');
+  const msg = document.createElement('div');
+  msg.className = 'msg assistant streaming';
+  msg.innerHTML = `
+    <div class="msg__avatar roots">${avatarContent}</div>
+    <div class="msg__body">
+      <div class="msg__text streaming-text"></div>
+    </div>`;
+  chatMessages.appendChild(msg);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return msg;
+}
+
+function updateStreamingMessage(msgEl, text) {
+  const textEl = msgEl.querySelector('.streaming-text');
+  if (textEl) textEl.innerHTML = renderMarkdown(text) + '<span class="cursor-blink">▍</span>';
+}
+
+function finalizeStreamingMessage(msgEl, text, sources, suggestions) {
+  msgEl.classList.remove('streaming');
+  const bodyEl = msgEl.querySelector('.msg__body');
+  if (!bodyEl) return;
+
+  const sourcesHtml = sources.length ? `
+    <div class="msg__sources">
+      <button class="sources-toggle" onclick="this.nextElementSibling.hidden=!this.nextElementSibling.hidden;this.querySelector('i').className='fa-solid '+(this.nextElementSibling.hidden?'fa-chevron-down':'fa-chevron-up')">
+        <i class="fa-solid fa-chevron-down"></i> ${sources.length} Quelle${sources.length !== 1 ? 'n' : ''}
+      </button>
+      <div class="sources-list" hidden>
+        ${sources.map(s => `<div class="source-chip" onclick="openDocPreview('${s.document_id}','${escHtml(s.title)}')">
+          <i class="fa-solid fa-file-lines"></i>
+          <span>${escHtml(s.title)}${s.heading ? ' › ' + escHtml(s.heading) : ''}</span>
+          <span class="source-sim">${Math.round((s.similarity||0)*100)}%</span>
+        </div>`).join('')}
+      </div>
+    </div>` : '';
+
+  const suggestionsHtml = suggestions.length ? `
+    <div class="msg__suggestions">
+      <span class="suggestions-label">Mögliche Folgefragen:</span>
+      ${suggestions.map(s => `<button class="suggestion-pill" onclick="window.sendChatMessage(${JSON.stringify(s)})">${escHtml(s)}</button>`).join('')}
+    </div>` : '';
+
+  bodyEl.innerHTML = `<div class="msg__text">${renderMarkdown(text)}</div>${sourcesHtml}${suggestionsHtml}`;
+}
+
+function renderMarkdown(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^#{3}\s+(.+)$/gm,'<h4>$1</h4>')
+    .replace(/^#{2}\s+(.+)$/gm,'<h3>$1</h3>')
+    .replace(/^#{1}\s+(.+)$/gm,'<h2>$1</h2>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/^[-•]\s+(.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>.*<\/li>\n?)+/g,'<ul>$&</ul>')
+    .replace(/^(\d+)\.\s+(.+)$/gm,'<li>$2</li>')
+    .replace(/\n\n/g,'</p><p>')
+    .replace(/\n/g,'<br>')
+    .replace(/^(.)/,'<p>$1').replace(/(.)$/,'$1</p>');
+}
+
+// ─── Chat Sessions ─────────────────────────────────────────────────────────
+async function loadChatSessions() {
+  try {
+    const res = await fetch(`${WISSENSHUB_API_URL}`, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get_sessions' })
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    renderChatSessions(data.sessions || []);
+  } catch {}
+}
+
+function renderChatSessions(sessions) {
+  const list = document.getElementById('sessions-list');
+  if (!list) return;
+  if (!sessions.length) {
+    list.innerHTML = '<div style="padding:.5rem .75rem;font-size:.78rem;color:var(--muted)">Noch keine Gespräche</div>';
+    return;
+  }
+  list.innerHTML = sessions.map(s => {
+    const isActive = s.id === state.currentSessionId;
+    const date = new Date(s.updated_at || s.created_at).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit' });
+    return `<div class="session-item ${isActive ? 'active' : ''}" onclick="loadSession('${s.id}')">
+      <div class="session-item-title">${escHtml(s.title || 'Gespräch')}</div>
+      <div class="session-item-meta">${date}</div>
+      <button class="session-delete-btn" onclick="deleteSession(event,'${s.id}')" title="Löschen"><i class="fa-solid fa-trash-can"></i></button>
+    </div>`;
+  }).join('');
+}
+
+async function loadSession(sessionId) {
+  if (state.currentSessionId === sessionId) return;
+  state.currentSessionId = sessionId;
+  state.chatHistory = [];
+  const chatMessages = document.getElementById('chat-messages');
+  chatMessages.innerHTML = '';
+  try {
+    const res = await fetch(`${WISSENSHUB_API_URL}`, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'get_session_messages', session_id: sessionId })
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    for (const msg of (data.messages || [])) {
+      state.chatHistory.push({ role: msg.role, content: msg.content });
+      if (msg.role === 'user') {
+        const userProfile = window.RootsUser?._p;
+        const initials = userProfile?.full_name ? userProfile.full_name.split(' ').map(p => p[0]).join('').slice(0,2).toUpperCase() : 'Du';
+        appendMessage('user', msg.content, [], initials);
+      } else {
+        appendMessage('assistant', msg.content, msg.sources || [], 'R');
+      }
+    }
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    await loadChatSessions();
+  } catch {}
+}
+
+window.startNewChat = function() {
+  state.currentSessionId = null;
+  state.chatHistory = [];
+  const chatMessages = document.getElementById('chat-messages');
+  chatMessages.innerHTML = `
+    <div class="msg assistant">
+      <div class="msg__avatar roots">R</div>
+      <div class="msg__body">
+        <div class="msg__text"><p>Hallo! Ich bin dein ROOTS WissensHub-Assistent. Ich kann dir helfen, Informationen aus deinen Dokumenten zu finden und Fragen zu beantworten.</p><p>Worüber möchtest du mehr erfahren?</p></div>
+      </div>
+    </div>`;
+  loadChatSessions();
+};
+
+window.deleteSession = async function(e, sessionId) {
+  e.stopPropagation();
+  try {
+    await fetch(`${WISSENSHUB_API_URL}`, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete_session', session_id: sessionId })
+    });
+    if (state.currentSessionId === sessionId) startNewChat();
+    else await loadChatSessions();
+  } catch {}
+};
+
+// ─── Document Preview ─────────────────────────────────────────────────────────
+window.openDocPreview = async function(docId, title) {
+  if (!docId) return;
+  const modal = document.getElementById('modal-doc-preview');
+  document.getElementById('preview-title').textContent = title || 'Dokument';
+  document.getElementById('preview-meta').textContent = 'Lade…';
+  document.getElementById('preview-content').textContent = '';
+  document.getElementById('preview-tags').innerHTML = '';
+  modal.classList.add('open');
+  try {
+    const res = await fetch(`${WISSENSHUB_API_URL}?action=get_document_content&document_id=${encodeURIComponent(docId)}`, {
+      headers: await authHeaders()
+    });
+    if (!res.ok) throw new Error('Fehler beim Laden');
+    const doc = await res.json();
+    document.getElementById('preview-title').textContent = doc.title || title;
+    const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE') : '';
+    document.getElementById('preview-meta').textContent = `${doc.chunk_count || 0} Chunks · ${doc.uploader_name || 'Unbekannt'} · ${date}`;
+    if (Array.isArray(doc.tags) && doc.tags.length) {
+      document.getElementById('preview-tags').innerHTML = doc.tags.map(t => `<span class="tag-pill">${escHtml(t)}</span>`).join('');
+    }
+    document.getElementById('preview-content').textContent = doc.content || '(Kein Inhalt)';
+  } catch (err) {
+    document.getElementById('preview-meta').textContent = 'Fehler beim Laden';
+  }
+};
+
+window.closeDocPreview = function() {
+  document.getElementById('modal-doc-preview').classList.remove('open');
+};
+
+document.getElementById('modal-doc-preview')?.addEventListener('click', e => {
+  if (e.target === e.currentTarget) window.closeDocPreview();
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 async function authHeaders() {
   const { data: { session } } = await sb.auth.getSession();
@@ -2673,11 +2982,7 @@ function formatBytes(bytes) {
 }
 
 function formatMarkdownBasic(text) {
-  // Minimal safe markdown: bold, inline code, newlines
-  return escHtml(text)
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code style="background:var(--surface);border-radius:4px;padding:1px 5px;font-size:.85em">$1</code>')
-    .replace(/\n/g, '<br>');
+  return renderMarkdown(text);
 }
 
 // Close modals on overlay click
@@ -2710,6 +3015,10 @@ window.renderDocuments = window.renderDocuments;
 window.downloadDoc = window.downloadDoc;
 window.openDeleteModal = window.openDeleteModal;
 window.removeFile = window.removeFile;
+window.startNewChat = window.startNewChat;
+window.deleteSession = window.deleteSession;
+window.openDocPreview = window.openDocPreview;
+window.closeDocPreview = window.closeDocPreview;
 
 // ─── Duplikat-Erkennung ──────────────────────────────────────────────────────
 let _dupResolve = null;
