@@ -1703,6 +1703,14 @@
     #btn-nav-back:not([disabled]):hover,
     #btn-nav-fwd:not([disabled]):hover { background:var(--surface-2,#f1f5f9); color:var(--ink); }
 
+    /* Breadcrumb */
+    #breadcrumb-path { display:flex; align-items:center; gap:0; font-size:.8rem; }
+    .bc-item { color:var(--muted); cursor:pointer; padding:.15rem .3rem; border-radius:5px; transition:all .12s; display:flex; align-items:center; gap:.3rem; white-space:nowrap; }
+    .bc-item:hover { color:var(--ink); background:var(--surface-2,#f1f5f9); }
+    .bc-item.current { color:var(--ink); font-weight:600; cursor:default; }
+    .bc-item.current:hover { background:transparent; }
+    .bc-sep { color:var(--line); font-size:.72rem; padding:0 .1rem; user-select:none; }
+
     /* Context Menu */
     #ctx-menu .ctx-item { display:flex; align-items:center; gap:.6rem; padding:.5rem .9rem; cursor:pointer; transition:background .1s; white-space:nowrap; }
     #ctx-menu .ctx-item:hover { background:var(--surface-2,#f1f5f9); }
@@ -2009,9 +2017,12 @@
           <button class="btn-primary" onclick="switchView('upload')" style="white-space:nowrap;flex-shrink:0">
             <i class="fa-solid fa-cloud-arrow-up"></i> Hochladen</button>
         </div>
+        <!-- Breadcrumb Pfad-Leiste -->
+        <div id="breadcrumb-bar" style="display:flex;align-items:center;gap:0;padding:.35rem 1rem;border-bottom:1px solid var(--line);background:var(--bg);flex-shrink:0;min-height:34px;overflow-x:auto;white-space:nowrap">
+          <div id="breadcrumb-path"></div>
+        </div>
         <!-- Active tag chips -->
         <div id="filter-pills-bar" style="display:none;align-items:center;gap:.4rem;padding:.3rem 1rem;border-bottom:1px solid var(--line);flex-wrap:wrap">
-          <div class="active-filter-chips" id="active-tag-chips"></div>
           <div class="active-filter-chips" id="active-tag-chips"></div>
         </div>
         <div class="dash-content" id="doc-content">
@@ -2524,6 +2535,7 @@ sb.auth.getSession().then(({ data: { session } }) => {
     if (state.navHistory.length === 0) {
       state.navHistory = [{ folderId: '', label: 'Alle Dokumente' }];
       state.navPos = 0;
+      setTimeout(() => { renderBreadcrumb(); updateNavButtons(); }, 300);
     }
     // Dokumente + Ordner + Tags auch ohne Auth laden (Edge Fn nutzt admin client)
     Promise.all([loadFolders(), loadTags(), loadDocuments()]).catch(() => {});
@@ -2752,16 +2764,58 @@ function renderFinderFolderNode(container, folder, depth) {
 // ─── Navigation History ──────────────────────────────────────────────────────
 function navigateTo(folderId, label, addToHistory = true) {
   if (addToHistory) {
-    // Vorwärts-Stack abschneiden wenn wir mitten in der History navigieren
     state.navHistory = state.navHistory.slice(0, state.navPos + 1);
     state.navHistory.push({ folderId: folderId || '', label: label || 'Alle Dokumente' });
     state.navPos = state.navHistory.length - 1;
   }
   state.activeFolderId = folderId || '';
   state.activeFilter = folderId ? 'folder' : 'all';
+
+  // Sidebar: Auto-expand Pfad zum aktiven Ordner
+  if (folderId && state.openFolderIds) {
+    let current = folderId;
+    while (current) {
+      state.openFolderIds.add(current);
+      const parent = state.folders.find(f => f.id === current);
+      current = parent?.parent_id || null;
+    }
+  }
+
   updateNavButtons();
+  renderBreadcrumb();
   renderFinderTree();
   loadDocuments();
+}
+
+function renderBreadcrumb() {
+  const bar = document.getElementById('breadcrumb-path');
+  if (!bar) return;
+
+  // Baue Pfad von Root zum aktiven Ordner
+  const path = [];
+  let current = state.activeFolderId;
+  while (current) {
+    const folder = state.folders.find(f => f.id === current);
+    if (!folder) break;
+    path.unshift({ id: folder.id, name: folder.name, color: folder.color });
+    current = folder.parent_id || null;
+  }
+
+  const parts = [
+    { id: '', name: 'Alle Dokumente', icon: 'fa-folder-open', color: '#5e9cf5' },
+    ...path
+  ];
+
+  bar.innerHTML = parts.map((p, i) => {
+    const isCurrent = i === parts.length - 1;
+    const iconHtml = p.icon
+      ? `<i class="fa-solid ${p.icon}" style="color:${p.color};font-size:.75rem"></i>`
+      : `<i class="fa-solid fa-folder" style="color:${p.color||'#206efb'};font-size:.75rem"></i>`;
+    const sep = i > 0 ? `<span class="bc-sep"><i class="fa-solid fa-chevron-right" style="font-size:.6rem"></i></span>` : '';
+    return `${sep}<span class="bc-item${isCurrent?' current':''}" ${isCurrent?'':'onclick="navigateTo(\''+p.id+'\',\''+escHtml(p.name)+'\')"'}>
+      ${iconHtml}${escHtml(p.name)}
+    </span>`;
+  }).join('');
 }
 
 function updateNavButtons() {
@@ -2976,6 +3030,7 @@ async function loadDocuments() {
     const legacyCountEl = document.getElementById('folder-count-all');
     if (legacyCountEl) legacyCountEl.textContent = displayTotal;
     document.getElementById('chat-doc-count').textContent = `${displayTotal} Dokument${displayTotal !== 1 ? 'e' : ''} indexiert`;
+    renderBreadcrumb();
     renderFinderTree();
     renderDocuments();
     if (state.docView === 'graph') initKnowledgeGraph();
@@ -3050,39 +3105,45 @@ window.renderDocuments = function() {
     renderListViewTable(docs);
   } else {
     if (state.activeFolderId) {
-      // Finder-Navigation: Unterordner zuerst, Dokumente nur wenn keine Unterordner
+      // VS Code / Finder Verhalten: ALLE Items des aktuellen Ordners zeigen
+      // Unterordner zuerst (als Ordner-Kacheln), dann Dateien — beides immer sichtbar
       const subfolders = state.folders.filter(f => f.parent_id === state.activeFolderId);
-      const docsCache = state.allDocs.length ? state.allDocs : state.documents;
+      const docsCache  = state.allDocs.length ? state.allDocs : state.documents;
 
-      // Unterordner-Kacheln (immer)
-      subfolders.forEach(f => {
-        const card = document.createElement('div');
-        card.className = 'doc-card';
-        card.style.cursor = 'pointer';
-        // Zähler aus allDocs Cache für korrekte Anzahl
-        const directDocs = docsCache.filter(d => d.folder_id === f.id).length;
-        const subCount   = state.folders.filter(sf => sf.parent_id === f.id).length;
-        const meta = [
-          directDocs ? `${directDocs} Datei${directDocs!==1?'en':''}` : '',
-          subCount   ? `${subCount} Unterordner` : ''
-        ].filter(Boolean).join(' · ') || 'Leer';
-        card.innerHTML = `
-          <div class="doc-card__header" style="gap:.5rem">
-            <i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')};font-size:1.1rem;flex-shrink:0"></i>
-            <div class="doc-card__title" style="flex:1">${escHtml(f.name)}</div>
-          </div>
-          <div style="font-size:.76rem;color:var(--muted);margin-top:.4rem">${escHtml(meta)}</div>`;
-        card.onclick = () => navigateTo(f.id, f.name);
-        grid.appendChild(card);
-      });
+      // Unterordner-Kacheln
+      if (subfolders.length) {
+        const hdr = document.createElement('div');
+        hdr.style.cssText = 'grid-column:1/-1;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:.1rem 0 .2rem';
+        hdr.textContent = 'Unterordner';
+        grid.appendChild(hdr);
 
-      // Dokumente: nur zeigen wenn KEINE Unterordner (oder wenn Unterordner + docs gemischt)
+        subfolders.forEach(f => {
+          const card = document.createElement('div');
+          card.className = 'doc-card';
+          card.style.cursor = 'pointer';
+          const directDocs = docsCache.filter(d => d.folder_id === f.id).length;
+          const subCount   = state.folders.filter(sf => sf.parent_id === f.id).length;
+          const meta = [
+            directDocs ? `${directDocs} Datei${directDocs!==1?'en':''}` : '',
+            subCount   ? `${subCount} Unterordner` : ''
+          ].filter(Boolean).join(' · ') || 'Leer';
+          card.innerHTML = `
+            <div class="doc-card__header" style="gap:.5rem">
+              <i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')};font-size:1.1rem;flex-shrink:0"></i>
+              <div class="doc-card__title" style="flex:1">${escHtml(f.name)}</div>
+            </div>
+            <div style="font-size:.76rem;color:var(--muted);margin-top:.4rem">${escHtml(meta)}</div>`;
+          card.onclick = () => navigateTo(f.id, f.name);
+          grid.appendChild(card);
+        });
+      }
+
+      // Dateien — IMMER anzeigen (nicht verstecken wenn Unterordner vorhanden)
       if (docs.length) {
         if (subfolders.length) {
-          // Trennlinie zwischen Unterordnern und Dateien
           const sep = document.createElement('div');
-          sep.style.cssText = 'grid-column:1/-1;border-top:1px solid var(--line);margin:.5rem 0 .25rem;padding-top:.4rem;font-size:.7rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em';
-          sep.textContent = 'Dateien in diesem Ordner';
+          sep.style.cssText = 'grid-column:1/-1;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:.5rem 0 .2rem;border-top:1px solid var(--line);margin-top:.25rem';
+          sep.textContent = 'Dateien';
           grid.appendChild(sep);
         }
         docs.forEach(doc => grid.appendChild(makeDocCard(doc)));
