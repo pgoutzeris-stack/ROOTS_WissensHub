@@ -949,6 +949,13 @@ serve(async (req: Request) => {
       case "tags":
         return await handleTags(origin);
 
+      case "check_duplicate": {
+        const fn = url.searchParams.get("filename") || "";
+        const admin = getAdminClient();
+        const { data } = await admin.rpc("check_duplicate_filename", { p_filename: fn });
+        return corsResponse(origin, data || { exists: false });
+      }
+
       case "delete_document":
         return await handleDeleteDocument(body, req, origin);
 
