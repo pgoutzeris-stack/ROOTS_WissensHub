@@ -5840,6 +5840,194 @@ function _applyTimelineMode() {
 }
 
 
+// ── Events ────────────────────────────────────────────────────────────────────
+function _attachGraphEvents(canvas) {
+  const toWorld=(ex,ey)=>{
+    const rect=canvas.getBoundingClientRect();
+    const sx=(ex-rect.left)*(_gv.width/rect.width), sy=(ey-rect.top)*(_gv.height/rect.height);
+    return {x:(sx-_gv.width/2-_gv.panX)/_gv.zoom+_gv.width/2, y:(sy-_gv.height/2-_gv.panY)/_gv.zoom+_gv.height/2};
+  };
+  const hitTest=(ex,ey)=>{
+    const w=toWorld(ex,ey);
+    return _gv.nodes.find(n=>{
+      if(n.revealP<0.3)return false;
+      const dx=n.x-w.x,dy=n.y-w.y;
+      const hr=_gv.zoom>=2.2*_gv.baseZoom&&n.type==='doc'?80/_gv.zoom:(n.r||8)*1.55/_gv.zoom+6;
+      return dx*dx+dy*dy<hr*hr;
+    })||null;
+  };
+
+  canvas.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const rect=canvas.getBoundingClientRect();
+    const cx=(e.clientX-rect.left)*(_gv.width/rect.width);
+    const cy=(e.clientY-rect.top)*(_gv.height/rect.height);
+    // Maus-Position als Focus setzen beim Scrollen
+    _gFocus.wx=(cx-_gv.width/2-_gAnim.panX)/_gAnim.zoom+_gv.width/2;
+    _gFocus.wy=(cy-_gv.height/2-_gAnim.panY)/_gAnim.zoom+_gv.height/2;
+    _animZoom(_gAnim.zoom*(e.deltaY<0?1.28:1/1.28),cx,cy);
+    if(_gAnim.zoom>=2.8*_gv.baseZoom)_loadDocContent();
+  },{passive:false});
+
+  canvas.onmousedown=e=>{
+    const hit=hitTest(e.clientX,e.clientY);
+    if(hit){_gv.dragNode=hit;_gv._dragged=false;}
+    else{_gv.dragging=true;_gv._dragged=false;}
+    _gv.lastMX=e.clientX;_gv.lastMY=e.clientY;
+  };
+  canvas.onmousemove=e=>{
+    const dx=e.clientX-_gv.lastMX,dy=e.clientY-_gv.lastMY;
+    _gv.lastMX=e.clientX;_gv.lastMY=e.clientY;
+    if(_gv.dragging){
+      if(Math.abs(dx)+Math.abs(dy)>2)_gv._dragged=true;
+      _gAnim.panX+=dx;_gAnim.panY+=dy;
+      if(_gTween){_gTween.kill();_gTween=null;}
+    }else if(_gv.dragNode){
+      if(Math.abs(dx)+Math.abs(dy)>2)_gv._dragged=true;
+      const sc=_gv.width/canvas.getBoundingClientRect().width;
+      _gv.dragNode.tx+=dx*sc/_gv.zoom;_gv.dragNode.ty+=dy*sc/_gv.zoom;
+    }
+    // Maus-Position in Weltkoordinaten tracken (für Focus-Zoom)
+    const _rect2=canvas.getBoundingClientRect();
+    const _sx2=(e.clientX-_rect2.left)*(_gv.width/_rect2.width);
+    const _sy2=(e.clientY-_rect2.top)*(_gv.height/_rect2.height);
+    _gFocus.wx=(_sx2-_gv.width/2-_gv.panX)/_gv.zoom+_gv.width/2;
+    _gFocus.wy=(_sy2-_gv.height/2-_gv.panY)/_gv.zoom+_gv.height/2;
+
+    const hit=hitTest(e.clientX,e.clientY);
+    if(hit!==_gv.hover){
+      _gv.hover=hit;
+      canvas.style.cursor=hit?'pointer':'grab';
+      if(hit)_showContextPanelDelayed(hit,e.clientX,e.clientY);
+      else _hideContextPanelDelayed();
+    }
+  };
+  canvas.onmouseup=e=>{
+    const wasDragged=_gv._dragged;
+    _gv.dragging=false;_gv.dragNode=null;_gv._dragged=false;
+    if(!wasDragged){const hit=hitTest(e.clientX,e.clientY);if(hit)_handleNodeClick(hit,e);}
+  };
+  canvas.onmouseleave=()=>{_gv.dragging=false;_gv.dragNode=null;_gv.hover=null;_gFocus.wx=null;_gFocus.wy=null;_hideContextPanelDelayed();canvas.style.cursor='grab';};
+  canvas.ondblclick=e=>{
+    const hit=hitTest(e.clientX,e.clientY);if(!hit)return;
+    if(hit.type==='folder'||hit.type==='subfolder'){setDocView('cards');navigateTo(hit.folderId,hit.label);}
+    else if(hit.type==='doc')openDocPreview(hit.docId,hit.label);
+  };
+  let _td=0;
+  canvas.addEventListener('touchstart',e=>{if(e.touches.length===2)_td=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);},{passive:true});
+  canvas.addEventListener('touchmove',e=>{
+    if(e.touches.length===2){e.preventDefault();
+      const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+      const cx2=(e.touches[0].clientX+e.touches[1].clientX)/2,cy2=(e.touches[0].clientY+e.touches[1].clientY)/2;
+      const rect=canvas.getBoundingClientRect();
+      _animZoom(_gAnim.zoom*(d/(_td||d)),(cx2-rect.left)*(_gv.width/rect.width),(cy2-rect.top)*(_gv.height/rect.height));
+      _td=d;}
+  },{passive:false});
+  canvas.style.cursor='grab';
+}
+
+// ── Hover Context Panel ────────────────────────────────────────────────────────
+let _hoverTimer=null,_hideTimer=null;
+function _showContextPanelDelayed(node,sx,sy){clearTimeout(_hoverTimer);clearTimeout(_hideTimer);_hoverTimer=setTimeout(()=>_showContextPanel(node,sx,sy),280);}
+function _hideContextPanelDelayed(){clearTimeout(_hoverTimer);_hideTimer=setTimeout(()=>{const p=document.getElementById('graph-context-panel');if(p&&!p.matches(':hover'))p.style.display='none';},350);}
+
+function _showContextPanel(node,screenX,screenY){
+  const panel=document.getElementById('graph-context-panel');if(!panel)return;
+  const isFolder=node.type==='folder'||node.type==='subfolder';
+  const icon=document.getElementById('gcp-icon');
+  icon.style.background=node.color+'22';
+  icon.innerHTML=`<i class="fa-solid ${isFolder?'fa-folder':'fa-file-lines'}" style="color:${node.color}"></i>`;
+  document.getElementById('gcp-title').textContent=node.label;
+  const sub=isFolder
+    ?(state.documents||[]).filter(d=>d.folder_id===node.folderId).length+' Dokumente'
+    :[(state.folders||[]).find(f=>f.id===node.folderId)?.name,node.tags?.[0]?'#'+node.tags[0]:''].filter(Boolean).join(' · ');
+  document.getElementById('gcp-sub').textContent=sub;
+  const meta=document.getElementById('gcp-meta');
+  if(!isFolder){
+    const sz=node.size?formatBytes(node.size):'';
+    const dt=node.date?new Date(node.date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}):'';
+    meta.innerHTML=[
+      node.chunks?`<span><i class="fa-solid fa-layer-group"></i>${node.chunks} Chunks</span>`:'',
+      sz?`<span><i class="fa-solid fa-weight-hanging"></i>${sz}</span>`:'',
+      dt?`<span><i class="fa-regular fa-calendar"></i>${dt}</span>`:'',
+      node.uploader?`<span><i class="fa-regular fa-user"></i>${escHtml(node.uploader)}</span>`:'',
+    ].filter(Boolean).join('');
+  }else meta.innerHTML='';
+  const simEl=document.getElementById('gcp-similar');
+  if(simEl&&!isFolder&&node.tags?.length){
+    const sim=_gv.nodes.filter(n=>n.type==='doc'&&n.id!==node.id&&n.tags?.some(t=>node.tags.includes(t))).slice(0,3);
+    if(sim.length){simEl.style.display='block';document.getElementById('gcp-similar-list').innerHTML=sim.map(s=>{const pct=Math.min(100,s.tags.filter(t=>node.tags.includes(t)).length*35+40);return`<div class="gcp-similar-item" onclick="openDocPreview('${s.docId}','${escHtml(s.label)}')"><div class="gcp-sim-bar" style="width:${pct}%"></div><span>${escHtml(s.label.length>22?s.label.slice(0,21)+'…':s.label)}</span><span style="margin-left:auto;font-size:.68rem;color:#475569">${pct}%</span></div>`;}).join('');}
+    else simEl.style.display='none';
+  }else if(simEl)simEl.style.display='none';
+  const ob=document.getElementById('gcp-open'),nb=document.getElementById('gcp-nav');
+  if(isFolder){ob.textContent='Öffnen';ob.onclick=()=>{setDocView('cards');navigateTo(node.folderId,node.label);};nb.textContent='Schließen';nb.onclick=()=>_hideContextPanel();}
+  else{ob.textContent='Vorschau';ob.onclick=()=>openDocPreview(node.docId,node.label);nb.textContent='Zum Ordner';nb.onclick=()=>{setDocView('cards');navigateTo(node.folderId||'','');};}
+  panel.style.display='block';
+  const putRight=(screenX||0)>_gv.width*.55;
+  panel.style.right=putRight?'14px':'auto';panel.style.left=putRight?'auto':'14px';
+  const wrapH=document.getElementById('doc-graph-wrap')?.clientHeight||600;
+  panel.style.maxHeight=Math.min(420,wrapH-80)+'px';panel.style.overflowY='auto';
+  panel.onmouseenter=()=>clearTimeout(_hideTimer);
+  panel.onmouseleave=()=>_hideContextPanelDelayed();
+}
+
+function _handleNodeClick(node,e){
+  const rect=document.getElementById('graph-canvas').getBoundingClientRect();
+  const sx=(e.clientX-rect.left)*(_gv.width/rect.width);
+  const sy=(e.clientY-rect.top)*(_gv.height/rect.height);
+  const z=_gAnim.zoom,bz=_gv.baseZoom;
+  if(node.type==='folder'||node.type==='subfolder'){_animZoom(Math.min(z*1.8,bz*2.0),sx,sy);}
+  else if(node.type==='doc'){_animZoom(Math.min(z*1.5,bz*3.2),sx,sy);if(_gAnim.zoom>=2.8*bz)_loadDocContent();}
+}
+
+// ── Minimap ────────────────────────────────────────────────────────────────────
+function _updateMinimap(){
+  const mm=document.getElementById('graph-minimap');if(!mm)return;
+  const mW=140,mH=90,ctx=mm.getContext('2d');
+  ctx.clearRect(0,0,mW,mH);ctx.fillStyle='#f1f5f9';ctx.fillRect(0,0,mW,mH);
+  const{nodes,width:W,height:H,zoom:z,panX,panY}=_gv;
+  const vis=nodes.filter(n=>n.revealP>0.3);if(!vis.length)return;
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  vis.forEach(n=>{minX=Math.min(minX,n.tx);maxX=Math.max(maxX,n.tx);minY=Math.min(minY,n.ty);maxY=Math.max(maxY,n.ty);});
+  const bw=maxX-minX+60,bh=maxY-minY+60;
+  const scale=Math.min(mW/bw,mH/bh);
+  const ox=(mW-bw*scale)/2-(minX-30)*scale,oy=(mH-bh*scale)/2-(minY-30)*scale;
+  vis.forEach(n=>{
+    ctx.beginPath();ctx.arc(n.tx*scale+ox,n.ty*scale+oy,Math.max(1.5,(n.r||8)*scale*.7),0,Math.PI*2);
+    ctx.fillStyle=n.color+(n.type==='doc'?'99':'');ctx.fill();
+  });
+  const vpEl=document.getElementById('graph-minimap-viewport');
+  if(vpEl){
+    const vpW=(W/z)*scale,vpH=(H/z)*scale;
+    const vpL=(W/2-panX/z-W/(2*z))*scale+ox,vpT=(H/2-panY/z-H/(2*z))*scale+oy;
+    vpEl.style.left=Math.max(0,vpL)+'px';vpEl.style.top=Math.max(0,vpT)+'px';
+    vpEl.style.width=Math.min(mW,vpW)+'px';vpEl.style.height=Math.min(mH,vpH)+'px';
+  }
+}
+
+// ── Resize ─────────────────────────────────────────────────────────────────────
+function _setupResize(wrap){
+  if(_gv.resizeObs){_gv.resizeObs.disconnect();}
+  if(typeof ResizeObserver!=='undefined'){
+    _gv.resizeObs=new ResizeObserver(()=>{
+      if(!_gv.running)return;
+      const nW=Math.max(400,wrap.clientWidth||800),nH=Math.max(300,wrap.clientHeight||600);
+      if(Math.abs(nW-_gv.width)>30||Math.abs(nH-_gv.height)>30){
+        _gv.width=nW;_gv.height=nH;
+        const dpr=window.devicePixelRatio||1;
+        ['graph-canvas','graph-particles'].forEach(id=>{
+          const c=document.getElementById(id);if(!c)return;
+          c.width=nW*dpr;c.height=nH*dpr;c.style.width=nW+'px';c.style.height=nH+'px';
+          c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+        });
+        setTimeout(()=>_fitToRoots(false),100);
+      }
+    });
+    _gv.resizeObs.observe(wrap);
+  }
+}
+
+
 function _hideContextPanel(){const p=document.getElementById("graph-context-panel");if(p)p.style.display="none";}
 
 function stopGraph(){
