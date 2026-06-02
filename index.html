@@ -1671,8 +1671,8 @@
 
     /* ── Filter Pills (eigene Zeile unter Toolbar) ─────────────────── */
     #filter-pills-bar { transition:max-height .2s; }
-    .smart-pill { display:inline-flex; align-items:center; gap:5px; padding:.28rem .75rem; border-radius:999px; font-size:.76rem; font-weight:500; cursor:pointer; border:1px solid var(--line); background:var(--bg); color:var(--ink); transition:all .15s; white-space:nowrap; }
-    .smart-pill i { font-size:.7rem; }
+    .smart-pill { display:inline-flex; align-items:center; gap:5px; height:38px; padding:0 .9rem; border-radius:8px; font-size:.82rem; font-weight:500; cursor:pointer; border:1px solid var(--line); background:var(--bg); color:var(--ink); transition:all .15s; white-space:nowrap; font-family:inherit; }
+    .smart-pill i { font-size:.75rem; }
     .smart-pill.active { background:var(--brand); color:#fff; border-color:var(--brand); box-shadow:0 2px 8px rgba(32,110,251,.2); }
     .smart-pill:not(.active):hover { border-color:var(--brand); color:var(--brand); }
 
@@ -2826,7 +2826,7 @@ function makeDocListRow(doc) {
 
   row.innerHTML = `
     <div class="doc-list-icon"><i class="fa-solid fa-file-lines"></i></div>
-    <div class="doc-list-title">${escHtml(doc.title || 'Dokument')}</div>
+    <div class="doc-list-title">${state.search ? highlight(escHtml(doc.title||'Dokument'), state.search.toLowerCase()) : escHtml(doc.title||'Dokument')}</div>
     ${folder ? `<div class="doc-list-folder"><i class="fa-solid fa-folder" style="margin-right:3px;font-size:.7rem"></i>${escHtml(folder.name)}</div>` : '<div class="doc-list-folder"></div>'}
     <div class="doc-list-tags">${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.68rem;padding:.1rem .45rem">${escHtml(t)}</span>`).join('')}</div>
     <div class="doc-list-status"><span class="status-badge ${statusClass}" style="font-size:.7rem"><span class="status-dot"></span>${statusLabel}</span></div>
@@ -2857,9 +2857,10 @@ function makeDocCard(doc, index = 0) {
   const initials = uploader.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
   const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
 
+  const hl = (txt) => state.search ? highlight(escHtml(txt||''), state.search.toLowerCase()) : escHtml(txt||'');
   card.innerHTML = `
     <div class="doc-card__header">
-      <div class="doc-card__title">${escHtml(doc.title || doc.file_name || 'Dokument')}</div>
+      <div class="doc-card__title">${hl(doc.title || doc.file_name || 'Dokument')}</div>
       <span class="status-badge ${statusClass}">
         <span class="status-dot"></span>${statusLabel}
       </span>
@@ -4102,11 +4103,37 @@ window.setGraphMode = function(mode) {
   initKnowledgeGraph();
 };
 
+function zoomToFit() {
+  if (!_graphScene || !_graphScene.nodes.length) return;
+  const { nodes, width, height } = _graphScene;
+  const pad = 60;
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  nodes.forEach(n => {
+    minX = Math.min(minX, n.x - n.r);
+    maxX = Math.max(maxX, n.x + n.r);
+    minY = Math.min(minY, n.y - n.r);
+    maxY = Math.max(maxY, n.y + n.r);
+  });
+  const bw = maxX - minX + pad * 2;
+  const bh = maxY - minY + pad * 2;
+  const zoom = Math.min(1.2, Math.min(width / bw, height / bh));
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  _graphScene.zoom = zoom;
+  _graphScene.panX = (width / 2 - cx) * zoom;
+  _graphScene.panY = (height / 2 - cy) * zoom;
+  _graphScene.energy = 1; // freeze simulation, just redraw
+  const canvas = document.getElementById('graph-canvas');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+    drawGraph(ctx, _graphScene);
+  }
+}
+
 window.resetGraphView = function() {
   if (!_graphScene) return;
-  _graphScene.zoom = 1;
-  _graphScene.panX = 0;
-  _graphScene.panY = 0;
+  zoomToFit();
   _graphScene.energy = 110;
 };
 
@@ -4152,6 +4179,8 @@ function initKnowledgeGraph() {
   _graphScene = buildGraphScene(docs, width, height);
   attachGraphEvents(canvas, wrap);
   startGraphLoop();
+  // Nach Simulation: Zoom-to-fit damit alle Knoten sichtbar sind
+  setTimeout(() => zoomToFit(), 1800);
 }
 
 function buildGraphScene(docs, width, height) {
@@ -4844,7 +4873,23 @@ window.onDropToFolder = async function(event, folderId) {
 
 </script>
 
-<script src="https://pgoutzeris-stack.github.io/ROOTS_Intranet/roots-user-bridge.js?v=20260601-final"></script>
+<!-- Bridge: Custom ping suppresses "no_supabase_client" flash during module init -->
+<script>
+window.RootsSyncStatusConfig = {
+  toolName: 'ROOTS WissensHub',
+  ping: async function(sb) {
+    // Nutze window.__rootsSupabaseClient sobald verfügbar
+    const client = sb || window.__rootsSupabaseClient || window.RootsUser?._sb;
+    if (!client) {
+      return { online: false, lines: ['status  initialisiert…', 'hint    lade auth-session'] };
+    }
+    const { data: { session }, error } = await client.auth.getSession();
+    if (!session) return { online: false, lines: ['status  offline', 'hint    bitte anmelden'] };
+    return { online: true, lines: [`status  online`, `auth    ${session.user.email}`] };
+  }
+};
+</script>
+<script defer src="https://pgoutzeris-stack.github.io/ROOTS_Intranet/roots-user-bridge.js?v=20260601-final"></script>
 
 <!-- Context Menu -->
 <div id="ctx-menu" style="display:none;position:fixed;background:var(--bg);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:9999;min-width:180px;padding:.35rem 0;font-size:.82rem">
