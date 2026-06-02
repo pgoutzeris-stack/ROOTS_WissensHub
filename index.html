@@ -1604,6 +1604,18 @@
     .suggestion-pill { padding:.3rem .75rem; border:1px solid var(--brand); border-radius:999px; background:transparent; color:var(--brand); font-size:.78rem; cursor:pointer; font-family:inherit; transition:all .15s; }
     .suggestion-pill:hover { background:var(--brand); color:#fff; }
 
+    /* ── Chat Welcome / Starter Prompts ──────────────────────────────── */
+    .chat-welcome-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:60%; padding:2rem 1rem; text-align:center; }
+    .chat-welcome-logo { width:52px; height:52px; border-radius:16px; background:var(--brand); display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.5rem; font-weight:800; margin:0 auto 1rem; box-shadow:0 4px 16px rgba(32,110,251,.25); }
+    .chat-welcome-title { font-size:1.15rem; font-weight:700; color:var(--ink); margin-bottom:.35rem; }
+    .chat-welcome-sub { font-size:.85rem; color:var(--muted); max-width:340px; margin:0 auto 1.75rem; }
+    .starter-grid { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; width:100%; max-width:480px; margin:0 auto; }
+    .starter-card { background:var(--bg); border:1px solid var(--line); border-radius:12px; padding:.75rem 1rem; cursor:pointer; text-align:left; font-family:inherit; transition:border-color .15s, box-shadow .15s; display:flex; gap:.7rem; align-items:flex-start; }
+    .starter-card:hover { border-color:var(--brand); box-shadow:0 2px 12px rgba(32,110,251,.12); }
+    .starter-card-icon { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:.8rem; flex-shrink:0; margin-top:1px; }
+    .starter-card-text { font-size:.8rem; font-weight:500; color:var(--ink); line-height:1.4; }
+    .starter-card-sub { font-size:.72rem; color:var(--muted); margin-top:2px; }
+
     /* Chat sessions sidebar */
     .session-item { position:relative; padding:.5rem .75rem; border-radius:8px; cursor:pointer; transition:background .15s; margin-bottom:2px; }
     .session-item:hover { background:var(--surface-2,#f1f5f9); }
@@ -1958,14 +1970,36 @@
           </div>
         </div>
         <div class="chat-messages" id="chat-messages">
-          <!-- Welcome -->
-          <div class="msg assistant" id="chat-welcome">
-            <div class="msg__avatar roots">R</div>
-            <div class="msg__body">
-              <div class="msg__bubble">
-                Hallo! Ich bin dein ROOTS WissensHub-Assistent. Ich kann dir helfen, Informationen aus deinen Dokumenten zu finden und Fragen zu beantworten.<br><br>
-                Worüber möchtest du mehr erfahren?
-              </div>
+          <!-- Welcome Screen -->
+          <div class="chat-welcome-wrap" id="chat-welcome">
+            <div class="chat-welcome-logo">R</div>
+            <div class="chat-welcome-title">ROOTS WissensHub KI</div>
+            <div class="chat-welcome-sub">Frag mich zu internen Prozessen, Dokumenten oder allgemeinen Business-Themen.</div>
+            <div class="starter-grid">
+              <button class="starter-card" onclick="window.sendChatMessage('Was kannst du alles für mich erledigen?')">
+                <div class="starter-card-icon" style="background:#eff6ff;color:#206efb"><i class="fa-solid fa-robot"></i></div>
+                <div><div class="starter-card-text">Was kannst du für mich tun?</div><div class="starter-card-sub">Fähigkeiten & Themen</div></div>
+              </button>
+              <button class="starter-card" onclick="window.sendChatMessage('Welche Dokumente kannst du einsehen?')">
+                <div class="starter-card-icon" style="background:#f0fdf4;color:#10b981"><i class="fa-solid fa-folder-open"></i></div>
+                <div><div class="starter-card-text">Welche Dokumente kennst du?</div><div class="starter-card-sub">Wissensdatenbank</div></div>
+              </button>
+              <button class="starter-card" onclick="window.sendChatMessage('Wie schreibe ich eine gute E-Mail?')">
+                <div class="starter-card-icon" style="background:#fef9c3;color:#ca8a04"><i class="fa-solid fa-envelope"></i></div>
+                <div><div class="starter-card-text">Wie schreibe ich eine gute E-Mail?</div><div class="starter-card-sub">E-Mail Ethikette</div></div>
+              </button>
+              <button class="starter-card" onclick="window.sendChatMessage('Was muss ich als neuer Mitarbeiter wissen?')">
+                <div class="starter-card-icon" style="background:#fdf4ff;color:#a855f7"><i class="fa-solid fa-user-plus"></i></div>
+                <div><div class="starter-card-text">Onboarding bei ROOTS</div><div class="starter-card-sub">Neuer Mitarbeiter</div></div>
+              </button>
+              <button class="starter-card" onclick="window.sendChatMessage('Wie ist die Laufwerkstruktur bei ROOTS aufgebaut?')">
+                <div class="starter-card-icon" style="background:#fff7ed;color:#f97316"><i class="fa-solid fa-hard-drive"></i></div>
+                <div><div class="starter-card-text">Laufwerkstruktur erklärt</div><div class="starter-card-sub">Dateien & Ordner</div></div>
+              </button>
+              <button class="starter-card" onclick="window.sendChatMessage('Welche Meeting-Regeln gelten bei ROOTS?')">
+                <div class="starter-card-icon" style="background:#fff1f2;color:#f43f5e"><i class="fa-solid fa-people-group"></i></div>
+                <div><div class="starter-card-text">Meeting-Regeln & Etikette</div><div class="starter-card-sub">Zusammenarbeit</div></div>
+              </button>
             </div>
           </div>
         </div>
@@ -3319,6 +3353,10 @@ window.sendChatMessage = async function(prefillText) {
   chatInput.value = '';
   chatInput.style.height = 'auto';
 
+  // Hide welcome screen on first message
+  const welcomeEl = document.getElementById('chat-welcome');
+  if (welcomeEl) welcomeEl.remove();
+
   const userProfile = window.RootsUser?._p;
   const userInitials = userProfile?.full_name ? userProfile.full_name.split(' ').map(p => p[0]).join('').slice(0,2).toUpperCase() : 'Du';
   appendMessage('user', text, [], userInitials);
@@ -3603,10 +3641,35 @@ window.startNewChat = function() {
   state.chatHistory = [];
   const chatMessages = document.getElementById('chat-messages');
   chatMessages.innerHTML = `
-    <div class="msg assistant">
-      <div class="msg__avatar roots">R</div>
-      <div class="msg__body">
-        <div class="msg__text"><p>Hallo! Ich bin dein ROOTS WissensHub-Assistent. Ich kann dir helfen, Informationen aus deinen Dokumenten zu finden und Fragen zu beantworten.</p><p>Worüber möchtest du mehr erfahren?</p></div>
+    <div class="chat-welcome-wrap" id="chat-welcome">
+      <div class="chat-welcome-logo">R</div>
+      <div class="chat-welcome-title">ROOTS WissensHub KI</div>
+      <div class="chat-welcome-sub">Frag mich zu internen Prozessen, Dokumenten oder allgemeinen Business-Themen.</div>
+      <div class="starter-grid">
+        <button class="starter-card" onclick="window.sendChatMessage('Was kannst du alles für mich erledigen?')">
+          <div class="starter-card-icon" style="background:#eff6ff;color:#206efb"><i class="fa-solid fa-robot"></i></div>
+          <div><div class="starter-card-text">Was kannst du für mich tun?</div><div class="starter-card-sub">Fähigkeiten & Themen</div></div>
+        </button>
+        <button class="starter-card" onclick="window.sendChatMessage('Welche Dokumente kannst du einsehen?')">
+          <div class="starter-card-icon" style="background:#f0fdf4;color:#10b981"><i class="fa-solid fa-folder-open"></i></div>
+          <div><div class="starter-card-text">Welche Dokumente kennst du?</div><div class="starter-card-sub">Wissensdatenbank</div></div>
+        </button>
+        <button class="starter-card" onclick="window.sendChatMessage('Wie schreibe ich eine gute E-Mail?')">
+          <div class="starter-card-icon" style="background:#fef9c3;color:#ca8a04"><i class="fa-solid fa-envelope"></i></div>
+          <div><div class="starter-card-text">Wie schreibe ich eine gute E-Mail?</div><div class="starter-card-sub">E-Mail Ethikette</div></div>
+        </button>
+        <button class="starter-card" onclick="window.sendChatMessage('Was muss ich als neuer Mitarbeiter bei ROOTS wissen?')">
+          <div class="starter-card-icon" style="background:#fdf4ff;color:#a855f7"><i class="fa-solid fa-user-plus"></i></div>
+          <div><div class="starter-card-text">Onboarding bei ROOTS</div><div class="starter-card-sub">Neuer Mitarbeiter</div></div>
+        </button>
+        <button class="starter-card" onclick="window.sendChatMessage('Wie ist die Laufwerkstruktur bei ROOTS aufgebaut?')">
+          <div class="starter-card-icon" style="background:#fff7ed;color:#f97316"><i class="fa-solid fa-hard-drive"></i></div>
+          <div><div class="starter-card-text">Laufwerkstruktur erklärt</div><div class="starter-card-sub">Dateien & Ordner</div></div>
+        </button>
+        <button class="starter-card" onclick="window.sendChatMessage('Welche Meeting-Regeln gelten bei ROOTS?')">
+          <div class="starter-card-icon" style="background:#fff1f2;color:#f43f5e"><i class="fa-solid fa-people-group"></i></div>
+          <div><div class="starter-card-text">Meeting-Regeln & Etikette</div><div class="starter-card-sub">Zusammenarbeit</div></div>
+        </button>
       </div>
     </div>`;
   loadChatSessions();
