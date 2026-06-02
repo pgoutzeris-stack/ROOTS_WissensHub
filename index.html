@@ -1684,19 +1684,24 @@
     .smart-pill.active { background:var(--brand); color:#fff; border-color:var(--brand); }
     .smart-pill:not(.active):hover { border-color:var(--brand); color:var(--brand); }
 
-    /* ── List View ─────────────────────────────────────────────────── */
+    /* ── Finder List View ──────────────────────────────────────────── */
     #doc-list { display:none; }
-    .doc-list-item { display:flex; align-items:center; gap:.75rem; padding:.6rem 1rem; border-bottom:1px solid var(--line); cursor:default; transition:background .1s; }
-    .doc-list-item:hover { background:var(--surface-2,#f8fafc); }
-    .doc-list-item:last-child { border-bottom:none; }
-    .doc-list-icon { width:34px;height:34px;border-radius:8px;background:var(--brand-10,#eff6ff);display:flex;align-items:center;justify-content:center;color:var(--brand);font-size:.85rem;flex-shrink:0; }
-    .doc-list-title { font-size:.88rem;font-weight:600;color:var(--ink);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-    .doc-list-folder { font-size:.75rem;color:var(--muted);white-space:nowrap; }
-    .doc-list-tags { display:flex;gap:3px;flex-wrap:wrap; }
-    .doc-list-status { flex-shrink:0; }
-    .doc-list-meta { font-size:.73rem;color:var(--muted);white-space:nowrap;flex-shrink:0; }
-    .doc-list-actions { display:flex;gap:4px;opacity:0;transition:opacity .15s; }
-    .doc-list-item:hover .doc-list-actions { opacity:1; }
+    .finder-list { display:flex; flex-direction:column; }
+    .finder-list-section-label { padding:.5rem 1rem .2rem; font-size:.68rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; }
+    .finder-list-row { display:grid; grid-template-columns:28px 1fr auto auto 0px; align-items:center; gap:.6rem; padding:.45rem 1rem; cursor:pointer; transition:background .12s; border-bottom:1px solid var(--line); }
+    .finder-list-row:last-child { border-bottom:none; }
+    .finder-list-row:hover { background:var(--surface-2,#f8fafc); }
+    .finder-list-row:hover .finder-list-actions { opacity:1; width:auto; overflow:visible; }
+    .finder-list-folder { background:transparent; }
+    .finder-list-folder:hover { background:var(--surface-2,#f1f5f9); }
+    .finder-list-icon { font-size:.9rem; display:flex; align-items:center; justify-content:center; }
+    .finder-list-name { font-size:.84rem; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .finder-list-meta { display:flex; align-items:center; gap:.3rem; flex-wrap:wrap; justify-content:flex-end; min-width:80px; }
+    .finder-list-date { font-size:.73rem; color:var(--muted); white-space:nowrap; text-align:right; min-width:70px; }
+    .finder-list-actions { display:flex; gap:2px; opacity:0; width:0; overflow:hidden; transition:opacity .15s; flex-shrink:0; }
+    /* Back/Forward buttons */
+    #btn-nav-back:not([disabled]):hover,
+    #btn-nav-fwd:not([disabled]):hover { background:var(--surface-2,#f1f5f9); color:var(--ink); }
 
     /* Context Menu */
     #ctx-menu .ctx-item { display:flex; align-items:center; gap:.6rem; padding:.5rem .9rem; cursor:pointer; transition:background .1s; white-space:nowrap; }
@@ -1937,7 +1942,20 @@
       <!-- ═══ DOCUMENTS VIEW ═══ -->
       <div id="view-documents" class="view-panel active" style="display:flex;flex-direction:column;height:100%">
         <!-- Toolbar -->
-        <div class="dash-toolbar" style="flex-wrap:nowrap;overflow-x:auto">
+        <div class="dash-toolbar" style="flex-wrap:nowrap;overflow-x:auto;gap:.4rem">
+          <!-- Vor/Zurück Navigation -->
+          <div style="display:flex;gap:2px;flex-shrink:0">
+            <button id="btn-nav-back" onclick="navBack()" title="Zurück"
+              style="width:32px;height:38px;border:1px solid var(--line);border-radius:8px 0 0 8px;background:var(--bg);cursor:pointer;color:var(--muted);display:flex;align-items:center;justify-content:center;transition:all .15s"
+              disabled>
+              <i class="fa-solid fa-chevron-left" style="font-size:.75rem"></i>
+            </button>
+            <button id="btn-nav-fwd" onclick="navForward()" title="Vor"
+              style="width:32px;height:38px;border:1px solid var(--line);border-left:none;border-radius:0 8px 8px 0;background:var(--bg);cursor:pointer;color:var(--muted);display:flex;align-items:center;justify-content:center;transition:all .15s"
+              disabled>
+              <i class="fa-solid fa-chevron-right" style="font-size:.75rem"></i>
+            </button>
+          </div>
           <!-- Suchfeld mit Filter-Dropdown + Teams-Ergebnissen -->
           <div id="smart-search-wrap" style="position:relative;flex:1;min-width:180px">
             <!-- Filter-Button links in der Suchleiste -->
@@ -2410,6 +2428,8 @@ const state = {
   view: 'documents',
   documents: [],
   allDocs: [],       // alle Docs ungefiltert — für Subfolder-Zähler
+  navHistory: [],    // [{folderId, label}]
+  navPos: -1,        // aktueller Index in navHistory
   folders: [],
   tags: [],
   activeFolderId: '',
@@ -2500,6 +2520,11 @@ sb.auth.getSession().then(({ data: { session } }) => {
     _authDone = true;
     onSessionReady(session);
   } else {
+    // Initiale Navigation-History setzen
+    if (state.navHistory.length === 0) {
+      state.navHistory = [{ folderId: '', label: 'Alle Dokumente' }];
+      state.navPos = 0;
+    }
     // Dokumente + Ordner + Tags auch ohne Auth laden (Edge Fn nutzt admin client)
     Promise.all([loadFolders(), loadTags(), loadDocuments()]).catch(() => {});
     if (!IN_IFRAME) {
@@ -2688,10 +2713,7 @@ function renderFinderFolderNode(container, folder, depth) {
     if (!state.openFolderIds) state.openFolderIds = new Set();
     if (isOpen) state.openFolderIds.delete(folder.id);
     else state.openFolderIds.add(folder.id);
-    state.activeFolderId = folder.id;
-    state.activeFilter = 'folder';
-    renderFinderTree();
-    loadDocuments();
+    navigateTo(folder.id, folder.name);
   };
   btn.addEventListener('contextmenu', e => showCtxMenu(e, 'folder', folder));
   btn.addEventListener('dragover', e => { e.preventDefault(); btn.classList.add('drag-over'); });
@@ -2727,11 +2749,54 @@ function renderFinderFolderNode(container, folder, depth) {
   container.appendChild(row);
 }
 
-window.selectFolderFilter = function(filter) {
-  state.activeFilter = filter || 'all';
-  state.activeFolderId = '';
+// ─── Navigation History ──────────────────────────────────────────────────────
+function navigateTo(folderId, label, addToHistory = true) {
+  if (addToHistory) {
+    // Vorwärts-Stack abschneiden wenn wir mitten in der History navigieren
+    state.navHistory = state.navHistory.slice(0, state.navPos + 1);
+    state.navHistory.push({ folderId: folderId || '', label: label || 'Alle Dokumente' });
+    state.navPos = state.navHistory.length - 1;
+  }
+  state.activeFolderId = folderId || '';
+  state.activeFilter = folderId ? 'folder' : 'all';
+  updateNavButtons();
   renderFinderTree();
   loadDocuments();
+}
+
+function updateNavButtons() {
+  const back = document.getElementById('btn-nav-back');
+  const fwd  = document.getElementById('btn-nav-fwd');
+  if (back) {
+    const canBack = state.navPos > 0;
+    back.disabled = !canBack;
+    back.style.opacity = canBack ? '1' : '.35';
+    back.style.cursor  = canBack ? 'pointer' : 'default';
+  }
+  if (fwd) {
+    const canFwd = state.navPos < state.navHistory.length - 1;
+    fwd.disabled = !canFwd;
+    fwd.style.opacity = canFwd ? '1' : '.35';
+    fwd.style.cursor  = canFwd ? 'pointer' : 'default';
+  }
+}
+
+window.navBack = function() {
+  if (state.navPos <= 0) return;
+  state.navPos--;
+  const entry = state.navHistory[state.navPos];
+  navigateTo(entry.folderId, entry.label, false);
+};
+
+window.navForward = function() {
+  if (state.navPos >= state.navHistory.length - 1) return;
+  state.navPos++;
+  const entry = state.navHistory[state.navPos];
+  navigateTo(entry.folderId, entry.label, false);
+};
+
+window.selectFolderFilter = function(filter) {
+  navigateTo('', 'Alle Dokumente');
 };
 
 function renderStructurePreview() {
@@ -3007,12 +3072,7 @@ window.renderDocuments = function() {
             <div class="doc-card__title" style="flex:1">${escHtml(f.name)}</div>
           </div>
           <div style="font-size:.76rem;color:var(--muted);margin-top:.4rem">${escHtml(meta)}</div>`;
-        card.onclick = () => {
-          state.activeFolderId = f.id;
-          state.activeFilter = 'folder';
-          renderFinderTree();
-          loadDocuments();
-        };
+        card.onclick = () => navigateTo(f.id, f.name);
         grid.appendChild(card);
       });
 
@@ -3190,50 +3250,61 @@ function makeDocCard(doc, index = 0) {
 function renderFolderDrillList(docs, listEl) {
   const subfolders = state.folders.filter(f => f.parent_id === state.activeFolderId);
   const docsCache  = state.allDocs.length ? state.allDocs : docs;
-  let html = `<table class="doc-table"><thead><tr>
-    <th>Name</th><th>Inhalt</th><th>Geändert</th><th></th>
-  </tr></thead><tbody>`;
+  const hl = (t) => state.search ? highlight(escHtml(t||''), state.search.toLowerCase()) : escHtml(t||'');
 
-  // Unterordner-Zeilen
-  subfolders.forEach(f => {
-    const directDocs = docsCache.filter(d => d.folder_id === f.id).length;
-    const subCount   = state.folders.filter(sf => sf.parent_id === f.id).length;
-    const meta = [
-      directDocs ? `${directDocs} Datei${directDocs!==1?'en':''}` : '',
-      subCount   ? `${subCount} Unterordner` : ''
-    ].filter(Boolean).join(', ') || 'Leer';
-    html += `<tr class="doc-table-row" style="cursor:pointer" onclick="(function(){state.activeFolderId='${f.id}';state.activeFilter='folder';renderFinderTree();loadDocuments();})()">
-      <td class="doc-table-name"><i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')};margin-right:.5rem"></i><strong>${escHtml(f.name)}</strong></td>
-      <td style="font-size:.76rem;color:var(--muted)">${escHtml(meta)}</td>
-      <td style="font-size:.75rem;color:var(--muted)">—</td>
-      <td class="doc-table-actions"><button class="btn-icon-sm" onclick="event.stopPropagation();showCtxMenu(event,'folder',${JSON.stringify(f).replace(/"/g,'&quot;')})" title="Mehr"><i class="fa-solid fa-ellipsis"></i></button></td>
-    </tr>`;
-  });
+  let html = `<div class="finder-list">`;
 
-  // Trennlinie wenn beides vorhanden
-  if (subfolders.length && docs.length) {
-    html += `<tr><td colspan="4" style="padding:.2rem .75rem;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;background:var(--surface-2,#f8fafc)">Dateien</td></tr>`;
+  // ── Unterordner ────────────────────────────────────────────────────────────
+  if (subfolders.length) {
+    html += `<div class="finder-list-section-label">Unterordner</div>`;
+    subfolders.forEach(f => {
+      const directDocs = docsCache.filter(d => d.folder_id === f.id).length;
+      const subCount   = state.folders.filter(sf => sf.parent_id === f.id).length;
+      const meta = [
+        directDocs ? `${directDocs} Datei${directDocs!==1?'en':''}` : '',
+        subCount   ? `${subCount} Unterordner` : ''
+      ].filter(Boolean).join(' · ') || 'Leer';
+      const fJson = JSON.stringify(f).replace(/"/g,'&quot;');
+      html += `<div class="finder-list-row finder-list-folder" onclick="navigateTo('${f.id}','${escHtml(f.name)}')" oncontextmenu="event.stopPropagation();showCtxMenu(event,'folder',${fJson})">
+        <div class="finder-list-icon"><i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')}"></i></div>
+        <div class="finder-list-name"><strong>${escHtml(f.name)}</strong></div>
+        <div class="finder-list-meta">${escHtml(meta)}</div>
+        <div class="finder-list-date"></div>
+        <div class="finder-list-actions">
+          <button class="btn-icon-sm" onclick="event.stopPropagation();showCtxMenu(event,'folder',${fJson})"><i class="fa-solid fa-ellipsis"></i></button>
+        </div>
+      </div>`;
+    });
   }
 
-  // Dokument-Zeilen mit vollen Infos
-  docs.forEach(doc => {
-    const tags = Array.isArray(doc.tags) ? doc.tags : [];
-    const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
-    const time = doc.created_at ? new Date(doc.created_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) : '';
-    const size = doc.file_size_bytes ? formatBytes(doc.file_size_bytes) : '–';
-    const docJson = JSON.stringify(doc).replace(/"/g,'&quot;');
-    html += `<tr class="doc-table-row" oncontextmenu="showCtxMenu(event,'doc',${docJson})">
-      <td class="doc-table-name"><i class="fa-solid fa-file-lines" style="color:var(--brand);margin-right:.4rem;font-size:.76rem"></i><span onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" style="cursor:pointer">${escHtml(doc.title||'Dokument')}</span></td>
-      <td>${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.65rem">${escHtml(t)}</span>`).join('') || `<span style="font-size:.75rem;color:var(--muted)">${escHtml(size)}</span>`}</td>
-      <td style="font-size:.75rem;color:var(--muted);white-space:nowrap">${date} ${time}<br><span style="font-size:.68rem">${escHtml(doc.uploader_name||'')}</span></td>
-      <td class="doc-table-actions">
-        <button class="btn-icon-sm" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" title="Vorschau"><i class="fa-solid fa-eye"></i></button>
-        <button class="btn-icon-sm" onclick="showCtxMenu(event,'doc',${docJson})" title="Mehr"><i class="fa-solid fa-ellipsis"></i></button>
-      </td>
-    </tr>`;
-  });
+  // ── Dokumente ──────────────────────────────────────────────────────────────
+  if (docs.length) {
+    if (subfolders.length) html += `<div class="finder-list-section-label">Dateien</div>`;
+    docs.forEach(doc => {
+      const tags = Array.isArray(doc.tags) ? doc.tags : [];
+      const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
+      const size = doc.file_size_bytes ? formatBytes(doc.file_size_bytes) : '';
+      const docJson = JSON.stringify(doc).replace(/"/g,'&quot;');
+      html += `<div class="finder-list-row" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" oncontextmenu="showCtxMenu(event,'doc',${docJson})">
+        <div class="finder-list-icon"><i class="fa-solid fa-file-lines" style="color:var(--brand)"></i></div>
+        <div class="finder-list-name">${hl(doc.title||'Dokument')}</div>
+        <div class="finder-list-meta">
+          ${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.64rem;padding:.08rem .35rem">${escHtml(t)}</span>`).join('')}
+          ${!tags.length && size ? `<span style="font-size:.73rem;color:var(--muted)">${escHtml(size)}</span>` : ''}
+        </div>
+        <div class="finder-list-date">
+          <span style="font-size:.73rem;color:var(--muted)">${date}</span>
+          ${size && tags.length ? `<span style="font-size:.7rem;color:var(--line);margin-left:.4rem">${escHtml(size)}</span>` : ''}
+        </div>
+        <div class="finder-list-actions">
+          <button class="btn-icon-sm" onclick="event.stopPropagation();openDocPreview('${doc.id}','${escHtml(doc.title)}')" title="Vorschau"><i class="fa-solid fa-eye"></i></button>
+          <button class="btn-icon-sm" onclick="event.stopPropagation();showCtxMenu(event,'doc',${docJson})"><i class="fa-solid fa-ellipsis"></i></button>
+        </div>
+      </div>`;
+    });
+  }
 
-  html += '</tbody></table>';
+  html += `</div>`;
   listEl.innerHTML = html;
 }
 
