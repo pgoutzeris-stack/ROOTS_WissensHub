@@ -802,35 +802,46 @@
     .btn-icon.danger:hover { background: rgba(220,38,38,.08); color: var(--danger); }
 
     /* ── Graph v2.0 ───────────────────────────────────────────────── */
-    /* Control Bar — helles Glassmorphism */
-    .graph-controlbar-v2 { position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.85);backdrop-filter:blur(16px);border:1px solid rgba(15,23,42,.08);border-radius:999px;padding:6px 12px;z-index:20;box-shadow:0 4px 20px rgba(15,23,42,.1); }
+    /* ── Graph (v2.0 animiert, helles Theme) ─────────────────────── */
+    /* Control Bar */
+    .graph-controlbar-v2 { position:absolute;top:12px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.88);backdrop-filter:blur(16px);border:1px solid rgba(15,23,42,.1);border-radius:999px;padding:6px 14px;z-index:20;box-shadow:0 4px 20px rgba(15,23,42,.12); }
     .graph-cb-group { display:flex;align-items:center;gap:4px; }
     .graph-cb-sep { width:1px;height:20px;background:rgba(15,23,42,.1);margin:0 4px; }
-    .graph-cb-btn { display:flex;align-items:center;gap:5px;padding:5px 11px;border:none;border-radius:999px;background:transparent;color:var(--muted,#64748b);font-size:.76rem;font-family:inherit;cursor:pointer;transition:all .15s;white-space:nowrap; }
-    .graph-cb-btn:hover { background:rgba(32,110,251,.1);color:var(--brand,#206efb); }
+    .graph-cb-btn { display:flex;align-items:center;gap:5px;padding:5px 10px;border:none;border-radius:999px;background:transparent;color:#64748b;font-size:.75rem;font-family:inherit;cursor:pointer;transition:all .15s;white-space:nowrap; }
+    .graph-cb-btn:hover { background:rgba(32,110,251,.1);color:#206efb; }
+    .graph-cb-btn.active { background:rgba(32,110,251,.15);color:#206efb; }
     .graph-cb-btn i { font-size:.72rem; }
-    .graph-zoom-label { font-size:.74rem;color:var(--ink,#0f172a);min-width:42px;text-align:center;font-variant-numeric:tabular-nums;font-weight:600; }
-    /* Tiefen-Indikator */
-    .graph-level-indicator { display:flex;gap:6px;align-items:center;margin-left:6px;padding-left:10px;border-left:1px solid rgba(15,23,42,.1); }
-    .graph-level-text { font-size:.72rem;color:var(--muted,#64748b);font-weight:600;min-width:48px; }
+    .graph-zoom-label { font-size:.72rem;color:#475569;min-width:36px;text-align:center;font-variant-numeric:tabular-nums; }
+    /* Level indicator */
+    .graph-level-indicator { display:flex;gap:5px;align-items:center;margin-left:6px;padding-left:10px;border-left:1px solid rgba(15,23,42,.1); }
     .graph-level-dot { width:7px;height:7px;border-radius:50%;background:rgba(15,23,42,.15);transition:all .3s; }
-    .graph-level-dot.active { background:var(--brand,#206efb);box-shadow:0 0 8px rgba(32,110,251,.5);transform:scale(1.2); }
+    .graph-level-dot.active { background:#206efb;box-shadow:0 0 8px rgba(32,110,251,.5); }
     /* Hover Context Panel — hell */
-    .graph-ctx-panel { position:absolute;right:14px;top:62px;width:230px;background:rgba(255,255,255,.96);backdrop-filter:blur(20px);border:1px solid rgba(15,23,42,.1);border-radius:14px;padding:14px;z-index:30;box-shadow:0 12px 40px rgba(15,23,42,.18);font-size:.8rem;color:var(--ink,#0f172a);transition:opacity .2s; }
+    .graph-ctx-panel { position:absolute;right:14px;top:60px;width:220px;background:rgba(255,255,255,.95);backdrop-filter:blur(20px);border:1px solid rgba(15,23,42,.1);border-radius:14px;padding:14px;z-index:30;box-shadow:0 8px 32px rgba(15,23,42,.15);font-size:.8rem;color:#0f172a;transition:opacity .2s; }
     .gcp-header { display:flex;gap:10px;align-items:flex-start;margin-bottom:10px; }
-    .gcp-icon { width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:.9rem;flex-shrink:0; }
-    .gcp-title { font-weight:700;font-size:.85rem;color:var(--ink,#0f172a);line-height:1.3; }
-    .gcp-sub { font-size:.72rem;color:var(--muted,#64748b);margin-top:2px; }
-    .gcp-meta { display:flex;flex-direction:column;gap:5px;margin-bottom:12px;font-size:.74rem;color:var(--muted,#64748b); }
-    .gcp-meta span { display:flex;align-items:center;gap:6px; }
-    .gcp-meta i { width:13px;color:#94a3b8;text-align:center; }
+    .gcp-icon { width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0; }
+    .gcp-title { font-weight:700;font-size:.83rem;color:#0f172a;line-height:1.3; }
+    .gcp-sub { font-size:.71rem;color:#64748b;margin-top:2px; }
+    .gcp-meta { display:flex;flex-direction:column;gap:4px;margin-bottom:10px;font-size:.73rem;color:#64748b; }
+    .gcp-meta span { display:flex;align-items:center;gap:5px; }
+    .gcp-meta i { width:12px;color:#94a3b8; }
+    .gcp-section-label { font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-bottom:5px; }
+    .gcp-similar { margin-bottom:10px; }
+    .gcp-similar-item { display:flex;align-items:center;gap:6px;padding:3px 0;font-size:.73rem;color:#64748b;cursor:pointer; }
+    .gcp-similar-item:hover { color:#206efb; }
+    .gcp-sim-bar { height:3px;border-radius:2px;background:rgba(32,110,251,.35);flex-shrink:0; }
     .gcp-actions { display:flex;gap:6px; }
-    .gcp-btn-primary { flex:1;padding:7px;border:none;border-radius:8px;background:var(--brand,#206efb);color:#fff;font-size:.76rem;font-family:inherit;cursor:pointer;font-weight:600; }
-    .gcp-btn-primary:hover { filter:brightness(.95); }
-    .gcp-btn-ghost { flex:1;padding:7px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:transparent;color:var(--muted,#64748b);font-size:.76rem;font-family:inherit;cursor:pointer; }
-    .gcp-btn-ghost:hover { border-color:var(--brand,#206efb);color:var(--brand,#206efb); }
+    .gcp-btn-primary { flex:1;padding:6px;border:none;border-radius:8px;background:#206efb;color:#fff;font-size:.75rem;font-family:inherit;cursor:pointer;font-weight:600; }
+    .gcp-btn-primary:hover { background:#1d4ed8; }
+    .gcp-btn-ghost { flex:1;padding:6px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:transparent;color:#64748b;font-size:.75rem;font-family:inherit;cursor:pointer; }
+    .gcp-btn-ghost:hover { border-color:#206efb;color:#206efb; }
+    /* Minimap */
+    .graph-minimap-wrap { position:absolute;bottom:14px;right:14px;width:140px;height:90px;border-radius:8px;overflow:hidden;border:1px solid rgba(15,23,42,.1);background:rgba(255,255,255,.85);z-index:20;box-shadow:0 2px 12px rgba(15,23,42,.1); }
+    #graph-minimap { display:block;width:100%;height:100%; }
+    .graph-minimap-viewport { position:absolute;border:1.5px solid rgba(32,110,251,.5);border-radius:2px;pointer-events:none;background:rgba(32,110,251,.06); }
     /* Scroll hint */
-    .graph-scroll-hint { position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:.73rem;color:var(--muted,#94a3b8);background:rgba(255,255,255,.7);padding:5px 12px;border-radius:999px;display:flex;align-items:center;gap:.45rem;pointer-events:none;transition:opacity 1s; }
+    .graph-scroll-hint { position:absolute;bottom:14px;left:50%;transform:translateX(-50%);font-size:.72rem;color:#94a3b8;background:rgba(255,255,255,.8);padding:5px 12px;border-radius:999px;display:flex;align-items:center;gap:.4rem;pointer-events:none;transition:opacity 1s; }
+    @keyframes pulse-hint { 0%,100%{opacity:.5} 50%{opacity:1} }
 
     /* Status badges */
     .status-badge {
@@ -2039,7 +2050,9 @@
         <div class="dash-content" id="doc-content">
           <div class="doc-grid" id="doc-grid"></div>
           <div id="doc-list" style="display:none;width:100%;flex-direction:column;gap:0"></div>
-          <div id="doc-graph-wrap" style="display:none;width:100%;height:100%;position:relative;background:linear-gradient(160deg,#f8fafc 0%,#eef3fb 55%,#f5f8fd 100%);border-radius:12px;overflow:hidden">
+          <div id="doc-graph-wrap" style="display:none;width:100%;height:100%;position:relative;background:linear-gradient(135deg,#f8fafc 0%,#eff6ff 50%,#f0fdf4 100%);border-radius:12px;overflow:hidden">
+            <!-- Partikel-Hintergrund -->
+            <canvas id="graph-particles" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></canvas>
             <!-- Graph-Canvas -->
             <canvas id="graph-canvas" style="position:absolute;inset:0;width:100%;height:100%"></canvas>
 
@@ -2047,20 +2060,29 @@
             <div class="graph-controlbar-v2">
               <div class="graph-cb-group">
                 <button class="graph-cb-btn" onclick="navGraph(-1)" title="Rauszoomen"><i class="fa-solid fa-minus"></i></button>
-                <div id="graph-zoom-label" class="graph-zoom-label">100%</div>
+                <div id="graph-zoom-label" class="graph-zoom-label">50%</div>
                 <button class="graph-cb-btn" onclick="navGraph(1)" title="Reinzoomen"><i class="fa-solid fa-plus"></i></button>
               </div>
               <div class="graph-cb-sep"></div>
               <div class="graph-cb-group">
-                <button class="graph-cb-btn" onclick="fitGraphView()" title="Alles anzeigen"><i class="fa-solid fa-expand"></i> Übersicht</button>
+                <button class="graph-cb-btn active" id="gbtn-folder" onclick="setGraphGrouping('folder')" title="Nach Ordner">
+                  <i class="fa-solid fa-folder"></i> Ordner
+                </button>
+                <button class="graph-cb-btn" id="gbtn-tag" onclick="setGraphGrouping('tag')" title="Nach Tag">
+                  <i class="fa-solid fa-tag"></i> Tag
+                </button>
               </div>
-              <!-- Tiefen-Indikator -->
-              <div class="graph-level-indicator" title="Sichtbare Ebene">
-                <span class="graph-level-text" id="graph-level-text">Ebene 1</span>
-                <div class="graph-level-dot active" id="glvl-1"></div>
-                <div class="graph-level-dot" id="glvl-2"></div>
-                <div class="graph-level-dot" id="glvl-3"></div>
-                <div class="graph-level-dot" id="glvl-4"></div>
+              <div class="graph-cb-sep"></div>
+              <div class="graph-cb-group">
+                <button class="graph-cb-btn" onclick="fitGraphView()" title="Alles anzeigen"><i class="fa-solid fa-expand"></i></button>
+                <button class="graph-cb-btn" onclick="reheatGraphV2()" title="Neu anordnen"><i class="fa-solid fa-rotate"></i></button>
+              </div>
+              <!-- Level-Indikator -->
+              <div class="graph-level-indicator">
+                <div class="graph-level-dot" id="glvl-1" title="Galaxy"></div>
+                <div class="graph-level-dot" id="glvl-2" title="Cluster"></div>
+                <div class="graph-level-dot active" id="glvl-3" title="Dokumente"></div>
+                <div class="graph-level-dot" id="glvl-4" title="Inhalt"></div>
               </div>
             </div>
 
@@ -2074,15 +2096,25 @@
                 </div>
               </div>
               <div id="gcp-meta" class="gcp-meta"></div>
+              <div id="gcp-similar" class="gcp-similar" style="display:none">
+                <div class="gcp-section-label">Ähnliche Dokumente</div>
+                <div id="gcp-similar-list"></div>
+              </div>
               <div id="gcp-actions" class="gcp-actions">
                 <button class="gcp-btn-primary" id="gcp-open">Öffnen</button>
                 <button class="gcp-btn-ghost" id="gcp-nav">Navigieren</button>
               </div>
             </div>
 
+            <!-- Minimap -->
+            <div class="graph-minimap-wrap">
+              <canvas id="graph-minimap" width="140" height="90"></canvas>
+              <div id="graph-minimap-viewport" class="graph-minimap-viewport"></div>
+            </div>
+
             <!-- Scroll hint -->
             <div class="graph-scroll-hint" id="graph-scroll-hint">
-              <i class="fa-solid fa-up-down-left-right"></i> Scrollen zum Zoomen · Ziehen zum Bewegen
+              <i class="fa-solid fa-scroll"></i> Scroll zum Erkunden der Ebenen
             </div>
           </div>
         </div>
@@ -4773,47 +4805,52 @@ window.selectModel = selectModel;
 window.toggleKeyVisibility = toggleKeyVisibility;
 window.saveAiSettings = saveAiSettings;
 
-// ─── Wissensgraph v3 — Hierarchischer Semantic-Zoom ──────────────────────────
-// Konzept: Erst nur Root-Ordner. Reinzoomen enthüllt Ebene für Ebene
-// die Unterordner + Dateien — wie ein sich öffnender Baum.
+// ─── Wissensgraph v2.0 ─────────────────────────────────────────────────────────
 
+// ── Konstanten ────────────────────────────────────────────────────────────────
+const G_L1 = 0.18;   // Galaxy → Cluster (docs sichtbar ab 18%)
+const G_L2 = 0.55;   // Cluster → Post-its
+const G_L3 = 1.4;    // Post-its → Volltext
+
+// ── Zustand ────────────────────────────────────────────────────────────────────
 let _gv = {
-  zoom: 0.6, panX: 0, panY: 0,
-  baseZoom: 0.6,
+  zoom: 0.5, panX: 0, panY: 0,
   nodes: [], edges: [],
-  hover: null,
-  dragging: false, lastMX: 0, lastMY: 0, moved: false,
-  running: false, animId: null,
+  hover: null, selected: null,
+  dragging: false, dragNode: null,
+  lastMX: 0, lastMY: 0,
+  particles: [],
+  energy: 200,
+  running: false,
+  animId: null,
+  grouping: 'folder',
+  level: 2,
+  transitioning: false,
   width: 800, height: 600,
 };
-const _gAnim = { zoom: 0.6, panX: 0, panY: 0 };
+
+// ── GSAP-Animationsziel (für smooth zoom/pan) ─────────────────────────────────
+const _gAnim = { zoom: 0.5, panX: 0, panY: 0 };
 let _gTween = null;
-function _gSync() { _gv.zoom = _gAnim.zoom; _gv.panX = _gAnim.panX; _gv.panY = _gAnim.panY; }
 
-const FOLDER_COLORS = ['#206efb','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#0ea5e9'];
-
-// ── Reveal-Schwellen relativ zur Basis-Zoom ──────────────────────────────────
-function _revealZoom(depth) {
-  if (depth <= 0) return 0;                       // Root immer sichtbar
-  const factors = [1.75, 3.0, 4.6, 6.5];          // Ebene 2,3,4,5
-  return _gv.baseZoom * (factors[depth-1] || (factors[factors.length-1] * (depth-3)));
-}
-function _maxVisibleDepth() {
-  let d = 0;
-  while (_gv.zoom >= _revealZoom(d+1) && d < 8) d++;
-  return d;
+function _gSync() {
+  _gv.zoom = _gAnim.zoom;
+  _gv.panX = _gAnim.panX;
+  _gv.panY = _gAnim.panY;
 }
 
-// ── Initialisierung ──────────────────────────────────────────────────────────
+// ── Initialisierung ────────────────────────────────────────────────────────────
 function initKnowledgeGraph() {
   stopGraph();
-  const canvas = document.getElementById('graph-canvas');
-  const wrap   = document.getElementById('doc-graph-wrap');
+  const canvas   = document.getElementById('graph-canvas');
+  const pCanvas  = document.getElementById('graph-particles');
+  const wrap     = document.getElementById('doc-graph-wrap');
   if (!canvas || !wrap) return;
 
   _gv.width  = Math.max(400, wrap.clientWidth  || 800);
   _gv.height = Math.max(300, wrap.clientHeight || 600);
 
+  // FIX: setTransform statt scale() → kein kumulativer DPR-Fehler bei Re-Init
   const dpr = window.devicePixelRatio || 1;
   canvas.width  = _gv.width  * dpr;
   canvas.height = _gv.height * dpr;
@@ -4821,251 +4858,343 @@ function initKnowledgeGraph() {
   canvas.style.height = _gv.height + 'px';
   canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
 
-  if (!(state.documents||[]).length && !(state.folders||[]).length) {
-    _drawEmptyGraph(canvas.getContext('2d'));
+  if (pCanvas) {
+    pCanvas.width  = _gv.width  * dpr;
+    pCanvas.height = _gv.height * dpr;
+    pCanvas.style.width  = _gv.width  + 'px';
+    pCanvas.style.height = _gv.height + 'px';
+    pCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  const docs = state.documents || [];
+  if (!docs.length && !state.folders.length) {
+    const ctx = canvas.getContext('2d');
+    _drawEmpty(ctx);
     return;
   }
 
-  _buildGraphTree();
-  _layoutRadial();
-  _attachGraphEvents(canvas);
+  // Startposition setzen
+  _gAnim.zoom = 0.8; _gAnim.panX = 0; _gAnim.panY = 0;
+  _gSync();
 
-  // Startansicht: alle Root-Ordner im Blick (nur Ebene 1)
-  fitGraphView(true);
+  _buildGraph();
+  _initParticles();
+  _attachGraphEventsV2(canvas, wrap);
+
+  // FIX: Loop ZUERST starten, dann nach Physics-Settle fitten
   _gv.running = true;
-  _graphLoop();
-  setTimeout(_fadeScrollHint, 3500);
+  _loop();
+
+  // Nach ~1.5s (Physics settled) automatisch fitten
+  setTimeout(() => { if (_gv.running) fitGraphView(); }, 1500);
+  setTimeout(() => _showScrollHint(), 2800);
 }
 
-// ── Baum aufbauen (Ordner + Dateien) ─────────────────────────────────────────
-function _buildGraphTree() {
-  const folders = state.folders || [];
-  const docs    = state.documents || [];
-  const nodes = [], edges = [], byId = new Map();
+// ── Graphaufbau ────────────────────────────────────────────────────────────────
+function _buildGraph() {
+  const { width: W, height: H } = _gv;
+  const docs = state.documents || [];
+  const colors = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b'];
+  const nodes = [], edges = [];
+  const byId = new Map();
 
-  // Virtuelles Zentrum (nicht gerendert)
-  const center = { id:'__root__', type:'center', label:'', depth:-1, children:[],
-                   x:_gv.width/2, y:_gv.height/2, tx:_gv.width/2, ty:_gv.height/2, vis:1 };
-  byId.set('__root__', center);
+  const addNode = (n) => {
+    if (byId.has(n.id)) return byId.get(n.id);
+    const angle = nodes.length / Math.max(1, docs.length + state.folders.length) * Math.PI * 2;
+    const r = Math.min(W, H) * .3;
+    const created = { ...n,
+      x: W/2 + Math.cos(angle)*r + (Math.random()-.5)*40,
+      y: H/2 + Math.sin(angle)*r + (Math.random()-.5)*40,
+      vx:0, vy:0,
+    };
+    nodes.push(created);
+    byId.set(n.id, created);
+    return created;
+  };
 
-  // Ordner-Knoten
-  folders.forEach((f, i) => {
-    byId.set('f:'+f.id, {
-      id:'f:'+f.id, type:'folder', label:f.name, color:f.color || FOLDER_COLORS[i%FOLDER_COLORS.length],
-      folderId:f.id, parentKey: f.parent_id ? 'f:'+f.parent_id : '__root__',
-      children:[], x:_gv.width/2, y:_gv.height/2, tx:0, ty:0, vis:0, depth:0,
+  if (_gv.grouping === 'folder') {
+    // Root-Ordner
+    state.folders.filter(f => !f.parent_id).forEach((f, i) => {
+      addNode({ id:'f:'+f.id, label:f.name, type:'folder', r:22, color:f.color||colors[i%colors.length], folderId:f.id });
     });
-  });
-  // Dokument-Knoten
-  docs.forEach((d, i) => {
-    const folder = folders.find(f => f.id === d.folder_id);
-    byId.set('d:'+d.id, {
-      id:'d:'+d.id, type:'doc', label:d.title || d.filename || 'Dokument',
-      color: folder?.color || '#94a3b8', docId:d.id, tags:Array.isArray(d.tags)?d.tags:[],
-      chunks:d.chunk_count||0, uploader:d.uploader_name||'', date:d.created_at||'',
-      size:d.file_size_bytes||0, content:(d.content||'').slice(0,500),
-      folderId:d.folder_id||null, parentKey: d.folder_id ? 'f:'+d.folder_id : '__root__',
-      children:[], x:_gv.width/2, y:_gv.height/2, tx:0, ty:0, vis:0, depth:0,
+    // Unterordner
+    state.folders.filter(f => f.parent_id).forEach((f, i) => {
+      const n = addNode({ id:'f:'+f.id, label:f.name, type:'subfolder', r:16, color:f.color||colors[i%colors.length], folderId:f.id });
+      const parent = byId.get('f:'+f.parent_id);
+      if (parent) edges.push({ a:parent, b:n, kind:'folder', w:2 });
     });
-  });
-
-  // Eltern-Kind-Verknüpfungen + Edges
-  byId.forEach(n => {
-    if (n.id === '__root__') return;
-    const parent = byId.get(n.parentKey) || center;
-    parent.children.push(n);
-    if (parent.id !== '__root__') {
-      edges.push({ a:parent, b:n, kind:'tree' });
-    }
-  });
-
-  // Ähnlichkeits-Edges (geteilte Tags zwischen Dokumenten)
-  const docNodes = [...byId.values()].filter(n => n.type==='doc');
-  for (let i=0;i<docNodes.length;i++) for (let j=i+1;j<docNodes.length;j++) {
-    const shared = docNodes[i].tags.filter(t => docNodes[j].tags.includes(t));
-    if (shared.length) edges.push({ a:docNodes[i], b:docNodes[j], kind:'similar', tag:shared[0] });
+    // Dokumente
+    docs.forEach((doc, i) => {
+      const tags = Array.isArray(doc.tags) ? doc.tags : [];
+      const r = Math.max(8, Math.min(18, 8 + Math.sqrt(doc.chunk_count||1)*1.5));
+      const folder = state.folders.find(f => f.id === doc.folder_id);
+      const color = folder?.color || colors[i%colors.length];
+      const n = addNode({ id:'d:'+doc.id, label:doc.title||doc.filename||'Dok', type:'doc', r, color,
+        docId:doc.id, tags, chunks:doc.chunk_count||0,
+        uploader:doc.uploader_name||'', date:doc.created_at||'',
+        size:doc.file_size_bytes||0, content: null, folderId: doc.folder_id||null });
+      const fNode = byId.get('f:'+doc.folder_id);
+      if (fNode) edges.push({ a:fNode, b:n, kind:'contains', w:1.5 });
+    });
+  } else {
+    // Tag-Gruppierung
+    const allTags = [...new Set(docs.flatMap(d => Array.isArray(d.tags)?d.tags:[]))];
+    allTags.forEach((tag, i) => {
+      addNode({ id:'t:'+tag, label:'#'+tag, type:'tag', r:18, color:colors[i%colors.length], tagName:tag });
+    });
+    docs.forEach((doc, i) => {
+      const tags = Array.isArray(doc.tags)?doc.tags:[];
+      const n = addNode({ id:'d:'+doc.id, label:doc.title||'Dok', type:'doc', r:10, color:'#94a3b8',
+        docId:doc.id, tags, chunks:doc.chunk_count||0, folderId:doc.folder_id });
+      tags.forEach(tag => {
+        const tNode = byId.get('t:'+tag);
+        if (tNode) edges.push({ a:tNode, b:n, kind:'tag', w:1.2 });
+      });
+    });
+    // Ungrouped
+    docs.filter(d => !(Array.isArray(d.tags)&&d.tags.length)).forEach(doc => {
+      const n = byId.get('d:'+doc.id);
+      if (n && !edges.find(e => e.b===n||e.a===n)) n.color = '#374151';
+    });
   }
 
-  _gv.center = center;
-  _gv.nodes  = [...byId.values()].filter(n => n.id !== '__root__');
-  _gv.byId   = byId;
-  _gv.edges  = edges;
-}
-
-// ── Radiales Tree-Layout (deterministisch, kein Physics-Chaos) ───────────────
-function _layoutRadial() {
-  const { width:W, height:H } = _gv;
-  const R0   = Math.min(W,H) * 0.17;
-  const RING = Math.min(W,H) * 0.16;
-
-  const leaves = (n) => {
-    if (!n.children.length) { n._leaves = 1; return 1; }
-    n._leaves = n.children.reduce((s,c)=>s+leaves(c),0);
-    return n._leaves;
-  };
-  leaves(_gv.center);
-
-  const assign = (n, a0, a1, depth) => {
-    n.depth = depth;
-    const mid = (a0+a1)/2;
-    if (depth < 0) { n.tx = W/2; n.ty = H/2; }
-    else {
-      const r = R0 + depth*RING;
-      n.tx = W/2 + Math.cos(mid)*r;
-      n.ty = H/2 + Math.sin(mid)*r;
+  // Tag-Ähnlichkeitsedges zwischen Docs (simulierte Semantik)
+  const docNodes = nodes.filter(n => n.type === 'doc');
+  for (let i = 0; i < docNodes.length; i++) {
+    for (let j = i+1; j < docNodes.length; j++) {
+      const shared = docNodes[i].tags.filter(t => docNodes[j].tags.includes(t)).length;
+      if (shared > 0) edges.push({ a:docNodes[i], b:docNodes[j], kind:'similar', w:shared*0.8 });
     }
-    n._mid = mid;
-    let a = a0;
-    n.children.forEach(c => {
-      const span = (a1-a0) * (c._leaves / Math.max(1,n._leaves));
-      assign(c, a, a+span, depth+1);
-      a += span;
-    });
-  };
-  assign(_gv.center, -Math.PI/2, Math.PI*1.5, -1);
+  }
 
-  // Knotengröße nach Typ/Tiefe
-  _gv.nodes.forEach(n => {
-    if (n.type==='folder') n.r = Math.max(13, 24 - n.depth*3);
-    else n.r = Math.max(7, 12 - n.depth*1);
+  _gv.nodes = nodes;
+  _gv.edges = edges;
+  _gv.energy = 220;
+}
+
+// ── Partikel ───────────────────────────────────────────────────────────────────
+function _initParticles() {
+  _gv.particles = Array.from({length: 120}, (_, i) => ({
+    x: Math.random() * _gv.width,
+    y: Math.random() * _gv.height,
+    r: Math.random() * 1.2 + 0.3,
+    vx: (Math.random() - .5) * 0.15,
+    vy: (Math.random() - .5) * 0.15,
+    a: Math.random() * 0.5 + 0.1,
+    phase: Math.random() * Math.PI * 2,
+  }));
+}
+
+function _drawParticles(ctx, t) {
+  const { width: W, height: H } = _gv;
+  ctx.clearRect(0, 0, W, H);
+  _gv.particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
+    if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
+    const alpha = p.a * (0.5 + 0.5 * Math.sin(t * 0.001 + p.phase));
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(203,213,225,${alpha * 0.8})`;
+    ctx.fill();
   });
 }
 
-// ── Render-Loop ──────────────────────────────────────────────────────────────
-function _graphLoop() {
+// ── Hauptloop ──────────────────────────────────────────────────────────────────
+let _loopT = 0;
+function _loop() {
   if (!_gv.running) return;
+  _loopT++;
   _gSync();
-  const canvas = document.getElementById('graph-canvas');
+  const canvas  = document.getElementById('graph-canvas');
+  const pCanvas = document.getElementById('graph-particles');
   if (!canvas) { _gv.running = false; return; }
-  const ctx = canvas.getContext('2d');
 
-  // Sichtbarkeit je Knoten smooth animieren (emerge-from-parent)
-  _gv.nodes.forEach(n => {
-    const target = _gv.zoom >= _revealZoom(n.depth) ? 1 : 0;
-    n.vis += (target - n.vis) * 0.18;
-    if (n.vis < 0.001) n.vis = 0;
-    if (n.vis > 0.999) n.vis = 1;
-    // Position: von Elternposition (vis=0) zur Zielposition (vis=1)
-    const p = _gv.byId.get(n.parentKey) || _gv.center;
-    const px = p.type==='center' ? W2() : (p._rx ?? p.tx);
-    const py = p.type==='center' ? H2() : (p._ry ?? p.ty);
-    const ease = n.vis*n.vis*(3-2*n.vis); // smoothstep
-    n._rx = px + (n.tx - px) * ease;
-    n._ry = py + (n.ty - py) * ease;
+  const ctx  = canvas.getContext('2d');
+  const pctx = pCanvas?.getContext('2d');
+
+  if (pctx) _drawParticles(pctx, _loopT);
+
+  if (_gv.energy > 0.5) {
+    _tick();
+    _gv.energy *= .986;
+  }
+
+  _draw(ctx);
+  _updateMinimap();
+  _updateLevelIndicator();
+
+  _gv.animId = requestAnimationFrame(_loop);
+}
+
+// ── Physik ─────────────────────────────────────────────────────────────────────
+function _tick() {
+  const { nodes, edges, width: W, height: H } = _gv;
+  const energy = Math.min(1, _gv.energy / 200); // 0..1 normiert
+
+  // Repulsion: schwächer als vorher, damit Nodes nicht zu weit fliegen
+  const repel = 2800;
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i+1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const d2 = Math.max(1, dx*dx + dy*dy);
+      const d  = Math.sqrt(d2);
+      const minD = (a.r + b.r) * 2.5;
+      if (d < minD * 4) { // Nur nahe Nodes
+        const f = repel / d2;
+        a.vx -= f*dx/d; a.vy -= f*dy/d;
+        b.vx += f*dx/d; b.vy += f*dy/d;
+      }
+    }
+  }
+
+  // Attraktion über Edges
+  edges.forEach(e => {
+    const dx = e.b.x-e.a.x, dy = e.b.y-e.a.y;
+    const d = Math.sqrt(dx*dx+dy*dy)||1;
+    // Zielabstand je nach Edge-Typ
+    const tgt = e.kind==='folder' ? 150 : e.kind==='contains' ? 120 : e.kind==='similar' ? 160 : 110;
+    const f = (d - tgt) * 0.012 * e.w;
+    e.a.vx += f*dx/d; e.a.vy += f*dy/d;
+    e.b.vx -= f*dx/d; e.b.vy -= f*dy/d;
   });
 
-  _drawGraph(ctx);
-  _updateZoomLabel();
-  _updateLevelIndicator();
-  _gv.animId = requestAnimationFrame(_graphLoop);
+  // Gravitation zum Zentrum — stärker damit alles sichtbar bleibt
+  nodes.forEach(n => {
+    const cs = n.type==='folder' ? 0.06 : n.type==='subfolder' ? 0.04 : n.type==='tag' ? 0.035 : 0.015;
+    n.vx += (W/2 - n.x) * cs;
+    n.vy += (H/2 - n.y) * cs;
+    // Dämpfung
+    n.vx *= 0.78; n.vy *= 0.78;
+    n.x += n.vx;  n.y += n.vy;
+    // Hard bounds — Nodes bleiben im Canvas
+    const margin = n.r + 20;
+    n.x = Math.max(margin, Math.min(W - margin, n.x));
+    n.y = Math.max(margin, Math.min(H - margin, n.y));
+  });
 }
-function W2(){ return _gv.width/2; }
-function H2(){ return _gv.height/2; }
 
-// ── Zeichnen ─────────────────────────────────────────────────────────────────
-function _drawGraph(ctx) {
-  const { width:W, height:H, zoom:z, panX, panY, nodes, edges, hover } = _gv;
-  ctx.clearRect(0,0,W,H);
+// ── Rendering ─────────────────────────────────────────────────────────────────
+function _draw(ctx) {
+  const { zoom: z, panX, panY, width: W, height: H, nodes, edges, hover } = _gv;
+
+  // Background
+  ctx.clearRect(0, 0, W, H);
+  const bg = ctx.createRadialGradient(W/2, H/2, 50, W/2, H/2, Math.max(W,H)*.7);
+  bg.addColorStop(0, '#070f1f');
+  bg.addColorStop(1, '#020609');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
 
   ctx.save();
-  ctx.translate(W/2+panX, H/2+panY);
+  ctx.translate(W/2 + panX, H/2 + panY);
   ctx.scale(z, z);
   ctx.translate(-W/2, -H/2);
 
-  // verbundene Knoten bei Hover
-  const conn = hover ? new Set([hover.id]) : null;
-  if (hover) edges.forEach(e => { if (e.a.id===hover.id||e.b.id===hover.id){ conn.add(e.a.id); conn.add(e.b.id);} });
+  const level = _getLevel(z);
+  const showDocs    = z >= G_L1;       // Dokumente ab 18%
+  const showLabels  = z >= 0.25;       // Labels ab 25%
+  const showTags    = z >= G_L2;       // Tag-Verbindungen ab 55%
+  const showPostIt  = z >= G_L3;       // Post-it-Karten ab 140%
 
-  // ── Edges ──
+  // Connected nodes for hover glow
+  const connected = hover ? new Set([hover.id]) : null;
+  if (hover) edges.forEach(e => {
+    if (e.a.id===hover.id||e.b.id===hover.id) { connected.add(e.a.id); connected.add(e.b.id); }
+  });
+
+  // Edges — deutlich sichtbarer auf dunklem Hintergrund
   edges.forEach(e => {
-    const vis = Math.min(e.a.vis, e.b.vis);
-    if (vis < 0.05) return;
-    if (e.kind==='similar' && z < _gv.baseZoom*2.2) return; // Ähnlichkeits-Linien erst tiefer
-    const active = !conn || (conn.has(e.a.id) && conn.has(e.b.id));
-    const ax=e.a._rx, ay=e.a._ry, bx=e.b._rx, by=e.b._ry;
+    if (!showDocs && e.kind !== 'folder') return;
+    if (e.kind==='tag' && !showTags) return;
+    const active = !connected || (connected.has(e.a.id)&&connected.has(e.b.id));
 
-    if (e.kind==='similar') {
-      ctx.strokeStyle = `rgba(139,92,246,${(active?0.5:0.12)*vis})`;
-      ctx.lineWidth = 1/z;
-      ctx.setLineDash([4/z, 4/z]);
+    // Alpha je nach Edge-Typ und Hover-Zustand
+    const alphaBase = e.kind==='folder' ? 0.65 : e.kind==='contains' ? 0.45 : e.kind==='similar' ? 0.35 : 0.45;
+    const alpha = active ? alphaBase : 0.06;
+
+    if (e.kind === 'similar' && active) {
+      const grad = ctx.createLinearGradient(e.a.x, e.a.y, e.b.x, e.b.y);
+      grad.addColorStop(0, e.a.color + '88');
+      grad.addColorStop(1, e.b.color + '88');
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = Math.max(1, e.w * 1.2);
+    } else if (e.kind === 'folder') {
+      ctx.strokeStyle = `rgba(203,213,225,${alpha * 0.8})`;
+      ctx.lineWidth = 2;
+    } else if (e.kind === 'contains') {
+      ctx.strokeStyle = `rgba(96,165,250,${alpha})`;
+      ctx.lineWidth = 1.5;
     } else {
-      // feine moderne Tree-Linie mit Gradient
-      const g = ctx.createLinearGradient(ax,ay,bx,by);
-      g.addColorStop(0, `rgba(148,163,184,${(active?0.55:0.3)*vis})`);
-      g.addColorStop(1, `${e.b.color}${active?'cc':'66'}`);
-      ctx.strokeStyle = g;
-      ctx.lineWidth = (active?2:1.3)/z;
-      ctx.setLineDash([]);
+      ctx.strokeStyle = `rgba(203,213,225,${alpha * 0.8})`;
+      ctx.lineWidth = 1;
     }
     ctx.beginPath();
-    ctx.moveTo(ax, ay);
-    const mx=(ax+bx)/2, my=(ay+by)/2;
-    ctx.quadraticCurveTo(mx, my, bx, by);
+    // Gerade Linien für folder/contains, geschwungen für similar
+    if (e.kind === 'similar') {
+      const mx=(e.a.x+e.b.x)/2, my=(e.a.y+e.b.y)/2 - 15;
+      ctx.moveTo(e.a.x, e.a.y);
+      ctx.quadraticCurveTo(mx, my, e.b.x, e.b.y);
+    } else {
+      ctx.moveTo(e.a.x, e.a.y);
+      ctx.lineTo(e.b.x, e.b.y);
+    }
     ctx.stroke();
   });
-  ctx.setLineDash([]);
 
-  // ── Nodes ──
-  const showCards = z >= _gv.baseZoom * 3.4; // Volltext-Karten
-  nodes.slice().sort((a,b)=>a.depth-b.depth).forEach(n => {
-    if (n.vis < 0.05) return;
-    const active = !conn || conn.has(n.id);
-    const a = n.vis * (active ? 1 : 0.25);
-    const x=n._rx, y=n._ry, r=n.r;
+  // Nodes
+  nodes.forEach(n => {
+    if (!showDocs && n.type==='doc') return;
+    if (n.type==='tag' && !showTags) return;
+
     const isHover = hover?.id === n.id;
+    const active  = !connected || connected.has(n.id);
+    ctx.globalAlpha = active ? 1 : 0.12;
 
-    if (n.type==='doc' && showCards && active) { _drawDocCard(ctx, n, z, a, isHover); return; }
+    // Post-it mode
+    if (n.type==='doc' && showPostIt) {
+      _drawPostIt(ctx, n, isHover, z);
+      ctx.globalAlpha = 1;
+      return;
+    }
 
-    ctx.globalAlpha = a;
-    // Glow bei Hover
-    if (isHover) { ctx.shadowColor = n.color; ctx.shadowBlur = 18; }
+    // Glow
+    ctx.shadowColor = n.color + '88';
+    ctx.shadowBlur  = isHover ? 30 : (n.type==='folder'?16:10);
+
+    // Kreis
     ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI*2);
-    if (n.type==='folder') {
-      const grd = ctx.createRadialGradient(x-r*.3, y-r*.3, r*.1, x, y, r);
-      grd.addColorStop(0, _lighten(n.color, 25));
-      grd.addColorStop(1, n.color);
+    ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+    if (n.type === 'folder' || n.type === 'subfolder') {
+      // Glassmorphism-ähnlich für Ordner
+      const grd = ctx.createRadialGradient(n.x-n.r*.3, n.y-n.r*.3, 0, n.x, n.y, n.r);
+      grd.addColorStop(0, n.color + 'dd');
+      grd.addColorStop(1, n.color + '88');
       ctx.fillStyle = grd;
     } else {
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = n.color + (active?'cc':'66');
     }
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.lineWidth = (n.type==='folder'?2:2)/1;
-    ctx.strokeStyle = n.type==='folder' ? 'rgba(255,255,255,.85)' : n.color;
+    ctx.strokeStyle = 'rgba(255,255,255,' + (isHover?.6:.15) + ')';
+    ctx.lineWidth = isHover ? 2 : 1;
     ctx.stroke();
 
-    // Icon im Ordner
-    if (n.type==='folder' && r>11) {
-      ctx.globalAlpha = a;
-      ctx.fillStyle = 'rgba(255,255,255,.9)';
-      ctx.font = `${r*0.85}px "Font Awesome 6 Free"`;
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('', x, y); // fa-folder
-    } else if (n.type==='doc') {
-      ctx.globalAlpha = a;
-      ctx.fillStyle = n.color;
-      ctx.font = `${r*0.95}px "Font Awesome 6 Free"`;
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText('', x, y); // fa-file-lines (regular weight may differ; fallback dot)
+    // Label
+    if (showLabels) {
+      const maxC = n.type==='folder'?14:12;
+      const label = n.label.length>maxC ? n.label.slice(0,maxC-1)+'…' : n.label;
+      ctx.font = `${n.type==='folder'?'700 ':''}${n.type==='folder'?11:9.5}px Circular Std, system-ui`;
+      const tw = ctx.measureText(label).width;
+      ctx.fillStyle = 'rgba(2,6,23,.7)';
+      const py = n.y + n.r + 4;
+      ctx.fillRect(n.x-tw/2-3, py, tw+6, 13);
+      ctx.fillStyle = n.type==='folder' ? '#e2e8f0' : 'rgba(226,232,240,.8)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(label, n.x, py+1);
     }
 
-    // Label
-    const showLabel = n.type==='folder' || z >= _gv.baseZoom*1.5 || isHover;
-    if (showLabel) {
-      const fs = (n.type==='folder' ? 12 : 10.5);
-      ctx.font = `${n.type==='folder'?'600 ':''}${fs}px Circular Std, system-ui, sans-serif`;
-      const maxC = n.type==='folder'?18:16;
-      const label = n.label.length>maxC ? n.label.slice(0,maxC-1)+'…' : n.label;
-      const tw = ctx.measureText(label).width;
-      const ly = y + r + 5;
-      ctx.globalAlpha = a;
-      ctx.fillStyle = 'rgba(255,255,255,.82)';
-      _roundRect(ctx, x-tw/2-4, ly-1, tw+8, fs+5, 4); ctx.fill();
-      ctx.fillStyle = n.type==='folder' ? '#0f172a' : '#475569';
-      ctx.textAlign='center'; ctx.textBaseline='top';
-      ctx.fillText(label, x, ly+1);
-    }
     ctx.globalAlpha = 1;
   });
 
@@ -5073,230 +5202,435 @@ function _drawGraph(ctx) {
   ctx.shadowBlur = 0;
 }
 
-function _drawDocCard(ctx, n, z, a, isHover) {
-  const x=n._rx, y=n._ry;
-  const pw=170, ph=n.content?104:60, rx=x-pw/2, ry=y-ph/2;
-  ctx.globalAlpha = a;
-  ctx.shadowColor = 'rgba(15,23,42,.18)'; ctx.shadowBlur = isHover?20:10;
-  ctx.fillStyle = '#ffffff';
-  _roundRect(ctx, rx, ry, pw, ph, 9); ctx.fill();
+function _drawPostIt(ctx, n, isHover, z) {
+  const showContent = z >= G_L3 * 1.3;
+  const pw = showContent ? 170 : 130, ph = showContent ? 110 : 64;
+  const rx = n.x - pw/2, ry = n.y - ph/2;
+
+  // Shadow/Glow
+  ctx.shadowColor = n.color + '55';
+  ctx.shadowBlur = isHover ? 24 : 12;
+
+  // Glassmorphism card
+  ctx.fillStyle = isHover ? 'rgba(15,23,42,.95)' : 'rgba(10,16,30,.88)';
+  ctx.strokeStyle = isHover ? n.color + 'aa' : 'rgba(255,255,255,.12)';
+  ctx.lineWidth = isHover ? 1.5 : 1;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(rx, ry, pw, ph, 8);
+  else ctx.rect(rx, ry, pw, ph);
+  ctx.fill(); ctx.stroke();
   ctx.shadowBlur = 0;
-  ctx.strokeStyle = isHover ? n.color : 'rgba(15,23,42,.1)';
-  ctx.lineWidth = isHover?1.5:1; _roundRect(ctx, rx, ry, pw, ph, 9); ctx.stroke();
-  // Akzentbalken
-  ctx.fillStyle = n.color; _roundRect(ctx, rx, ry, pw, 4, {tl:9,tr:9,br:0,bl:0}); ctx.fill();
-  // Titel
-  ctx.fillStyle = '#0f172a'; ctx.font = '700 10px Circular Std, system-ui';
-  ctx.textAlign='left'; ctx.textBaseline='top';
-  const t = n.label.length>24?n.label.slice(0,23)+'…':n.label;
-  ctx.fillText(t, rx+11, ry+12);
-  // Inhalt
-  if (n.content) {
-    ctx.fillStyle = '#64748b'; ctx.font = '8.5px Circular Std, system-ui';
-    const words = n.content.split(/\s+/), maxW = pw-22; let line='', ly=ry+28;
+
+  // Farb-Akzentlinie oben
+  ctx.fillStyle = n.color;
+  ctx.beginPath();
+  const barH = 3;
+  if (ctx.roundRect) ctx.roundRect(rx, ry, pw, barH, {upperLeft:8, upperRight:8, lowerLeft:0, lowerRight:0});
+  else ctx.rect(rx, ry, pw, barH);
+  ctx.fill();
+
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+
+  if (showContent && n.content) {
+    // Volltext
+    ctx.font = '700 9.5px Circular Std,system-ui'; ctx.fillStyle = '#f1f5f9';
+    const t = n.label.length>20?n.label.slice(0,19)+'…':n.label;
+    ctx.fillText(t, n.x, ry+8);
+    ctx.font = '8.5px Circular Std,system-ui'; ctx.fillStyle = '#64748b';
+    const words = n.content.split(' '), maxW = pw-14;
+    let line='', ly=ry+22;
     for (const w of words) {
       const test = line?line+' '+w:w;
-      if (ctx.measureText(test).width>maxW && line) {
-        ctx.fillText(line, rx+11, ly); line=w; ly+=11;
-        if (ly>ry+ph-14){ ctx.fillText(line+'…', rx+11, ly); line=''; break; }
+      if (ctx.measureText(test).width > maxW && line) {
+        ctx.fillText(line, n.x, ly); line=w; ly+=11;
+        if (ly > ry+ph-16) { ctx.fillText(line+'…', n.x, ly); break; }
       } else line=test;
     }
-    if (line) ctx.fillText(line, rx+11, ly);
+    if (ly <= ry+ph-16) ctx.fillText(line, n.x, ly);
+  } else {
+    // Titel + Tags
+    ctx.font = '700 10px Circular Std,system-ui'; ctx.fillStyle = '#f1f5f9';
+    const t = n.label.length>18?n.label.slice(0,17)+'…':n.label;
+    ctx.fillText(t, n.x, ry+9);
+    if (n.tags?.length) {
+      ctx.font = '9px Circular Std,system-ui'; ctx.fillStyle = n.color+'cc';
+      ctx.fillText('#'+n.tags.slice(0,2).join(' #'), n.x, ry+26);
+    }
+    if (n.chunks) {
+      ctx.font = '8px Circular Std,system-ui'; ctx.fillStyle = '#475569';
+      ctx.fillText(n.chunks+' Chunks', n.x, ry+ph-14);
+    }
   }
-  // Tag
-  if (n.tags?.length) {
-    ctx.fillStyle = n.color; ctx.font = '8px Circular Std, system-ui';
-    ctx.fillText('#'+n.tags[0], rx+11, ry+ph-14);
-  }
-  ctx.globalAlpha = 1; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
 }
 
-function _drawEmptyGraph(ctx) {
-  ctx.clearRect(0,0,_gv.width,_gv.height);
-  ctx.fillStyle='#94a3b8'; ctx.font='14px system-ui'; ctx.textAlign='center';
-  ctx.fillText('Keine Ordner oder Dokumente für den Graphen', _gv.width/2, _gv.height/2);
+function _drawEmpty(ctx) {
+  const { width: W, height: H } = _gv;
+  ctx.fillStyle = '#f8fafc'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#94a3b8'; ctx.font = '14px system-ui';
+  ctx.textAlign = 'center'; ctx.fillText('Keine Dokumente für den Graphen', W/2, H/2);
 }
 
-// ── Helpers ──
-function _roundRect(ctx, x, y, w, h, r) {
-  const rr = typeof r==='number' ? {tl:r,tr:r,br:r,bl:r} : r;
-  ctx.beginPath();
-  ctx.moveTo(x+rr.tl, y);
-  ctx.lineTo(x+w-rr.tr, y); ctx.arcTo(x+w, y, x+w, y+rr.tr, rr.tr);
-  ctx.lineTo(x+w, y+h-rr.br); ctx.arcTo(x+w, y+h, x+w-rr.br, y+h, rr.br);
-  ctx.lineTo(x+rr.bl, y+h); ctx.arcTo(x, y+h, x, y+h-rr.bl, rr.bl);
-  ctx.lineTo(x, y+rr.tl); ctx.arcTo(x, y, x+rr.tl, y, rr.tl);
-  ctx.closePath();
-}
-function _lighten(hex, pct) {
-  const n = parseInt(hex.slice(1),16);
-  let r=(n>>16)&255, g=(n>>8)&255, b=n&255;
-  r=Math.min(255,r+pct*2.55|0); g=Math.min(255,g+pct*2.55|0); b=Math.min(255,b+pct*2.55|0);
-  return `rgb(${r},${g},${b})`;
+// ── Zoom/Pan ───────────────────────────────────────────────────────────────────
+function _getLevel(z) {
+  if (z < G_L1) return 1;
+  if (z < G_L2) return 2;
+  if (z < G_L3) return 3;
+  return 4;
 }
 
-// ── Zoom / Pan ───────────────────────────────────────────────────────────────
 function _animZoom(targetZoom, cx, cy) {
-  const { width:W, height:H } = _gv;
-  if (cx===undefined) cx=W/2; if (cy===undefined) cy=H/2;
-  const wCx = (cx - W/2 - _gAnim.panX)/_gAnim.zoom + W/2;
-  const wCy = (cy - H/2 - _gAnim.panY)/_gAnim.zoom + H/2;
-  const newZ = Math.max(_gv.baseZoom*0.7, Math.min(_gv.baseZoom*8, targetZoom));
-  const newPanX = cx - W/2 - (wCx - W/2)*newZ;
-  const newPanY = cy - H/2 - (wCy - H/2)*newZ;
+  const { width: W, height: H } = _gv;
+  if (cx === undefined) cx = W/2; if (cy === undefined) cy = H/2;
+
+  // Korrektur damit Mauszeigerposition fixiert bleibt
+  const wCx = (cx - W/2 - _gAnim.panX) / _gAnim.zoom + W/2;
+  const wCy = (cy - H/2 - _gAnim.panY) / _gAnim.zoom + H/2;
+  const newPanX = cx - W/2 - (wCx - W/2) * targetZoom;
+  const newPanY = cy - H/2 - (wCy - H/2) * targetZoom;
+  const newZ = Math.max(0.12, Math.min(5, targetZoom));
+
+  const prevLevel = _getLevel(_gAnim.zoom);
+  const newLevel  = _getLevel(newZ);
+  const levelChange = prevLevel !== newLevel;
+
   if (typeof gsap !== 'undefined') {
     if (_gTween) _gTween.kill();
-    _gTween = gsap.to(_gAnim, { zoom:newZ, panX:newPanX, panY:newPanY, duration:0.45, ease:'power2.out', onUpdate:_updateZoomLabel });
-  } else { _gAnim.zoom=newZ; _gAnim.panX=newPanX; _gAnim.panY=newPanY; }
+    _gTween = gsap.to(_gAnim, {
+      zoom: newZ, panX: newPanX, panY: newPanY,
+      duration: levelChange ? 0.7 : 0.35,
+      ease: levelChange ? 'power3.inOut' : 'power2.out',
+      onUpdate: () => {
+        _updateZoomLabel();
+        if (levelChange) _updateLevelIndicator();
+      },
+      onComplete: () => {
+        if (levelChange && newLevel === 4) _loadDocContent();
+      }
+    });
+  } else {
+    _gAnim.zoom = newZ; _gAnim.panX = newPanX; _gAnim.panY = newPanY;
+  }
+  _updateZoomLabel();
 }
 
 function _updateZoomLabel() {
   const el = document.getElementById('graph-zoom-label');
-  if (el) el.textContent = Math.round((_gAnim.zoom/_gv.baseZoom)*100) + '%';
+  if (el) el.textContent = Math.round(_gAnim.zoom * 100) + '%';
 }
+
 function _updateLevelIndicator() {
-  const lvl = _maxVisibleDepth() + 1;
-  const txt = document.getElementById('graph-level-text');
-  if (txt) txt.textContent = 'Ebene ' + lvl;
-  [1,2,3,4].forEach(l => document.getElementById('glvl-'+l)?.classList.toggle('active', l <= lvl));
+  const level = _getLevel(_gAnim.zoom);
+  [1,2,3,4].forEach(l => {
+    document.getElementById(`glvl-${l}`)?.classList.toggle('active', l === level);
+  });
 }
 
-window.navGraph = function(dir) { _animZoom(_gAnim.zoom * (dir>0?1.5:1/1.5)); };
+// Content für Post-it laden (wenn Level 4)
+function _loadDocContent() {
+  _gv.nodes.filter(n => n.type==='doc' && !n.content).forEach(n => {
+    const doc = state.documents.find(d => d.id === n.docId);
+    if (doc?.content) n.content = doc.content.slice(0, 400);
+  });
+}
 
-window.fitGraphView = function(setBase) {
-  const roots = _gv.nodes.filter(n => n.depth===0);
-  if (!roots.length) return;
-  const { width:W, height:H } = _gv;
-  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-  roots.forEach(n => { minX=Math.min(minX,n.tx-50); maxX=Math.max(maxX,n.tx+50); minY=Math.min(minY,n.ty-50); maxY=Math.max(maxY,n.ty+50); });
-  const bw=maxX-minX, bh=maxY-minY;
-  const fit = Math.min(W/bw, H/bh) * 0.82;
-  if (setBase) { _gv.baseZoom = fit; }
-  const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
-  const z = _gv.baseZoom;
-  if (typeof gsap !== 'undefined') {
-    if (_gTween) _gTween.kill();
-    _gTween = gsap.to(_gAnim, { zoom:z, panX:(W/2-cx)*z, panY:(H/2-cy)*z, duration:setBase?0:0.7, ease:'power3.inOut', onUpdate:_updateZoomLabel });
-  } else { _gAnim.zoom=z; _gAnim.panX=(W/2-cx)*z; _gAnim.panY=(H/2-cy)*z; }
-  if (setBase) { _gAnim.zoom=z; _gAnim.panX=(W/2-cx)*z; _gAnim.panY=(H/2-cy)*z; _gSync(); }
+// ── Controls ────────────────────────────────────────────────────────────────────
+window.navGraph = function(dir) {
+  const factor = dir > 0 ? 1.4 : 1/1.4;
+  _animZoom(_gAnim.zoom * factor);
 };
 
-window.reheatGraphV2 = function() { _layoutRadial(); fitGraphView(false); };
-window.setGraphGrouping = function() {};   // nur Ordner-Hierarchie
-window.setGraphMode = function() {};
-window.zoomToFit = () => fitGraphView(false);
-window.resetGraphView = () => fitGraphView(false);
-
-// ── Hover Context Panel ──────────────────────────────────────────────────────
-function _showCtxPanel(n) {
-  const p = document.getElementById('graph-context-panel'); if (!p) return;
-  const isFolder = n.type==='folder';
-  const icon = document.getElementById('gcp-icon');
-  icon.style.background = n.color+'22';
-  icon.innerHTML = `<i class="fa-solid ${isFolder?'fa-folder':'fa-file-lines'}" style="color:${n.color}"></i>`;
-  document.getElementById('gcp-title').textContent = n.label;
-  let sub = '';
-  if (isFolder) {
-    const dc = (state.documents||[]).filter(d=>d.folder_id===n.folderId).length;
-    const sc = (state.folders||[]).filter(f=>f.parent_id===n.folderId).length;
-    sub = [dc?dc+' Dateien':'', sc?sc+' Unterordner':''].filter(Boolean).join(' · ') || 'Leer';
+window.fitGraphView = function() {
+  const { nodes, width: W, height: H } = _gv;
+  if (!nodes.length) return;
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  nodes.forEach(n => { minX=Math.min(minX,n.x-n.r); maxX=Math.max(maxX,n.x+n.r); minY=Math.min(minY,n.y-n.r); maxY=Math.max(maxY,n.y+n.r); });
+  const bw=maxX-minX+80, bh=maxY-minY+80;
+  const z = Math.min(1.2, Math.min(W/bw, H/bh));
+  const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+  if (typeof gsap !== 'undefined') {
+    if (_gTween) _gTween.kill();
+    _gTween = gsap.to(_gAnim, {
+      zoom:z, panX:(W/2-cx)*z, panY:(H/2-cy)*z,
+      duration:0.9, ease:'power3.inOut',
+      onUpdate: _updateZoomLabel
+    });
   } else {
-    const f = (state.folders||[]).find(f=>f.id===n.folderId);
-    sub = [f?.name, n.tags?.[0]?'#'+n.tags[0]:''].filter(Boolean).join(' · ');
+    _gAnim.zoom=z; _gAnim.panX=(W/2-cx)*z; _gAnim.panY=(H/2-cy)*z;
+  }
+  _updateZoomLabel();
+};
+
+window.reheatGraphV2 = function() {
+  const { nodes, width:W, height:H } = _gv;
+  nodes.forEach((n, i) => {
+    const a = i/nodes.length*Math.PI*2, r=Math.min(W,H)*.3;
+    n.x = W/2 + Math.cos(a)*r; n.y = H/2 + Math.sin(a)*r;
+    n.vx=0; n.vy=0;
+  });
+  _gv.energy = 200;
+};
+
+window.setGraphGrouping = function(mode) {
+  _gv.grouping = mode;
+  document.getElementById('gbtn-folder')?.classList.toggle('active', mode==='folder');
+  document.getElementById('gbtn-tag')?.classList.toggle('active', mode==='tag');
+  _buildGraph();
+  _gv.energy = 220;
+  reheatGraphV2();
+  fitGraphView();
+};
+
+// Legacy compat
+window.resetGraphView = fitGraphView;
+window.reheatGraph = reheatGraphV2;
+window.setGraphMode = function() {};
+window.zoomToFit = fitGraphView;
+
+// ── Hover Context Panel ────────────────────────────────────────────────────────
+function _showContextPanel(node, screenX, screenY) {
+  const panel = document.getElementById('graph-context-panel');
+  if (!panel) return;
+  const wrap  = document.getElementById('doc-graph-wrap');
+  const wRect = wrap?.getBoundingClientRect();
+
+  // Inhalt
+  const icon = document.getElementById('gcp-icon');
+  const isFolder = node.type==='folder'||node.type==='subfolder';
+  icon.style.background = node.color + '33';
+  icon.innerHTML = `<i class="fa-solid ${isFolder?'fa-folder':'fa-file-lines'}" style="color:${node.color}"></i>`;
+
+  document.getElementById('gcp-title').textContent = node.label;
+
+  let sub = '';
+  if (!isFolder) {
+    const folder = state.folders.find(f => f.id === node.folderId);
+    sub = [folder?.name, node.tags?.[0]].filter(Boolean).join(' · ');
+  } else {
+    const docs = state.documents.filter(d => d.folder_id === node.folderId);
+    sub = docs.length + ' Dokumente';
   }
   document.getElementById('gcp-sub').textContent = sub;
-  const meta = document.getElementById('gcp-meta');
-  if (!isFolder) {
-    const sz = n.size?formatBytes(n.size):''; const dt = n.date?new Date(n.date).toLocaleDateString('de-DE'):'';
-    meta.innerHTML = [
-      n.chunks?`<span><i class="fa-solid fa-layer-group"></i>${n.chunks} Chunks</span>`:'',
-      sz?`<span><i class="fa-solid fa-weight-hanging"></i>${sz}</span>`:'',
-      dt?`<span><i class="fa-regular fa-calendar"></i>${dt}</span>`:'',
-      n.uploader?`<span><i class="fa-regular fa-user"></i>${escHtml(n.uploader)}</span>`:'',
-    ].filter(Boolean).join('');
-  } else meta.innerHTML = '';
-  const openBtn = document.getElementById('gcp-open'), navBtn = document.getElementById('gcp-nav');
-  if (isFolder) {
-    openBtn.textContent='Öffnen'; openBtn.onclick=()=>{ setDocView('cards'); navigateTo(n.folderId, n.label); };
-    navBtn.textContent='Schließen'; navBtn.onclick=_hideCtxPanel;
-  } else {
-    openBtn.textContent='Vorschau'; openBtn.onclick=()=>openDocPreview(n.docId, n.label);
-    navBtn.textContent='Zum Ordner'; navBtn.onclick=()=>{ setDocView('cards'); navigateTo(n.folderId||'', ''); };
-  }
-  p.style.display='block';
-}
-function _hideCtxPanel(){ const p=document.getElementById('graph-context-panel'); if(p) p.style.display='none'; }
 
-// ── Events ───────────────────────────────────────────────────────────────────
-function _attachGraphEvents(canvas) {
+  // Meta
+  const metaEl = document.getElementById('gcp-meta');
+  if (!isFolder) {
+    const size = node.size ? formatBytes(node.size) : '';
+    const date = node.date ? new Date(node.date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
+    metaEl.innerHTML = [
+      node.chunks ? `<span><i class="fa-solid fa-layer-group"></i>${node.chunks} Chunks</span>` : '',
+      size ? `<span><i class="fa-solid fa-weight-hanging"></i>${size}</span>` : '',
+      date ? `<span><i class="fa-regular fa-calendar"></i>${date}</span>` : '',
+      node.uploader ? `<span><i class="fa-regular fa-user"></i>${node.uploader}</span>` : '',
+    ].filter(Boolean).join('');
+  } else { metaEl.innerHTML = ''; }
+
+  // Ähnliche Docs
+  const simEl = document.getElementById('gcp-similar');
+  const simList = document.getElementById('gcp-similar-list');
+  if (!isFolder && node.tags?.length) {
+    const similar = _gv.nodes.filter(n => n.type==='doc' && n.id!==node.id &&
+      n.tags?.some(t => node.tags.includes(t))).slice(0,3);
+    if (similar.length) {
+      simEl.style.display = 'block';
+      simList.innerHTML = similar.map(s => {
+        const shared = s.tags.filter(t => node.tags.includes(t)).length;
+        const pct = Math.min(100, shared*30+40);
+        return `<div class="gcp-similar-item" onclick="openDocPreview('${s.docId}','${escHtml(s.label)}')">
+          <div class="gcp-sim-bar" style="width:${pct}%"></div>
+          <span>${escHtml(s.label.length>22?s.label.slice(0,21)+'…':s.label)}</span>
+          <span style="margin-left:auto;font-size:.68rem;color:#475569">${pct}%</span>
+        </div>`;
+      }).join('');
+    } else simEl.style.display = 'none';
+  } else simEl.style.display = 'none';
+
+  // Actions
+  const openBtn = document.getElementById('gcp-open');
+  const navBtn  = document.getElementById('gcp-nav');
+  if (isFolder) {
+    openBtn.textContent = 'Öffnen'; openBtn.onclick = () => navigateTo(node.folderId, node.label);
+    navBtn.textContent = 'Überspringen'; navBtn.onclick = () => _hideContextPanel();
+  } else {
+    openBtn.textContent = 'Vorschau'; openBtn.onclick = () => openDocPreview(node.docId, node.label);
+    navBtn.textContent  = 'Navigieren'; navBtn.onclick = () => { navigateTo(node.folderId||'', ''); };
+  }
+
+  panel.style.display = 'block';
+  // Position: rechts oder links je nach Platz
+  const px = (screenX||0) > (_gv.width*.6) ? 14 : null;
+  panel.style.right = px !== null ? px+'px' : 'auto';
+  panel.style.left  = px === null ? '14px'  : 'auto';
+}
+
+function _hideContextPanel() {
+  const p = document.getElementById('graph-context-panel');
+  if (p) p.style.display = 'none';
+}
+
+// ── Minimap ─────────────────────────────────────────────────────────────────────
+function _updateMinimap() {
+  const mm = document.getElementById('graph-minimap');
+  if (!mm) return;
+  const mW = 140, mH = 90;
+  const ctx = mm.getContext('2d');
+  const { nodes, width:W, height:H, zoom:z, panX, panY } = _gv;
+
+  ctx.clearRect(0, 0, mW, mH);
+  ctx.fillStyle = '#f1f5f9'; ctx.fillRect(0, 0, mW, mH);
+
+  if (!nodes.length) return;
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+  nodes.forEach(n => { minX=Math.min(minX,n.x); maxX=Math.max(maxX,n.x); minY=Math.min(minY,n.y); maxY=Math.max(maxY,n.y); });
+  const bw=maxX-minX+60, bh=maxY-minY+60;
+  const scale = Math.min(mW/bw, mH/bh);
+  const ox = (mW - bw*scale)/2 - (minX-30)*scale;
+  const oy = (mH - bh*scale)/2 - (minY-30)*scale;
+
+  nodes.forEach(n => {
+    const mx = n.x*scale+ox, my = n.y*scale+oy;
+    ctx.beginPath(); ctx.arc(mx, my, Math.max(1.5, n.r*scale*.6), 0, Math.PI*2);
+    ctx.fillStyle = n.type==='doc' ? n.color+'99' : n.color;
+    ctx.fill();
+  });
+
+  // Viewport-Rechteck
+  const vpEl = document.getElementById('graph-minimap-viewport');
+  if (vpEl) {
+    const vx = ((W/2 - W/2*z - panX) * scale + ox);
+    const vy = ((H/2 - H/2*z - panY) * scale + oy);
+    const vw = W * scale / z * (mW/W) * z;
+    const vh = H * scale / z * (mH/H) * z;
+    // Vereinfacht: viewport als Anteil der minimap
+    const vpW = (W/z) * scale;
+    const vpH = (H/z) * scale;
+    const vpLeft = (W/2-panX/z-W/(2*z))*scale+ox;
+    const vpTop  = (H/2-panY/z-H/(2*z))*scale+oy;
+    vpEl.style.left   = Math.max(0,vpLeft) + 'px';
+    vpEl.style.top    = Math.max(0,vpTop)  + 'px';
+    vpEl.style.width  = Math.min(mW, vpW)  + 'px';
+    vpEl.style.height = Math.min(mH, vpH)  + 'px';
+  }
+}
+
+// ── Events ─────────────────────────────────────────────────────────────────────
+function _attachGraphEventsV2(canvas, wrap) {
+  // Altes Event-Setup entfernen
+  canvas.onmousedown = canvas.onmousemove = canvas.onmouseup =
+  canvas.onwheel = canvas.onclick = canvas.ondblclick = null;
+
   const toWorld = (ex, ey) => {
     const rect = canvas.getBoundingClientRect();
-    const sx=(ex-rect.left)*(_gv.width/rect.width), sy=(ey-rect.top)*(_gv.height/rect.height);
-    return { x:(sx-_gv.width/2-_gv.panX)/_gv.zoom+_gv.width/2, y:(sy-_gv.height/2-_gv.panY)/_gv.zoom+_gv.height/2 };
+    const sx = (ex-rect.left) * (_gv.width / rect.width);
+    const sy = (ey-rect.top)  * (_gv.height/ rect.height);
+    return {
+      x: (sx - _gv.width/2 - _gv.panX) / _gv.zoom + _gv.width/2,
+      y: (sy - _gv.height/2- _gv.panY) / _gv.zoom + _gv.height/2,
+    };
   };
-  const hit = (ex, ey) => {
+  const hitTest = (ex, ey) => {
     const w = toWorld(ex, ey);
-    let best=null, bd=Infinity;
-    _gv.nodes.forEach(n => {
-      if (n.vis < 0.4) return;
-      const dx=n._rx-w.x, dy=n._ry-w.y, d=dx*dx+dy*dy;
-      const rr = (_gv.zoom>=_gv.baseZoom*3.4 && n.type==='doc') ? 88 : n.r+8;
-      if (d < rr*rr && d < bd) { bd=d; best=n; }
-    });
-    return best;
+    return _gv.nodes.find(n => {
+      const dx=n.x-w.x, dy=n.y-w.y;
+      const hr = _gv.zoom >= G_L3 ? 85/_gv.zoom : n.r + 10/_gv.zoom;
+      return dx*dx+dy*dy < hr*hr;
+    }) || null;
   };
 
-  canvas.onwheel = (e) => {
+  // Mausrad → Zoom um Cursor
+  canvas.addEventListener('wheel', e => {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
-    const cx=(e.clientX-rect.left)*(_gv.width/rect.width), cy=(e.clientY-rect.top)*(_gv.height/rect.height);
-    _animZoom(_gAnim.zoom * (e.deltaY<0?1.18:1/1.18), cx, cy);
-  };
-  canvas.onmousedown = (e) => { _gv.dragging=true; _gv.moved=false; _gv.lastMX=e.clientX; _gv.lastMY=e.clientY; canvas.style.cursor='grabbing'; };
-  canvas.onmousemove = (e) => {
-    if (_gv.dragging) {
-      const dx=e.clientX-_gv.lastMX, dy=e.clientY-_gv.lastMY;
-      if (Math.abs(dx)+Math.abs(dy)>2) _gv.moved=true;
-      _gv.lastMX=e.clientX; _gv.lastMY=e.clientY;
-      if (_gTween){ _gTween.kill(); _gTween=null; }
-      _gAnim.panX+=dx; _gAnim.panY+=dy; _gSync();
+    const cx = (e.clientX-rect.left) * (_gv.width/rect.width);
+    const cy = (e.clientY-rect.top)  * (_gv.height/rect.height);
+    const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+    _animZoom(_gAnim.zoom * factor, cx, cy);
+  }, { passive: false });
+
+  // Drag/Pan
+  canvas.addEventListener('mousedown', e => {
+    const hit = hitTest(e.clientX, e.clientY);
+    if (hit) {
+      _gv.dragNode = hit; _gv.dragging = false;
     } else {
-      const h = hit(e.clientX, e.clientY);
-      if (h !== _gv.hover) {
-        _gv.hover = h;
-        canvas.style.cursor = h?'pointer':'grab';
-        if (h) _showCtxPanel(h); else _hideCtxPanel();
-      }
+      _gv.dragNode = null; _gv.dragging = true;
     }
-  };
-  canvas.onmouseup = (e) => {
-    _gv.dragging=false; canvas.style.cursor = _gv.hover?'pointer':'grab';
-    if (!_gv.moved) {
-      const h = hit(e.clientX, e.clientY);
-      if (h) {
-        if (h.type==='folder') { _animZoom(_gAnim.zoom*1.8, h._rx*_gv.zoom, h._ry*_gv.zoom); }
-      }
+    _gv.lastMX = e.clientX; _gv.lastMY = e.clientY;
+  });
+  canvas.addEventListener('mousemove', e => {
+    const dx = e.clientX - _gv.lastMX;
+    const dy = e.clientY - _gv.lastMY;
+    _gv.lastMX = e.clientX; _gv.lastMY = e.clientY;
+
+    if (_gv.dragging) {
+      _gAnim.panX += dx; _gAnim.panY += dy;
+      if (_gTween) { _gTween.kill(); _gTween = null; }
+    } else if (_gv.dragNode) {
+      const scale = _gv.width / canvas.getBoundingClientRect().width;
+      _gv.dragNode.x += dx * scale / _gv.zoom;
+      _gv.dragNode.y += dy * scale / _gv.zoom;
+      _gv.dragNode.vx = 0; _gv.dragNode.vy = 0;
     }
-  };
-  canvas.onmouseleave = () => { _gv.dragging=false; _gv.hover=null; _hideCtxPanel(); };
-  canvas.ondblclick = (e) => {
-    const h = hit(e.clientX, e.clientY); if (!h) return;
-    if (h.type==='folder') { setDocView('cards'); navigateTo(h.folderId, h.label); }
-    else openDocPreview(h.docId, h.label);
-  };
-  canvas.style.cursor='grab';
+
+    // Hover
+    const hit = hitTest(e.clientX, e.clientY);
+    const prev = _gv.hover;
+    _gv.hover = hit || null;
+    if (hit !== prev) {
+      canvas.style.cursor = hit ? 'pointer' : 'grab';
+      if (hit) _showContextPanel(hit, e.clientX, e.clientY);
+      else _hideContextPanel();
+    }
+  });
+  canvas.addEventListener('mouseup', () => { _gv.dragging = false; _gv.dragNode = null; });
+  canvas.addEventListener('mouseleave', () => { _gv.hover = null; _gv.dragging = false; _gv.dragNode = null; _hideContextPanel(); });
+
+  // Doppelklick → In Ordner navigieren / Dokument öffnen
+  canvas.addEventListener('dblclick', e => {
+    const hit = hitTest(e.clientX, e.clientY);
+    if (!hit) return;
+    if (hit.type==='folder'||hit.type==='subfolder') navigateTo(hit.folderId, hit.label);
+    else if (hit.type==='doc') openDocPreview(hit.docId, hit.label);
+  });
+
+  // Touch Support
+  let _lastTouchDist = 0;
+  canvas.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      const t = e.touches;
+      _lastTouchDist = Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
+    }
+  }, { passive: true });
+  canvas.addEventListener('touchmove', e => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const t = e.touches;
+      const dist = Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
+      const factor = dist / (_lastTouchDist || dist);
+      _lastTouchDist = dist;
+      const cx = (t[0].clientX+t[1].clientX)/2;
+      const cy = (t[0].clientY+t[1].clientY)/2;
+      const rect = canvas.getBoundingClientRect();
+      _animZoom(_gAnim.zoom * factor, (cx-rect.left)*(_gv.width/rect.width), (cy-rect.top)*(_gv.height/rect.height));
+    }
+  }, { passive: false });
+
+  canvas.style.cursor = 'grab';
 }
 
-function _fadeScrollHint() {
+// ── Scroll Hint ─────────────────────────────────────────────────────────────────
+function _showScrollHint() {
   const el = document.getElementById('graph-scroll-hint');
-  if (el) el.style.opacity = '0';
+  if (!el) return;
+  el.style.opacity = '1';
+  setTimeout(() => { if (el) el.style.transition = 'opacity 1s'; el.style.opacity = '0'; }, 3000);
 }
 
+// ── Stop ────────────────────────────────────────────────────────────────────────
 function stopGraph() {
   _gv.running = false;
-  if (_gv.animId) { cancelAnimationFrame(_gv.animId); _gv.animId=null; }
-  if (_gTween) { _gTween.kill(); _gTween=null; }
-  _hideCtxPanel();
+  if (_gv.animId) { cancelAnimationFrame(_gv.animId); _gv.animId = null; }
+  if (_gTween) { _gTween.kill(); _gTween = null; }
+  _hideContextPanel();
 }
 
 
