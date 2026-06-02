@@ -1802,8 +1802,9 @@ async function onSessionReady(session) {
       await window.RootsUser._loadAndMount(sb);
       document.dispatchEvent(new CustomEvent('roots-profile-ready'));
     }
-    const { data: prof } = await sb.schema('users').from('profiles')
-      .select('app_role').eq('id', session.user.id).single().catch(() => ({ data: null }));
+    const profRes = await sb.schema('users').from('profiles')
+      .select('app_role').eq('id', session.user.id).single();
+    const prof = profRes.error ? null : profRes.data;
     state.isAdmin = prof?.app_role === 'admin';
     updateAdminSidebar();
     await Promise.all([loadFolders(), loadTags(), loadDocuments()]);
@@ -2651,8 +2652,9 @@ async function openAiSettings() {
 
   // Check which keys are set in Supabase (show masked placeholder, never expose value)
   const keyDbMap = { anthropic: 'api_key_anthropic', openai: 'api_key_openai', google: 'api_key_google', voyage: 'api_key_voyage' };
-  const { data: storedKeys } = await sb.schema('knowledge').from('settings')
-    .select('key').in('key', Object.values(keyDbMap)).catch(() => ({ data: [] }));
+  const keysRes = await sb.schema('knowledge').from('settings')
+    .select('key').in('key', Object.values(keyDbMap));
+  const storedKeys = keysRes.data || [];
   const setKeys = new Set((storedKeys || []).map(r => r.key));
   ['anthropic','openai','google','voyage'].forEach(k => {
     const inp = document.getElementById('key-' + k);
