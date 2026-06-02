@@ -568,18 +568,11 @@ Antworte immer auf Deutsch, präzise und hilfreich. Wenn du unsicher bist, sage 
 // ---------------------------------------------------------------------------
 // ACTION: folders
 // ---------------------------------------------------------------------------
-async function handleFolders(origin: string | null): Promise<Response> {
-  const supabase = getAdminClient();
-  const { data, error } = await supabase
-    .schema("knowledge")
-    .from("folders")
-    .select("*")
-    .order("name");
-
-  if (error) {
-    return errorResponse(origin, error.message, 500);
-  }
-  return corsResponse(origin, { folders: data });
+async function handleFolders(origin: string, _url?: URL): Promise<Response> {
+  const admin = getAdminClient();
+  const { data, error } = await admin.schema("knowledge").from("folders").select("*").order("name");
+  if (error) return errorResponse(origin, "DB error: " + error.message, 500);
+  return jsonResponse(origin, { folders: data || [] });
 }
 
 // ---------------------------------------------------------------------------
@@ -707,58 +700,33 @@ async function handleDeleteFolder(
 // ---------------------------------------------------------------------------
 // ACTION: documents
 // ---------------------------------------------------------------------------
-async function handleDocuments(
-  body: Record<string, unknown>,
-  origin: string | null
-): Promise<Response> {
-  const { folder_id, tags, search } = body as {
-    folder_id?: string;
-    tags?: string[];
-    search?: string;
-  };
-
-  const supabase = getAdminClient();
-  let query = supabase
-    .schema("knowledge")
-    .from("documents")
-    .select(
-      "id, title, filename, folder_id, tags, metadata, chunk_count, embedding_status, uploader_name, uploader_kuerzel, created_at, updated_at, file_size_bytes"
-    )
-    .order("created_at", { ascending: false });
-
-  if (folder_id) query = query.eq("folder_id", folder_id);
-  if (tags && tags.length > 0) query = query.overlaps("tags", tags);
-  if (search) query = query.ilike("title", `%${search}%`);
-
+async function handleDocuments(params: Record<string, unknown>, origin: string): Promise<Response> {
+  const admin = getAdminClient();
+  let query = admin.schema("knowledge").from("documents")
+    .select("id,title,filename,folder_id,tags,chunk_count,embedding_status,uploader_name,uploader_kuerzel,uploaded_by,file_size_bytes,created_at,updated_at");
+  if (params.folder_id) query = query.eq("folder_id", String(params.folder_id));
+  if (params.search) query = query.or(`title.ilike.%${params.search}%,content.ilike.%${params.search}%`);
+  if (params.tags) {
+    const tags = Array.isArray(params.tags) ? params.tags : String(params.tags).split(",");
+    query = query.overlaps("tags", tags);
+  }
+  const sortMap: Record<string, string> = { oldest: "created_at", alpha: "title", newest: "created_at" };
+  const sortCol = sortMap[String(params.sort || "newest")] || "created_at";
+  const ascending = params.sort === "oldest" || params.sort === "alpha";
+  query = query.order(sortCol, { ascending });
   const { data, error } = await query;
-  if (error) return errorResponse(origin, error.message, 500);
-  return corsResponse(origin, { documents: data });
+  if (error) return errorResponse(origin, "DB error: " + error.message, 500);
+  return jsonResponse(origin, { documents: data || [] });
 }
 
 // ---------------------------------------------------------------------------
 // ACTION: tags
 // ---------------------------------------------------------------------------
-async function handleTags(origin: string | null): Promise<Response> {
-  const supabase = getAdminClient();
-  const { data, error } = await supabase
-    .schema("knowledge")
-    .from("documents")
-    .select("tags");
-
-  if (error) return errorResponse(origin, error.message, 500);
-
-  const tagCounts: Record<string, number> = {};
-  for (const row of data ?? []) {
-    for (const tag of (row.tags as string[]) ?? []) {
-      tagCounts[tag] = (tagCounts[tag] ?? 0) + 1;
-    }
-  }
-
-  const tags = Object.entries(tagCounts)
-    .map(([tag, count]) => ({ tag, count }))
-    .sort((a, b) => b.count - a.count);
-
-  return corsResponse(origin, { tags });
+async function handleTags(origin: string): Promise<Response> {
+  const admin = getAdminClient();
+  const { data, error } = await admin.rpc("kh_get_tags");
+  if (error) return errorResponse(origin, "DB error: " + error.message, 500);
+  return jsonResponse(origin, { tags: data || [] });
 }
 
 // ---------------------------------------------------------------------------
