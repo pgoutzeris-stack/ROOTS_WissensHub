@@ -1671,9 +1671,13 @@
 
     /* ── Filter Pills (eigene Zeile unter Toolbar) ─────────────────── */
     #filter-pills-bar { transition:max-height .2s; }
+    /* Pills nutzen toolbar-select Basis + active-Überschreibung */
+    #pill-all.pill-active, #pill-title.pill-active, #pill-tag.pill-active, #pill-folder.pill-active {
+      background: var(--brand); color: #fff; border-color: var(--brand);
+    }
+    /* Legacy smart-pill (für andere Verwendungen) */
     .smart-pill { display:inline-flex; align-items:center; gap:5px; height:38px; padding:0 .9rem; border-radius:8px; font-size:.82rem; font-weight:500; cursor:pointer; border:1px solid var(--line); background:var(--bg); color:var(--ink); transition:all .15s; white-space:nowrap; font-family:inherit; }
-    .smart-pill i { font-size:.75rem; }
-    .smart-pill.active { background:var(--brand); color:#fff; border-color:var(--brand); box-shadow:0 2px 8px rgba(32,110,251,.2); }
+    .smart-pill.active { background:var(--brand); color:#fff; border-color:var(--brand); }
     .smart-pill:not(.active):hover { border-color:var(--brand); color:var(--brand); }
 
     /* ── List View ─────────────────────────────────────────────────── */
@@ -1859,63 +1863,53 @@
 
       <!-- ═══ DOCUMENTS VIEW ═══ -->
       <div id="view-documents" class="view-panel active" style="display:flex;flex-direction:column;height:100%">
-        <!-- Toolbar Zeile 1: Suche + Aktionen -->
-        <div class="dash-toolbar">
+        <!-- Toolbar: alles in einer Zeile -->
+        <div class="dash-toolbar" style="flex-wrap:nowrap;overflow-x:auto">
+          <!-- Filter Pills — gleiche Zeile wie toolbar-select -->
+          <button class="toolbar-select" id="pill-all"    onclick="setSearchMode('all')"    style="cursor:pointer;font-family:inherit;gap:.4rem;display:inline-flex;align-items:center"><i class="fa-solid fa-asterisk" style="font-size:.72rem"></i> Alle</button>
+          <button class="toolbar-select" id="pill-title"  onclick="setSearchMode('title')"  style="cursor:pointer;font-family:inherit;gap:.4rem;display:inline-flex;align-items:center"><i class="fa-solid fa-file" style="font-size:.72rem"></i> Dateiname</button>
+          <button class="toolbar-select" id="pill-tag"    onclick="setSearchMode('tag')"    style="cursor:pointer;font-family:inherit;gap:.4rem;display:inline-flex;align-items:center"><i class="fa-solid fa-tag" style="font-size:.72rem"></i> Tag</button>
+          <button class="toolbar-select" id="pill-folder" onclick="setSearchMode('folder')" style="cursor:pointer;font-family:inherit;gap:.4rem;display:inline-flex;align-items:center"><i class="fa-solid fa-folder" style="font-size:.72rem"></i> Ordner</button>
           <!-- Suchfeld mit Teams-Dropdown -->
-          <div id="smart-search-wrap" style="position:relative;flex:1;min-width:0">
+          <div id="smart-search-wrap" style="position:relative;flex:1;min-width:140px">
             <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:.85rem;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.85rem;pointer-events:none;z-index:1"></i>
             <input type="text" class="dash-search" id="doc-search"
-              placeholder="Dokumente durchsuchen…"
-              autocomplete="off"
-              style="padding-left:2.4rem;width:100%;box-sizing:border-box"
+              placeholder="Suchen…" autocomplete="off"
+              style="padding-left:2.4rem;width:100%;box-sizing:border-box;height:38px"
               oninput="onSearchInput(this.value)"
               onfocus="onSearchFocus()"
               onblur="setTimeout(hideSearchDropdown,180)"
               onkeydown="onSearchKey(event)" />
-            <!-- Dropdown — erscheint beim Tippen -->
             <div id="search-dropdown"
-              style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.14);z-index:300;overflow:hidden">
+              style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.14);z-index:300;overflow:hidden;min-width:280px">
             </div>
           </div>
-          <div class="toolbar-spacer"></div>
           <!-- Sort -->
           <select class="toolbar-select" id="sort-select" onchange="renderDocuments()">
             <option value="newest">Neueste zuerst</option>
             <option value="oldest">Älteste zuerst</option>
             <option value="alpha">A – Z</option>
           </select>
-          <!-- View toggle: Kacheln · Liste · Graph -->
+          <!-- View toggle -->
           <div style="display:flex;gap:2px;background:var(--surface-2,#f1f5f9);border-radius:8px;padding:3px;flex-shrink:0">
             <button id="btn-view-cards" onclick="setDocView('cards')" title="Kacheln"
               style="padding:5px 9px;border:none;border-radius:6px;background:var(--bg);cursor:pointer;color:var(--ink)">
-              <i class="fa-solid fa-grip"></i>
-            </button>
+              <i class="fa-solid fa-grip"></i></button>
             <button id="btn-view-list" onclick="setDocView('list')" title="Liste"
               style="padding:5px 9px;border:none;border-radius:6px;background:transparent;cursor:pointer;color:var(--muted)">
-              <i class="fa-solid fa-list"></i>
-            </button>
+              <i class="fa-solid fa-list"></i></button>
             <button id="btn-view-graph" onclick="setDocView('graph')" title="Wissensgraph"
               style="padding:5px 9px;border:none;border-radius:6px;background:transparent;cursor:pointer;color:var(--muted)">
-              <i class="fa-solid fa-diagram-project"></i>
-            </button>
+              <i class="fa-solid fa-diagram-project"></i></button>
           </div>
-          <!-- Neuer Ordner -->
-          <button class="btn-ghost" onclick="openNewFolderModal()" style="height:36px;padding:0 .9rem;font-size:.82rem;white-space:nowrap">
-            <i class="fa-solid fa-folder-plus"></i> Ordner
-          </button>
-          <!-- Upload -->
-          <button class="btn-primary" onclick="switchView('upload')" style="white-space:nowrap">
-            <i class="fa-solid fa-cloud-arrow-up"></i> Hochladen
-          </button>
+          <button class="btn-ghost" onclick="openNewFolderModal()" style="white-space:nowrap;flex-shrink:0">
+            <i class="fa-solid fa-folder-plus"></i> Ordner</button>
+          <button class="btn-primary" onclick="switchView('upload')" style="white-space:nowrap;flex-shrink:0">
+            <i class="fa-solid fa-cloud-arrow-up"></i> Hochladen</button>
         </div>
-        <!-- Toolbar Zeile 2: Filter Pills (nur sichtbar wenn aktiv) -->
-        <div id="filter-pills-bar" style="display:flex;align-items:center;gap:.4rem;padding:.4rem 1rem .3rem;border-bottom:1px solid var(--line);background:var(--surface-2,#f8fafc);flex-wrap:wrap;min-height:0">
-          <span style="font-size:.72rem;color:var(--muted);margin-right:.2rem;font-weight:500">Suche in:</span>
-          <button class="smart-pill active" id="pill-all"     onclick="setSearchMode('all')"     ><i class="fa-solid fa-asterisk"></i> Alle</button>
-          <button class="smart-pill"        id="pill-title"   onclick="setSearchMode('title')"   ><i class="fa-solid fa-file"></i> Dateiname</button>
-          <button class="smart-pill"        id="pill-tag"     onclick="setSearchMode('tag')"     ><i class="fa-solid fa-tag"></i> Tag</button>
-          <button class="smart-pill"        id="pill-folder"  onclick="setSearchMode('folder')"  ><i class="fa-solid fa-folder"></i> Ordner</button>
-          <div class="toolbar-spacer"></div>
+        <!-- Active tag chips -->
+        <div id="filter-pills-bar" style="display:none;align-items:center;gap:.4rem;padding:.3rem 1rem;border-bottom:1px solid var(--line);flex-wrap:wrap">
+          <div class="active-filter-chips" id="active-tag-chips"></div>
           <div class="active-filter-chips" id="active-tag-chips"></div>
         </div>
         <div class="dash-content" id="doc-content">
@@ -2416,16 +2410,20 @@ sb.auth.getSession().then(({ data: { session } }) => {
   if (session) {
     _authDone = true;
     onSessionReady(session);
-  } else if (!IN_IFRAME) {
-    showAuthOverlay();
   } else {
-    // iframe: wait for bridge to sync session, then show login only if still nothing
-    setTimeout(() => {
-      if (_authDone) return; // auth already handled — do NOT show overlay
-      sb.auth.getSession().then(({ data: { session: s2 } }) => {
-        if (!_authDone && !s2) showAuthOverlay();
-      });
-    }, 2000);
+    // Dokumente + Ordner + Tags auch ohne Auth laden (Edge Fn nutzt admin client)
+    Promise.all([loadFolders(), loadTags(), loadDocuments()]).catch(() => {});
+    if (!IN_IFRAME) {
+      showAuthOverlay();
+    } else {
+      // iframe: wait for bridge to sync session, then show login only if still nothing
+      setTimeout(() => {
+        if (_authDone) return;
+        sb.auth.getSession().then(({ data: { session: s2 } }) => {
+          if (!_authDone && !s2) showAuthOverlay();
+        });
+      }, 2000);
+    }
   }
 });
 
@@ -4462,9 +4460,21 @@ let _ddSelectedIdx = -1;
 
 window.setSearchMode = function(mode) {
   _searchMode = mode;
-  // Update pill states
+  // Update pill states (pills use toolbar-select class + pill-active)
   ['all','title','tag','folder'].forEach(id => {
-    document.getElementById(`pill-${id}`)?.classList.toggle('active', mode === id);
+    const el = document.getElementById(`pill-${id}`);
+    if (!el) return;
+    el.classList.toggle('pill-active', mode === id);
+    // Visual feedback: brand color background when active
+    if (mode === id) {
+      el.style.background = 'var(--brand)';
+      el.style.color = '#fff';
+      el.style.borderColor = 'var(--brand)';
+    } else {
+      el.style.background = '';
+      el.style.color = '';
+      el.style.borderColor = '';
+    }
   });
   const q = document.getElementById('doc-search')?.value.trim();
   state.search = q || '';
@@ -4614,7 +4624,13 @@ window.hideSearchDropdown = function() {
 };
 
 // Init pills on load
-document.addEventListener('DOMContentLoaded', () => setTimeout(initSearchPills, 500));
+document.addEventListener('DOMContentLoaded', () => {
+  // Aktiviere "Alle"-Pill direkt beim Laden
+  setTimeout(() => {
+    setSearchMode('all');
+    if (typeof initSearchPills === 'function') initSearchPills();
+  }, 200);
+});
 // Also init after auth
 document.addEventListener('roots-profile-ready', () => initSearchPills());
 
