@@ -2621,14 +2621,19 @@ function openAiSettings() {
     </div>
   `).join('');
 
-  // Restore API key hints (masked)
-  const keys = settings.keys || {};
+  // Check which keys are set in Supabase (show masked placeholder, never expose value)
+  const keyDbMap = { anthropic: 'api_key_anthropic', openai: 'api_key_openai', google: 'api_key_google', voyage: 'api_key_voyage' };
+  const { data: storedKeys } = await sb.schema('knowledge').from('settings')
+    .select('key').in('key', Object.values(keyDbMap)).catch(() => ({ data: [] }));
+  const setKeys = new Set((storedKeys || []).map(r => r.key));
   ['anthropic','openai','google','voyage'].forEach(k => {
     const inp = document.getElementById('key-' + k);
     if (!inp) return;
-    inp.value = keys[k] ? '••••••••' + keys[k].slice(-4) : '';
-    inp.dataset.saved = keys[k] ? '1' : '';
-    if (keys[k]) inp.classList.add('has-value');
+    const isSet = setKeys.has(keyDbMap[k]);
+    inp.value = isSet ? '••••••••••••' : '';
+    inp.dataset.saved = isSet ? '1' : '';
+    inp.placeholder = isSet ? 'Gesetzt – neu eingeben zum Ändern' : { anthropic:'sk-ant-…', openai:'sk-…', google:'AIza…', voyage:'pa-…' }[k];
+    inp.classList.toggle('has-value', isSet);
   });
 
   // RAG params
@@ -2664,39 +2669,36 @@ function toggleKeyVisibility(inputId, btn) {
 }
 
 async function saveAiSettings() {
+  // ── Non-sensitive settings → localStorage (model choice, RAG params) ──
   const settings = loadAiSettings();
   const selectedCard = document.querySelector('#model-grid .model-card.selected');
   if (selectedCard) settings.model = selectedCard.dataset.model;
-
-  // Save API keys (only if changed — not the masked placeholder)
-  const keys = settings.keys || {};
-  ['anthropic','openai','google','voyage'].forEach(k => {
-    const inp = document.getElementById('key-' + k);
-    if (!inp) return;
-    const val = inp.value.trim();
-    if (!val || val.startsWith('••')) return; // unchanged masked value → keep old
-    keys[k] = val;
-  });
-  settings.keys = keys;
-  settings.threshold = parseFloat(document.getElementById('rag-threshold')?.value || '0.7');
-  settings.topk = parseInt(document.getElementById('rag-topk')?.value || '5');
+  settings.threshold    = parseFloat(document.getElementById('rag-threshold')?.value || '0.7');
+  settings.topk         = parseInt(document.getElementById('rag-topk')?.value || '5');
   settings.embeddingModel = document.getElementById('embedding-model-select')?.value || 'text-embedding-3-small';
-
+  delete settings.keys; // Never store keys in localStorage
   saveAiSettingsToStorage(settings);
 
-  // Push API keys to Edge Function for server-side storage (optional, if endpoint exists)
-  try {
-    await fetch(WISSENSHUB_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${(await sb.auth.getSession()).data.session?.access_token}` },
-      body: JSON.stringify({ action: 'save_settings', settings: { model: settings.model, threshold: settings.threshold, topk: settings.topk, embeddingModel: settings.embeddingModel } })
-    });
-  } catch (_) { /* silently ignore — local storage is the fallback */ }
+  // ── API keys → Supabase knowledge.settings (admin-only RLS, encrypted at rest) ──
+  // Keys NEVER leave the browser unencrypted to localStorage.
+  const keyMap = { anthropic: 'api_key_anthropic', openai: 'api_key_openai', google: 'api_key_google', voyage: 'api_key_voyage' };
+  const upserts = [];
+  for (const [local, dbKey] of Object.entries(keyMap)) {
+    const inp = document.getElementById('key-' + local);
+    if (!inp) continue;
+    const val = inp.value.trim();
+    if (!val || val.startsWith('••')) continue; // unchanged masked placeholder → skip
+    upserts.push({ key: dbKey, value: val, updated_by: (await sb.auth.getUser()).data.user?.id, updated_at: new Date().toISOString() });
+    inp.value = ''; // Clear field immediately after saving
+  }
+  if (upserts.length > 0) {
+    const { error } = await sb.schema('knowledge').from('settings').upsert(upserts, { onConflict: 'key' });
+    if (error) { toast('Fehler beim Speichern der API-Keys: ' + error.message, 'err'); return; }
+  }
 
   closeAiSettings();
-  toast('KI-Einstellungen gespeichert ✓', 'ok');
+  toast('Einstellungen gespeichert – API-Keys sicher in Supabase hinterlegt ✓', 'ok');
 
-  // Update current chat model selector if visible
   const chatModelSel = document.getElementById('chat-model-select');
   if (chatModelSel && settings.model) chatModelSel.value = settings.model;
 }

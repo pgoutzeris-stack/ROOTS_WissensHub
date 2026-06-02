@@ -53,14 +53,42 @@ function errorResponse(
 // ---------------------------------------------------------------------------
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY")!;
-const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY")!;
+// Fallback env vars (used if not overridden in knowledge.settings)
+const OPENAI_API_KEY_ENV = Deno.env.get("OPENAI_API_KEY") || "";
+const ANTHROPIC_API_KEY_ENV = Deno.env.get("ANTHROPIC_API_KEY") || "";
+const GOOGLE_API_KEY_ENV = Deno.env.get("GOOGLE_API_KEY") || "";
+const VOYAGE_API_KEY_ENV = Deno.env.get("VOYAGE_API_KEY") || "";
 
 // ---------------------------------------------------------------------------
 // Supabase admin client (service role — bypasses RLS for internal ops)
 // ---------------------------------------------------------------------------
 function getAdminClient() {
   return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+}
+
+// ---------------------------------------------------------------------------
+// API key resolver — reads from knowledge.settings, falls back to env vars
+// Keys are stored in Supabase, never exposed to frontend clients.
+// ---------------------------------------------------------------------------
+const _keyCache: Record<string, string> = {};
+const _keyCacheAt: Record<string, number> = {};
+const KEY_CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+async function getApiKey(name: "openai" | "anthropic" | "google" | "voyage"): Promise<string> {
+  const now = Date.now();
+  if (_keyCache[name] && now - (_keyCacheAt[name] || 0) < KEY_CACHE_TTL) {
+    return _keyCache[name];
+  }
+  const dbKey = `api_key_${name}`;
+  const { data } = await getAdminClient()
+    .schema("knowledge").from("settings").select("value").eq("key", dbKey).maybeSingle();
+  const val = (data?.value as string | null) || {
+    openai: OPENAI_API_KEY_ENV, anthropic: ANTHROPIC_API_KEY_ENV,
+    google: GOOGLE_API_KEY_ENV, voyage: VOYAGE_API_KEY_ENV,
+  }[name] || "";
+  _keyCache[name] = val;
+  _keyCacheAt[name] = now;
+  return val;
 }
 
 // User-scoped client from JWT
@@ -92,7 +120,7 @@ async function embedText(text: string): Promise<number[]> {
   const res = await fetch("https://api.openai.com/v1/embeddings", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${await getApiKey('openai')}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -469,7 +497,7 @@ Antworte immer auf Deutsch, präzise und hilfreich. Wenn du unsicher bist, sage 
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
+        "x-api-key": await getApiKey("anthropic"),
         "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
