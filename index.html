@@ -1737,6 +1737,35 @@
     }
     .doc-card:hover .doc-card__preview { max-height:60px; margin-top:.4rem; }
 
+    /* ── Finder Sidebar ──────────────────────────────────────────── */
+    .finder-sidebar { display:flex; flex-direction:column; padding:.4rem 0; }
+    .finder-section-label { display:flex; align-items:center; padding:.5rem .75rem .2rem; font-size:.68rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.07em; }
+    .finder-item { display:flex; align-items:center; gap:.5rem; width:100%; padding:.32rem .75rem; background:none; border:none; border-radius:6px; cursor:pointer; font-family:inherit; font-size:.82rem; color:var(--ink); text-align:left; transition:background .1s; margin-bottom:1px; }
+    .finder-item:hover { background:var(--surface-2,#f1f5f9); }
+    .finder-item.active { background:var(--brand); color:#fff; }
+    .finder-item.active .finder-item-badge { background:rgba(255,255,255,.25); color:#fff; }
+    .finder-item-icon { width:16px; text-align:center; font-size:.8rem; flex-shrink:0; }
+    .finder-item-label { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .finder-item-badge { font-size:.66rem; font-weight:600; color:var(--muted); background:var(--surface-2,#f1f5f9); border-radius:999px; padding:.05rem .45rem; flex-shrink:0; }
+    /* Ordner-Zeilen im Tree */
+    .finder-folder-row { display:flex; flex-direction:column; }
+    .finder-folder-btn { display:flex; align-items:center; gap:.4rem; width:100%; padding:.3rem .5rem; background:none; border:none; border-radius:6px; cursor:pointer; font-family:inherit; font-size:.82rem; color:var(--ink); text-align:left; transition:background .1s; }
+    .finder-folder-btn:hover { background:var(--surface-2,#f1f5f9); }
+    .finder-folder-btn.active { background:rgba(32,110,251,.12); color:var(--brand); font-weight:600; }
+    .finder-chevron { font-size:.6rem; color:var(--muted); transition:transform .15s; width:10px; flex-shrink:0; }
+    .finder-chevron.open { transform:rotate(90deg); }
+    .finder-folder-icon { font-size:.82rem; flex-shrink:0; }
+    .finder-folder-name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .finder-folder-count { font-size:.66rem; color:var(--muted); flex-shrink:0; }
+    /* Dokumente im Finder-Tree (children) */
+    .finder-folder-children { display:none; padding-left:1.1rem; border-left:1px solid var(--line); margin-left:.9rem; }
+    .finder-folder-children.open { display:flex; flex-direction:column; }
+    .finder-doc-row { display:flex; align-items:center; gap:.4rem; padding:.22rem .5rem; font-size:.78rem; color:var(--ink); border-radius:5px; cursor:pointer; transition:background .1s; }
+    .finder-doc-row:hover { background:var(--surface-2,#f1f5f9); }
+    .finder-doc-row.active { background:rgba(32,110,251,.1); color:var(--brand); }
+    .finder-doc-icon { font-size:.72rem; color:var(--muted); flex-shrink:0; }
+    .finder-doc-name { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
     /* ─── 3. List table ─── */
     .doc-table { width:100%; border-collapse:collapse; font-size:.82rem; }
     .doc-table thead th { padding:.5rem .75rem; text-align:left; font-size:.72rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; border-bottom:2px solid var(--line); white-space:nowrap; user-select:none; }
@@ -1750,6 +1779,10 @@
     .doc-table-date { white-space:nowrap; }
     .doc-table-actions { text-align:right; white-space:nowrap; opacity:0; transition:opacity .15s; }
     .doc-table-row:hover .doc-table-actions { opacity:1; }
+
+    /* Folder group rows in list table */
+    .doc-table-folder-row td { border-bottom:2px solid var(--line); user-select:none; }
+    .doc-table-folder-row:hover td { background:var(--surface-2,#f1f5f9) !important; }
   </style>
 </head>
 <body>
@@ -1851,29 +1884,33 @@
           KI-Chat
         </button>
 
-        <!-- Folder tree -->
-        <div class="folder-section-header" style="margin-top:.75rem">
-          <span class="folder-section-title">Ordner</span>
-          <button class="btn-icon-sm" title="Neuer Ordner" onclick="openNewFolderModal()">
-            <i class="fa-solid fa-plus"></i>
+        <!-- Finder-style Sidebar -->
+        <div class="finder-sidebar">
+
+          <!-- Statische Favoriten -->
+          <div class="finder-section-label">Favoriten</div>
+          <button class="finder-item" id="finder-all" onclick="selectFolderFilter(null)" data-filter="all">
+            <i class="fa-solid fa-tray-arrow-down finder-item-icon" style="color:#5e9cf5"></i>
+            <span class="finder-item-label">Alle Dokumente</span>
+            <span class="finder-item-badge" id="finder-count-all">–</span>
           </button>
-        </div>
-        <div class="folder-tree" id="folder-tree">
-          <button class="folder-item active" data-folder-id=""
-            onclick="selectFolder(this,'')"
-            ondragover="event.preventDefault()"
-            ondrop="onDropToFolder(event,'')">
-            <i class="fa-solid fa-inbox"></i>
-            Alle Dokumente
-            <span class="folder-count" id="folder-count-all">–</span>
+          <button class="finder-item" id="finder-recent" onclick="selectFolderFilter('recent')">
+            <i class="fa-solid fa-clock finder-item-icon" style="color:#f59e0b"></i>
+            <span class="finder-item-label">Zuletzt geöffnet</span>
           </button>
+
+          <!-- Ordner-Baum -->
+          <div class="finder-section-label" style="margin-top:.75rem">
+            Ordner
+            <button class="btn-icon-sm" onclick="openNewFolderModal()" title="Neuer Ordner" style="margin-left:auto"><i class="fa-solid fa-plus"></i></button>
+          </div>
+          <div id="finder-folder-tree"></div>
+
         </div>
 
-        <!-- 1c. Zuletzt geöffnet -->
-        <div class="folder-section-header" style="margin-top:.5rem">
-          <span class="folder-section-title">Zuletzt geöffnet</span>
-        </div>
-        <div id="recent-docs-list" style="display:flex;flex-direction:column;gap:1px"></div>
+        <!-- hidden: kept for compatibility -->
+        <span class="folder-count" id="folder-count-all" style="display:none">–</span>
+        <div id="recent-docs-list" style="display:none"></div>
 
         <!-- Tag cloud -->
         <div class="folder-section-header" style="margin-top:.75rem">
@@ -2393,6 +2430,9 @@ const state = {
   recentDocIds: [],
   listSortField: 'created_at',
   listSortDir: 'desc',
+  openFolderIds: new Set(),
+  activeFilter: 'all',
+  collapsedGroups: new Set(),
 };
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -2587,7 +2627,7 @@ async function loadFolders() {
     }
     const { folders } = await res.json();
     state.folders = folders || [];
-    renderFolderTree(state.folders);
+    renderFinderTree();
     renderStructurePreview();
     populateFolderSelects(state.folders);
   } catch (err) {
@@ -2599,72 +2639,99 @@ async function loadFolders() {
 }
 
 function renderFolderTree(folders) {
-  const tree = document.getElementById('folder-tree');
-  const allBtn = tree.querySelector('[data-folder-id=""]');
-  tree.innerHTML = '';
-  tree.appendChild(allBtn);
-
-  const roots = folders.filter(f => !f.parent_id);
-  roots.forEach(f => renderFolderNode(tree, f, folders));
+  // Legacy shim — delegates to new Finder tree
+  renderFinderTree();
 }
 
 function renderFolderNode(container, folder, allFolders, depth = 0) {
-  const wrap = document.createElement('div');
-  wrap.style.paddingLeft = depth > 0 ? '.8rem' : '0';
+  // Legacy shim — no-op, renderFinderTree handles rendering
+}
+
+function renderFinderTree() {
+  const tree = document.getElementById('finder-folder-tree');
+  if (!tree) return;
+  tree.innerHTML = '';
+
+  // Update "Alle Dokumente" badge
+  const badge = document.getElementById('finder-count-all');
+  if (badge) badge.textContent = state.totalDocuments ?? state.documents.length;
+
+  // Active state für Favoriten
+  document.getElementById('finder-all')?.classList.toggle('active', state.activeFilter === 'all' || !state.activeFilter);
+  document.getElementById('finder-recent')?.classList.toggle('active', state.activeFilter === 'recent');
+
+  const rootFolders = state.folders.filter(f => !f.parent_id);
+  rootFolders.forEach(f => renderFinderFolderNode(tree, f, 0));
+}
+
+function renderFinderFolderNode(container, folder, depth) {
+  const isOpen = state.openFolderIds?.has(folder.id);
+  const isActive = state.activeFolderId === folder.id;
+  const docsInFolder = state.documents.filter(d => d.folder_id === folder.id);
+  const childFolders = state.folders.filter(f => f.parent_id === folder.id);
+  const hasChildren = docsInFolder.length > 0 || childFolders.length > 0;
+
+  const row = document.createElement('div');
+  row.className = 'finder-folder-row';
 
   const btn = document.createElement('button');
-  btn.className = `folder-item${state.activeFolderId === folder.id ? ' active' : ''}`;
-  btn.dataset.folderId = folder.id;
+  btn.className = `finder-folder-btn${isActive ? ' active' : ''}`;
+  btn.style.paddingLeft = (.5 + depth * .8) + 'rem';
+  btn.innerHTML = `
+    <i class="finder-chevron fa-solid fa-chevron-right${isOpen ? ' open' : ''}" style="${hasChildren ? '' : 'opacity:0;pointer-events:none'}"></i>
+    <i class="finder-folder-icon fa-solid ${escHtml(folder.icon || 'fa-folder')}" style="color:${escHtml(folder.color || '#206efb')}"></i>
+    <span class="finder-folder-name">${escHtml(folder.name)}</span>
+    <span class="finder-folder-count">${docsInFolder.length || ''}</span>`;
 
-  // 1a. Doc count badge from state.documents
-  const docCount = state.documents.filter(d => d.folder_id === folder.id).length;
-
-  // 1b. Color indicator
-  if (folder.color) {
-    btn.style.setProperty('--folder-color', folder.color);
-    btn.classList.add('has-color');
-  }
-
-  btn.innerHTML = `<i class="fa-solid ${escHtml(folder.icon || 'fa-folder')}${state.activeFolderId === folder.id ? '-open' : ''}" style="color:${escHtml(folder.color || '#206efb')}"></i>
-    ${escHtml(folder.name)}
-    <span class="folder-count">${docCount || (folder.doc_count ?? '')}</span>
-    <button class="folder-ctx-btn" onclick="event.stopPropagation();showCtxMenu(event,'folder',${JSON.stringify(folder).replace(/"/g,'&quot;')})">
-      <i class="fa-solid fa-ellipsis"></i>
-    </button>`;
-
-  btn.onclick = (e) => { if (!e.target.closest('.folder-ctx-btn')) selectFolder(btn, folder.id); };
+  btn.onclick = (e) => {
+    if (!state.openFolderIds) state.openFolderIds = new Set();
+    if (isOpen) state.openFolderIds.delete(folder.id);
+    else state.openFolderIds.add(folder.id);
+    state.activeFolderId = folder.id;
+    state.activeFilter = 'folder';
+    renderFinderTree();
+    loadDocuments();
+  };
   btn.addEventListener('contextmenu', e => showCtxMenu(e, 'folder', folder));
   btn.addEventListener('dragover', e => { e.preventDefault(); btn.classList.add('drag-over'); });
   btn.addEventListener('dragleave', () => btn.classList.remove('drag-over'));
   btn.addEventListener('drop', e => { btn.classList.remove('drag-over'); onDropToFolder(e, folder.id); });
 
-  wrap.appendChild(btn);
+  row.appendChild(btn);
 
-  // 1d. Folder tags as pills
-  const folderTags = [...new Set(
-    state.documents.filter(d => d.folder_id === folder.id)
-      .flatMap(d => Array.isArray(d.tags) ? d.tags : [])
-  )].slice(0, 5);
-  if (folderTags.length) {
-    const tagWrap = document.createElement('div');
-    tagWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;padding:.15rem .5rem .3rem 2rem';
-    tagWrap.innerHTML = folderTags.map(t =>
-      `<span class="tag-chip" style="font-size:.62rem;padding:.1rem .35rem;cursor:pointer" onclick="toggleTagFilter('${escHtml(t)}',this)">${escHtml(t)}</span>`
-    ).join('');
-    wrap.appendChild(tagWrap);
-  }
+  // Children (subfolders + docs) — aufklappbar
+  if (hasChildren) {
+    const children = document.createElement('div');
+    children.className = `finder-folder-children${isOpen ? ' open' : ''}`;
 
-  const children = allFolders.filter(f => f.parent_id === folder.id);
-  if (children.length) {
-    const sub = document.createElement('div');
-    sub.style.paddingLeft = '.75rem';
-    sub.style.borderLeft = '1px solid var(--line)';
-    sub.style.marginLeft = '.7rem';
-    children.forEach(c => renderFolderNode(sub, c, allFolders, depth + 1));
-    wrap.appendChild(sub);
+    // Sub-Ordner zuerst
+    childFolders.forEach(cf => renderFinderFolderNode(children, cf, depth + 1));
+
+    // Dann Dokumente
+    docsInFolder.forEach(doc => {
+      const docRow = document.createElement('div');
+      docRow.className = 'finder-doc-row';
+      docRow.draggable = true;
+      docRow.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', doc.id); });
+      docRow.innerHTML = `
+        <i class="finder-doc-icon fa-solid fa-file-lines"></i>
+        <span class="finder-doc-name">${escHtml(doc.title || doc.filename || 'Dokument')}</span>`;
+      docRow.onclick = () => openDocPreview(doc.id, doc.title);
+      docRow.addEventListener('contextmenu', e => showCtxMenu(e, 'doc', doc));
+      children.appendChild(docRow);
+    });
+
+    row.appendChild(children);
   }
-  container.appendChild(wrap);
+  container.appendChild(row);
 }
+
+window.selectFolderFilter = function(filter) {
+  state.activeFilter = filter || 'all';
+  state.activeFolderId = '';
+  renderFinderTree();
+  loadDocuments();
+};
 
 function renderStructurePreview() {
   const wrap = document.getElementById('structure-tree-preview');
@@ -2697,14 +2764,19 @@ function renderStructurePreview() {
 }
 
 window.selectFolderById = function(folderId) {
-  const btn = document.querySelector(`#folder-tree .folder-item[data-folder-id="${CSS.escape(folderId)}"]`);
-  if (btn) selectFolder(btn, folderId);
+  if (!state.openFolderIds) state.openFolderIds = new Set();
+  state.openFolderIds.add(folderId);
+  state.activeFolderId = folderId;
+  state.activeFilter = 'folder';
+  renderFinderTree();
+  loadDocuments();
 };
 
 window.selectFolder = function(el, folderId) {
   state.activeFolderId = folderId;
-  document.querySelectorAll('#folder-tree .folder-item').forEach(b => b.classList.remove('active'));
-  el.classList.add('active');
+  state.activeFilter = folderId ? 'folder' : 'all';
+  if (folderId && state.openFolderIds) state.openFolderIds.add(folderId);
+  renderFinderTree();
   loadDocuments();
 };
 
@@ -2834,8 +2906,10 @@ async function loadDocuments() {
       state.totalDocuments = total ?? state.documents.length;
     }
     const displayTotal = state.totalDocuments ?? total ?? state.documents.length;
-    document.getElementById('folder-count-all').textContent = displayTotal;
+    const legacyCountEl = document.getElementById('folder-count-all');
+    if (legacyCountEl) legacyCountEl.textContent = displayTotal;
     document.getElementById('chat-doc-count').textContent = `${displayTotal} Dokument${displayTotal !== 1 ? 'e' : ''} indexiert`;
+    renderFinderTree();
     renderDocuments();
     if (state.docView === 'graph') initKnowledgeGraph();
   } catch (err) {
@@ -2906,9 +2980,67 @@ window.renderDocuments = function() {
   if (state.docView === 'list') {
     renderListViewTable(docs);
   } else {
-    docs.forEach(doc => grid.appendChild(makeDocCard(doc)));
+    renderGroupedCards(docs, grid);
   }
 };
+
+// Folder-grouped card view
+function renderGroupedCards(docs, grid) {
+  grid.innerHTML = '';
+
+  // Gruppe: Docs ohne Ordner
+  const unfiled = docs.filter(d => !d.folder_id);
+
+  // Gruppen pro Ordner (nur Ordner mit mind. 1 Dokument)
+  const folderGroups = state.folders
+    .map(f => ({ folder: f, docs: docs.filter(d => d.folder_id === f.id) }))
+    .filter(g => g.docs.length > 0);
+
+  // Reihenfolge: Ordner zuerst (alphabetisch), dann ungrouped
+  const groups = [
+    ...folderGroups,
+    ...(unfiled.length ? [{ folder: null, docs: unfiled }] : [])
+  ];
+
+  if (!groups.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="empty-state__icon"><i class="fa-solid fa-file-lines"></i></div><div class="empty-state__title">Keine Dokumente</div><div class="empty-state__text">Lade deine ersten Markdown-Dokumente hoch.</div></div>`;
+    return;
+  }
+
+  groups.forEach(({ folder, docs: groupDocs }) => {
+    const groupId = folder?.id || '__unfiled__';
+    const isOpen = !state.collapsedGroups?.has(groupId);
+
+    // Folder Header
+    const header = document.createElement('div');
+    header.style.cssText = 'grid-column:1/-1;display:flex;align-items:center;gap:.6rem;padding:.5rem 0 .3rem;cursor:pointer;border-bottom:1px solid var(--line);margin-bottom:.3rem';
+    header.innerHTML = folder
+      ? `<i class="fa-solid fa-chevron-right" style="font-size:.65rem;color:var(--muted);transition:transform .15s;${isOpen?'transform:rotate(90deg)':''}"></i>
+         <i class="fa-solid ${escHtml(folder.icon||'fa-folder')}" style="color:${escHtml(folder.color||'#206efb')}"></i>
+         <span style="font-size:.85rem;font-weight:700;color:var(--ink)">${escHtml(folder.name)}</span>
+         <span style="font-size:.72rem;color:var(--muted)">${groupDocs.length} Dokument${groupDocs.length!==1?'e':''}</span>`
+      : `<i class="fa-solid fa-chevron-right" style="font-size:.65rem;color:var(--muted);transition:transform .15s;${isOpen?'transform:rotate(90deg)':''}"></i>
+         <i class="fa-solid fa-inbox" style="color:var(--muted)"></i>
+         <span style="font-size:.85rem;font-weight:700;color:var(--muted)">Ohne Ordner</span>
+         <span style="font-size:.72rem;color:var(--muted)">${groupDocs.length}</span>`;
+
+    header.onclick = () => {
+      if (!state.collapsedGroups) state.collapsedGroups = new Set();
+      if (state.collapsedGroups.has(groupId)) state.collapsedGroups.delete(groupId);
+      else state.collapsedGroups.add(groupId);
+      renderDocuments();
+    };
+    grid.appendChild(header);
+
+    if (isOpen) {
+      // Sub-grid für diese Gruppe
+      const subgrid = document.createElement('div');
+      subgrid.style.cssText = 'grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:.75rem;margin-bottom:.75rem';
+      groupDocs.forEach(doc => subgrid.appendChild(makeDocCard(doc)));
+      grid.appendChild(subgrid);
+    }
+  });
+}
 
 function makeDocListRow(doc) {
   const row = document.createElement('div');
@@ -2992,69 +3124,72 @@ function makeDocCard(doc, index = 0) {
 
 // makeDocListRow ist oben definiert (neuere Version mit drag+contextmenu)
 
-// ─── Abschnitt 3: List-View Table ─────────────────────────────────────────────
+// ─── Abschnitt 3: List-View Table (folder-grouped) ────────────────────────────
 function renderListViewTable(docs) {
   const listEl = document.getElementById('doc-list');
   if (!listEl) return;
 
-  const sortField = state.listSortField || 'created_at';
-  const sortDir   = state.listSortDir  || 'desc';
+  // Gruppe nach Ordner
+  const folderGroups = state.folders
+    .map(f => ({ folder: f, docs: docs.filter(d => d.folder_id === f.id) }))
+    .filter(g => g.docs.length > 0);
+  const unfiled = docs.filter(d => !d.folder_id);
 
-  const sortIcon = (field) => sortField === field
-    ? `<i class="fa-solid fa-sort-${sortDir === 'asc' ? 'up' : 'down'}" style="color:var(--brand);margin-left:3px;font-size:.7rem"></i>`
-    : `<i class="fa-solid fa-sort" style="color:var(--line);margin-left:3px;font-size:.7rem"></i>`;
-
-  const sortBy = (field) => `window.sortDocList('${field}')`;
-
-  const rows = docs.map(doc => {
-    const folder = state.folders.find(f => f.id === doc.folder_id);
+  const renderRow = (doc) => {
     const tags = Array.isArray(doc.tags) ? doc.tags : [];
-    const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
+    const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
     const embSt = doc.embedding_status || 'pending';
-    const statusClass = embSt === 'done' ? 'verarbeitet' : embSt === 'error' ? 'fehler' : 'pending';
-    const statusLabel = embSt === 'done' ? 'OK' : embSt === 'error' ? 'Fehler' : '…';
-    const hl = (txt) => state.search ? highlight(escHtml(txt||''), state.search.toLowerCase()) : escHtml(txt||'');
+    const sc = embSt==='done'?'verarbeitet':embSt==='error'?'fehler':'pending';
+    const sl = embSt==='done'?'OK':embSt==='error'?'Fehler':'…';
+    const hl = (t) => state.search ? highlight(escHtml(t||''),state.search.toLowerCase()) : escHtml(t||'');
     const docJson = JSON.stringify(doc).replace(/"/g,'&quot;');
     return `<tr class="doc-table-row" oncontextmenu="showCtxMenu(event,'doc',${docJson})">
-      <td class="doc-table-name">
-        <i class="fa-solid fa-file-lines" style="color:var(--brand);margin-right:.5rem;font-size:.8rem"></i>
-        <span style="cursor:pointer" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')">${hl(doc.title||'Dokument')}</span>
-      </td>
-      <td class="doc-table-folder">${folder ? `<i class="fa-solid fa-folder" style="color:${escHtml(folder.color||'#206efb')};margin-right:.3rem;font-size:.72rem"></i>${escHtml(folder.name)}` : '<span style="color:var(--muted)">—</span>'}</td>
-      <td class="doc-table-tags">${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.66rem">${escHtml(t)}</span>`).join('')}</td>
-      <td class="doc-table-size">
-        <div style="display:flex;align-items:center;gap:.4rem">
-          <div style="width:36px;height:4px;background:var(--line);border-radius:2px;flex-shrink:0">
-            <div style="height:100%;background:var(--brand);border-radius:2px;width:${Math.min(100,(doc.chunk_count||1)*6)}%"></div>
-          </div>
-          <span style="font-size:.72rem;color:var(--muted)">${doc.chunk_count||0}</span>
-        </div>
-      </td>
-      <td class="doc-table-date" style="font-size:.76rem;color:var(--muted)">${date}</td>
-      <td><span class="status-badge ${statusClass}" style="font-size:.68rem"><span class="status-dot"></span>${statusLabel}</span></td>
-      <td class="doc-table-actions">
-        <button class="btn-icon-sm" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" title="Vorschau"><i class="fa-solid fa-eye"></i></button>
-        <button class="btn-icon-sm" onclick="showCtxMenu(event,'doc',${docJson})" title="Optionen"><i class="fa-solid fa-ellipsis"></i></button>
-      </td>
+      <td class="doc-table-name"><i class="fa-solid fa-file-lines" style="color:var(--brand);margin-right:.4rem;font-size:.76rem"></i><span onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" style="cursor:pointer">${hl(doc.title||'Dokument')}</span></td>
+      <td class="doc-table-tags">${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.65rem">${escHtml(t)}</span>`).join('')}</td>
+      <td class="doc-table-size"><div style="display:flex;align-items:center;gap:.3rem"><div style="width:32px;height:3px;background:var(--line);border-radius:2px"><div style="height:100%;background:var(--brand);border-radius:2px;width:${Math.min(100,(doc.chunk_count||0)*7)}%"></div></div><span style="font-size:.7rem;color:var(--muted)">${doc.chunk_count||0}</span></div></td>
+      <td style="font-size:.75rem;color:var(--muted)">${date}</td>
+      <td><span class="status-badge ${sc}" style="font-size:.67rem"><span class="status-dot"></span>${sl}</span></td>
+      <td class="doc-table-actions"><button class="btn-icon-sm" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" title="Vorschau"><i class="fa-solid fa-eye"></i></button><button class="btn-icon-sm" onclick="showCtxMenu(event,'doc',${docJson})" title="Mehr"><i class="fa-solid fa-ellipsis"></i></button></td>
     </tr>`;
-  }).join('');
+  };
 
-  listEl.innerHTML = `
-    <table class="doc-table">
-      <thead>
-        <tr>
-          <th onclick="${sortBy('title')}" style="cursor:pointer">Name ${sortIcon('title')}</th>
-          <th onclick="${sortBy('folder')}" style="cursor:pointer">Ordner ${sortIcon('folder')}</th>
-          <th>Tags</th>
-          <th onclick="${sortBy('chunk_count')}" style="cursor:pointer">Größe ${sortIcon('chunk_count')}</th>
-          <th onclick="${sortBy('created_at')}" style="cursor:pointer">Datum ${sortIcon('created_at')}</th>
-          <th>Status</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+  const renderGroup = (folder, groupDocs) => {
+    const gid = folder?.id || '__unfiled__';
+    const isOpen = !state.collapsedGroups?.has(gid);
+    const hdr = folder
+      ? `<tr class="doc-table-folder-row" onclick="toggleListGroup('${folder.id}')"><td colspan="6" style="padding:.5rem .75rem;font-weight:700;cursor:pointer;background:var(--surface-2,#f8fafc)"><i class="fa-solid fa-chevron-right" style="font-size:.6rem;margin-right:.5rem;color:var(--muted);transition:transform .15s;${isOpen?'transform:rotate(90deg);display:inline-block':''}"></i><i class="fa-solid ${escHtml(folder.icon||'fa-folder')}" style="color:${escHtml(folder.color||'#206efb')};margin-right:.4rem"></i>${escHtml(folder.name)}<span style="font-size:.7rem;font-weight:400;color:var(--muted);margin-left:.5rem">${groupDocs.length} Dok.</span></td></tr>`
+      : `<tr class="doc-table-folder-row" onclick="toggleListGroup('__unfiled__')"><td colspan="6" style="padding:.5rem .75rem;font-weight:700;cursor:pointer;background:var(--surface-2,#f8fafc)"><i class="fa-solid fa-chevron-right" style="font-size:.6rem;margin-right:.5rem;color:var(--muted);${isOpen?'transform:rotate(90deg);display:inline-block':''}"></i><i class="fa-solid fa-inbox" style="color:var(--muted);margin-right:.4rem"></i>Ohne Ordner<span style="font-size:.7rem;font-weight:400;color:var(--muted);margin-left:.5rem">${groupDocs.length}</span></td></tr>`;
+    return hdr + (isOpen ? groupDocs.map(renderRow).join('') : '');
+  };
+
+  function sortIcon(field) {
+    if (state.listSortField !== field) return '<i class="fa-solid fa-sort" style="color:var(--line);margin-left:3px;font-size:.68rem"></i>';
+    return `<i class="fa-solid fa-sort-${state.listSortDir==='asc'?'up':'down'}" style="color:var(--brand);margin-left:3px;font-size:.68rem"></i>`;
+  }
+
+  let html = `<table class="doc-table"><thead><tr>
+    <th onclick="sortDocList('title')" style="cursor:pointer">Name ${sortIcon('title')}</th>
+    <th>Tags</th>
+    <th onclick="sortDocList('chunk_count')" style="cursor:pointer">Größe ${sortIcon('chunk_count')}</th>
+    <th onclick="sortDocList('created_at')" style="cursor:pointer">Datum ${sortIcon('created_at')}</th>
+    <th>Status</th>
+    <th></th>
+  </tr></thead><tbody>`;
+
+  [...folderGroups.map(g => renderGroup(g.folder, g.docs)),
+   ...(unfiled.length ? [renderGroup(null, unfiled)] : [])
+  ].forEach(s => html += s);
+
+  html += '</tbody></table>';
+  listEl.innerHTML = html;
 }
+
+window.toggleListGroup = function(id) {
+  if (!state.collapsedGroups) state.collapsedGroups = new Set();
+  if (state.collapsedGroups.has(id)) state.collapsedGroups.delete(id);
+  else state.collapsedGroups.add(id);
+  renderDocuments();
+};
 
 window.sortDocList = function(field) {
   if (state.listSortField === field) state.listSortDir = state.listSortDir === 'asc' ? 'desc' : 'asc';
@@ -4407,6 +4542,7 @@ function buildGraphScene(docs, width, height) {
       chunks: doc.chunk_count || 1,
       r: Math.max(9, Math.min(21, 9 + Math.sqrt(doc.chunk_count || 1) * 2)),
       color: colors[index % colors.length],
+      docContent: doc.content ? doc.content.slice(0, 300) : null,
     });
     addEdge(`folder:${folderId}`, docNode.id, state.graphMode === 'mindmap' ? 1.8 : .8, 'contains');
     if (state.graphMode === 'mindmap') {
@@ -4495,103 +4631,124 @@ function drawGraph(ctx, scene) {
   const { width, height, nodes, edges, hover, zoom, panX, panY } = scene;
   ctx.save();
   ctx.clearRect(0, 0, width, height);
-  const bg = ctx.createLinearGradient(0, 0, width, height);
-  bg.addColorStop(0, '#f8fafc');
-  bg.addColorStop(.55, '#eef5ff');
-  bg.addColorStop(1, '#f8fafc');
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, width, height);
-  ctx.translate(width / 2 + panX, height / 2 + panY);
+
+  // Hintergrund
+  const bg = ctx.createLinearGradient(0,0,width,height);
+  bg.addColorStop(0,'#f8fafc'); bg.addColorStop(.55,'#eef5ff'); bg.addColorStop(1,'#f8fafc');
+  ctx.fillStyle = bg; ctx.fillRect(0,0,width,height);
+
+  ctx.translate(width/2 + panX, height/2 + panY);
   ctx.scale(zoom, zoom);
-  ctx.translate(-width / 2, -height / 2);
+  ctx.translate(-width/2, -height/2);
 
+  // Level of Detail Schwellen
+  const LOD_DOCS    = 0.38;
+  const LOD_LABELS  = 0.55;
+  const LOD_TAGS    = 1.1;
+  const LOD_POSTIT  = 1.5;
+  const LOD_TEXT    = 2.2;
+
+  const showDocs   = zoom >= LOD_DOCS;
+  const showLabels = zoom >= LOD_LABELS;
+  const showTags   = zoom >= LOD_TAGS;
+  const showPostIt = zoom >= LOD_POSTIT;
+  const showText   = zoom >= LOD_TEXT;
+
+  // Hover-Verbindungen
   const connected = hover ? new Set([hover.id]) : null;
-  if (hover) edges.forEach(edge => {
-    if (edge.a.id === hover.id || edge.b.id === hover.id) {
-      connected.add(edge.a.id);
-      connected.add(edge.b.id);
-    }
+  if (hover) edges.forEach(e => {
+    if (e.a.id===hover.id||e.b.id===hover.id) { connected.add(e.a.id); connected.add(e.b.id); }
   });
 
-  // 4b: Zoom-level dependent visibility
-  const showDocs   = zoom >= 0.45;
-  const showTags   = zoom >= 1.3;
-  const showPostIt = zoom >= 1.6;
-
+  // Kanten
   edges.forEach(edge => {
-    // 4c: Hide doc edges at low zoom
-    if (edge.a.type === 'doc' && !showDocs) return;
-    if (edge.b.type === 'doc' && !showDocs) return;
-    const active = !connected || (connected.has(edge.a.id) && connected.has(edge.b.id));
-    ctx.beginPath();
-    ctx.moveTo(edge.a.x, edge.a.y);
-    const midX = (edge.a.x + edge.b.x) / 2;
-    const midY = (edge.a.y + edge.b.y) / 2 - (edge.kind === 'tag' ? 8 : 0);
-    ctx.quadraticCurveTo(midX, midY, edge.b.x, edge.b.y);
-    ctx.strokeStyle = active ? edgeColor(edge.kind, edge.weight) : 'rgba(148,163,184,.08)';
-    ctx.lineWidth = active ? Math.max(1, edge.weight * 1.6) : 1;
+    if (!showDocs && (edge.a.type==='doc'||edge.b.type==='doc')) return;
+    if (!showTags  && (edge.a.type==='tag'||edge.b.type==='tag')) return;
+    const active = !connected||(connected.has(edge.a.id)&&connected.has(edge.b.id));
+    ctx.beginPath(); ctx.moveTo(edge.a.x,edge.a.y);
+    const mx=(edge.a.x+edge.b.x)/2, my=(edge.a.y+edge.b.y)/2-(edge.kind==='tag'?8:0);
+    ctx.quadraticCurveTo(mx,my,edge.b.x,edge.b.y);
+    ctx.strokeStyle = active ? edgeColor(edge.kind,edge.weight) : 'rgba(148,163,184,.06)';
+    ctx.lineWidth   = active ? Math.max(1,edge.weight*1.4) : 0.5;
     ctx.stroke();
   });
 
+  // Knoten
   nodes.forEach(node => {
-    // 4b: Skip docs at low zoom, skip tags unless zoomed in
-    if (node.type === 'doc' && !showDocs) return;
-    if (node.type === 'tag' && !showTags) return;
+    if (node.type==='doc' && !showDocs) return;
+    if (node.type==='tag' && !showTags) return;
+    const active = !connected||connected.has(node.id);
+    ctx.globalAlpha = active ? 1 : .15;
 
-    const active = !connected || connected.has(node.id);
-    ctx.globalAlpha = active ? 1 : .18;
-
-    // 4b: Post-it mode for documents when zoomed in close
-    if (node.type === 'doc' && showPostIt) {
-      const pw = 110, ph = 54;
-      ctx.fillStyle = '#fff';
-      ctx.strokeStyle = node.color;
-      ctx.lineWidth = 2;
-      ctx.shadowColor = `${node.color}33`;
-      ctx.shadowBlur = 8;
-      const rx = node.x - pw/2, ry = node.y - ph/2;
+    // POST-IT Modus (close zoom, docs as cards)
+    if (node.type==='doc' && showPostIt) {
+      const pw = showText ? 160 : 120, ph = showText ? 90 : 58;
+      ctx.shadowColor=`${node.color}33`; ctx.shadowBlur=10;
+      ctx.fillStyle='#fff';
+      ctx.strokeStyle=active&&hover?.id===node.id ? node.color : `${node.color}88`;
+      ctx.lineWidth=1.5;
+      const rx=node.x-pw/2, ry=node.y-ph/2;
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(rx, ry, pw, ph, 6);
-      else { ctx.rect(rx, ry, pw, ph); }
-      ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
-      ctx.fillStyle = '#0f172a'; ctx.font = `600 10px Circular Std, sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const titleLine = node.title.length > 18 ? node.title.slice(0,17)+'…' : node.title;
-      ctx.fillText(titleLine, node.x, node.y - 8);
-      if (Array.isArray(node.tags) && node.tags.length) {
-        ctx.font = `9px Circular Std, sans-serif`;
-        ctx.fillStyle = node.color;
-        ctx.fillText('#'+node.tags.slice(0,2).join(' #'), node.x, node.y + 8);
+      if (ctx.roundRect) ctx.roundRect(rx,ry,pw,ph,7);
+      else { ctx.moveTo(rx+7,ry); ctx.lineTo(rx+pw-7,ry); ctx.quadraticCurveTo(rx+pw,ry,rx+pw,ry+7); ctx.lineTo(rx+pw,ry+ph-7); ctx.quadraticCurveTo(rx+pw,ry+ph,rx+pw-7,ry+ph); ctx.lineTo(rx+7,ry+ph); ctx.quadraticCurveTo(rx,ry+ph,rx,ry+ph-7); ctx.lineTo(rx,ry+7); ctx.quadraticCurveTo(rx,ry,rx+7,ry); ctx.closePath(); }
+      ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+
+      // Farbbalken oben
+      ctx.fillStyle=node.color;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(rx,ry,pw,5,{upperLeft:7,upperRight:7,lowerLeft:0,lowerRight:0});
+      else { ctx.rect(rx,ry,pw,5); }
+      ctx.fill();
+
+      ctx.textAlign='center'; ctx.textBaseline='top';
+
+      if (showText && node.docContent) {
+        ctx.font=`600 9px Circular Std,sans-serif`; ctx.fillStyle='#0f172a';
+        const title=node.title.length>22?node.title.slice(0,21)+'…':node.title;
+        ctx.fillText(title, node.x, ry+9);
+        ctx.font=`8px Circular Std,sans-serif`; ctx.fillStyle='#475569';
+        const preview=node.docContent.slice(0,120);
+        const words=preview.split(' '); let line=''; let ly=ry+21;
+        for(const w of words){
+          const test=line?line+' '+w:w;
+          if(ctx.measureText(test).width>pw-12&&line){
+            ctx.fillText(line,node.x,ly); line=w; ly+=10;
+            if(ly>ry+ph-14){ctx.fillText(line+'…',node.x,ly);break;}
+          } else line=test;
+        }
+        if(ly<=ry+ph-14) ctx.fillText(line,node.x,ly);
+      } else {
+        ctx.font=`600 10px Circular Std,sans-serif`; ctx.fillStyle='#0f172a';
+        const title=node.title.length>18?node.title.slice(0,17)+'…':node.title;
+        ctx.fillText(title,node.x,ry+10);
+        if(Array.isArray(node.tags)&&node.tags.length){
+          ctx.font=`8.5px Circular Std,sans-serif`; ctx.fillStyle=node.color;
+          ctx.fillText('#'+node.tags.slice(0,2).join(' #'),node.x,ry+26);
+        }
       }
-      ctx.globalAlpha = 1;
-      return;
+      ctx.globalAlpha=1; return;
     }
 
-    ctx.shadowColor = `${node.color}55`;
-    ctx.shadowBlur = active && hover?.id === node.id ? 24 : 10;
-    ctx.beginPath();
-    ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
-    ctx.fillStyle = node.color;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#fff';
-    ctx.stroke();
+    // NORMALER KREIS
+    ctx.shadowColor=`${node.color}55`; ctx.shadowBlur=active&&hover?.id===node.id?24:8;
+    ctx.beginPath(); ctx.arc(node.x,node.y,node.r,0,Math.PI*2);
+    ctx.fillStyle=node.color; ctx.fill(); ctx.shadowBlur=0;
+    ctx.strokeStyle='#fff'; ctx.lineWidth=node.type==='folder'?2.5:1.5; ctx.stroke();
 
-    // 4d: Label with white background
-    ctx.font = `11px Circular Std, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    const maxChars = node.type === 'tag' ? 18 : 20;
-    const label = node.title.length > maxChars ? `${node.title.slice(0, maxChars - 1)}…` : node.title;
-    const textWidth = ctx.measureText(label).width;
-    ctx.fillStyle = 'rgba(255,255,255,0.75)';
-    ctx.fillRect(node.x - textWidth/2 - 2, node.y + node.r + 3, textWidth + 4, 14);
-    ctx.fillStyle = node.type === 'tag' ? '#475569' : '#0f172a';
-    ctx.fillText(label, node.x, node.y + node.r + 5);
+    // Label
+    if (showLabels) {
+      const maxCh=node.type==='folder'?16:14;
+      const label=node.title.length>maxCh?node.title.slice(0,maxCh-1)+'…':node.title;
+      ctx.font=`${node.type==='folder'?'700 ':''}${node.type==='folder'?11:10}px Circular Std,sans-serif`;
+      const tw=ctx.measureText(label).width;
+      ctx.fillStyle='rgba(255,255,255,.82)';
+      ctx.fillRect(node.x-tw/2-3,node.y+node.r+2,tw+6,13);
+      ctx.fillStyle=node.type==='folder'?node.color:'#0f172a';
+      ctx.textAlign='center'; ctx.textBaseline='top';
+      ctx.fillText(label,node.x,node.y+node.r+3);
+    }
   });
-  ctx.globalAlpha = 1;
-  ctx.restore();
+  ctx.globalAlpha=1; ctx.restore();
 }
 
 function edgeColor(kind, weight) {
