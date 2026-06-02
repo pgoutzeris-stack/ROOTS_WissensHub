@@ -1693,7 +1693,7 @@
     .finder-list-name { font-size:.84rem; font-weight:500; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .finder-list-meta { display:flex; align-items:center; gap:.3rem; flex-wrap:wrap; justify-content:flex-end; min-width:80px; }
     .finder-list-date { font-size:.73rem; color:var(--muted); white-space:nowrap; text-align:right; min-width:70px; }
-    .finder-list-actions { display:flex; gap:2px; opacity:0; width:0; overflow:hidden; transition:opacity .15s; flex-shrink:0; }
+    .finder-list-actions { display:flex; gap:2px; opacity:0; min-width:52px; transition:opacity .15s; flex-shrink:0; }
     /* Back/Forward buttons */
     #btn-nav-back:not([disabled]):hover,
     #btn-nav-fwd:not([disabled]):hover { background:var(--surface-2,#f1f5f9); color:var(--ink); }
@@ -4589,6 +4589,9 @@ window.closeDocPreview = window.closeDocPreview;
 window.showCtxMenu = showCtxMenu;
 window.toggleTagFilter = toggleTagFilter;
 window.updateRecentDocs = updateRecentDocs;
+window.navigateTo = function(folderId, label) { navigateTo(folderId, label); }; // HTML onclick fix
+window.selectFolder = selectFolder; // legacy
+window.toggleListGroup = toggleListGroup;
 
 // ─── Duplikat-Erkennung ──────────────────────────────────────────────────────
 let _dupResolve = null;
