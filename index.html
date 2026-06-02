@@ -4976,9 +4976,10 @@ window.saveAiSettings = saveAiSettings;
 
 // ── Zoom-Schwellen ─────────────────────────────────────────────────────────────
 const Z_ROOT    = 0;    // Root-Ordner immer sichtbar
-const Z_CHILD   = 1.4;  // Unterordner + Docs ab 140% (relativ zum fit-zoom)
-const Z_CARDS   = 3.0;  // Doc-Kacheln ab 300%
-const Z_SIMILAR = 3.5;  // Ähnlichkeits-Linien ab 350%
+const Z_SUBFOLDER = 0;  // Unterordner ebenfalls sofort sichtbar
+const Z_CHILD   = 1.6;  // Dokumente erst ab 160% zoom
+const Z_CARDS   = 3.2;  // Doc-Kacheln ab 320%
+const Z_SIMILAR = 3.8;  // Ähnlichkeits-Linien ab 380%
 
 // ── State ──────────────────────────────────────────────────────────────────────
 let _gv = {
@@ -5070,9 +5071,9 @@ function _buildHierarchicalLayout() {
     const tx = parent.tx + Math.cos(angle)*R_CHILD;
     const ty = parent.ty + Math.sin(angle)*R_CHILD;
     const n = _makeNode('f:'+f.id, 'subfolder', f.name, f.color||parent.color, 16,
-      tx,ty, parent.tx,parent.ty, Z_CHILD, {folderId:f.id});
+      tx,ty, parent.tx,parent.ty, 0, {folderId:f.id}); // sofort sichtbar
     nodes.push(n); byId.set(n.id, n);
-    edges.push({a:parent, b:n, kind:'folder', w:2.5, revealAt:Z_CHILD});
+    edges.push({a:parent, b:n, kind:'folder', w:2.5, revealAt:0}); // sofort
   });
 
   // ── Level 1: Dokumente ──
@@ -5097,8 +5098,11 @@ function _buildHierarchicalLayout() {
     const ty = parentNode.ty + Math.sin(angle)*radius;
     const tags = Array.isArray(doc.tags)?doc.tags:[];
     const r = Math.max(6, Math.min(13, 6+Math.sqrt(doc.chunk_count||1)));
+    // Viele Docs in Ordner → erst beim Zoom, wenige → eher zeigen
+    const fewDocs = siblings.length <= 3;
+    const docReveal = fewDocs ? 0.8 : Z_CHILD; // Wenige Docs früher sichtbar
     const n = _makeNode('d:'+doc.id, 'doc', doc.title||'Dok', parentNode.color, r,
-      tx,ty, parentNode.tx,parentNode.ty, Z_CHILD,
+      tx,ty, parentNode.tx,parentNode.ty, docReveal,
       {docId:doc.id, tags, chunks:doc.chunk_count||0, uploader:doc.uploader_name||'',
        date:doc.created_at||'', size:doc.file_size_bytes||0, content:null,
        folderId:doc.folder_id||null});
@@ -5250,19 +5254,18 @@ function _draw(ctx) {
     // Glow bei Hover
     if (isHover) { ctx.shadowColor=n.color; ctx.shadowBlur=20; }
 
-    ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
     if (n.type==='folder' || n.type==='subfolder') {
-      const g=ctx.createRadialGradient(n.x-n.r*.3,n.y-n.r*.3,0,n.x,n.y,n.r);
-      g.addColorStop(0,_lighten(n.color,20)); g.addColorStop(1,n.color);
-      ctx.fillStyle=g;
+      _drawFolderShape(ctx, n, isHover);
     } else {
+      // Dokument-Kreis
+      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
       ctx.fillStyle='#ffffff';
+      ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.strokeStyle=n.color;
+      ctx.lineWidth=(isHover?2.5:1.8);
+      ctx.stroke();
     }
-    ctx.fill();
-    ctx.shadowBlur=0;
-    ctx.strokeStyle=n.type==='doc' ? n.color : 'rgba(255,255,255,.85)';
-    ctx.lineWidth=(isHover?2.5:1.8)/1;
-    ctx.stroke();
 
     // Label (nur wenn genug Zoom oder Hover)
     const showLabel = n.type==='folder' || (z>0.7 && n.revealP>0.7) || isHover;
@@ -5272,7 +5275,8 @@ function _draw(ctx) {
       const fs = n.type==='folder' ? 12 : 10;
       ctx.font=`${n.type==='folder'?'700 ':''}${fs}px Circular Std,system-ui`;
       const tw=ctx.measureText(lbl).width;
-      const py=n.y+n.r+5;
+      // Folder shape ist höher als der Radius — Label weiter unten
+      const py = (n.type==='folder'||n.type==='subfolder') ? n.y + n.r*1.15 + 5 : n.y+n.r+5;
       ctx.fillStyle='rgba(248,250,252,.92)';
       ctx.fillRect(n.x-tw/2-4,py,tw+8,fs+5);
       ctx.fillStyle=n.type==='folder'?'#0f172a':'#475569';
@@ -5313,6 +5317,60 @@ function _drawDocCard(ctx, n, isHover, z) {
     if(line&&ly<=ry+ph-14) ctx.fillText(line,n.x,ly);
   }
   ctx.globalAlpha=1; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+}
+
+
+// ── Ordner-Form ────────────────────────────────────────────────────────────────
+function _drawFolderShape(ctx, n, isHover) {
+  const s = n.r * 2.2; // Größe (Breite des Ordners)
+  const w = s, h = s * 0.76;
+  const x = n.x - w/2, y = n.y - h/2;
+  const tab = w * 0.35, tabH = h * 0.16;
+  const rr = 4; // border-radius
+
+  // Schatten
+  if (isHover) { ctx.shadowColor = n.color+'66'; ctx.shadowBlur = 18; }
+
+  // Hintergrund-Farbe (leichter Gradient)
+  const grd = ctx.createLinearGradient(x, y, x, y+h);
+  grd.addColorStop(0, _lighten(n.color, 18));
+  grd.addColorStop(1, n.color);
+
+  // Tab (oben links)
+  ctx.beginPath();
+  ctx.moveTo(x+rr, y);
+  ctx.lineTo(x+tab, y);
+  ctx.lineTo(x+tab+tabH, y-tabH);
+  ctx.lineTo(x+tab+tabH+rr, y-tabH);
+  ctx.arcTo(x+tab+tabH+rr*2, y-tabH, x+tab+tabH+rr*2, y-tabH+rr, rr);
+  ctx.lineTo(x+tab+tabH+rr*2, y);
+  ctx.lineTo(x+w-rr, y);
+  ctx.arcTo(x+w, y, x+w, y+rr, rr);
+  ctx.lineTo(x+w, y+h-rr);
+  ctx.arcTo(x+w, y+h, x+w-rr, y+h, rr);
+  ctx.lineTo(x+rr, y+h);
+  ctx.arcTo(x, y+h, x, y+h-rr, rr);
+  ctx.lineTo(x, y+rr);
+  ctx.arcTo(x, y, x+rr, y, rr);
+  ctx.closePath();
+  ctx.fillStyle = grd;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Rand
+  ctx.strokeStyle = isHover ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.65)';
+  ctx.lineWidth = isHover ? 2 : 1.5;
+  ctx.stroke();
+
+  // Innere Linien (Papier-Anmutung)
+  if (n.r > 12) {
+    ctx.strokeStyle = 'rgba(255,255,255,.3)';
+    ctx.lineWidth = 1;
+    const lineY1 = y + h*0.45, lineY2 = y + h*0.65;
+    const lx1 = x + w*0.18, lx2 = x + w*0.82;
+    ctx.beginPath(); ctx.moveTo(lx1, lineY1); ctx.lineTo(lx2, lineY1); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(lx1, lineY2); ctx.lineTo(lx2, lineY2); ctx.stroke();
+  }
 }
 
 // ── Hilfs-Utilities ────────────────────────────────────────────────────────────
@@ -5367,7 +5425,8 @@ function _animZoom(targetZ, cx, cy) {
 }
 
 function _fitToRoots(setBase) {
-  const roots=_gv.nodes.filter(n=>n.type==='folder');
+  // Alle sofort sichtbaren Ordner für den Fit berücksichtigen
+  const roots=_gv.nodes.filter(n=>n.type==='folder'||n.type==='subfolder');
   if(!roots.length)return;
   const {width:W,height:H}=_gv;
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
