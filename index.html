@@ -3126,12 +3126,8 @@ window.renderDocuments = function() {
       const subfolders = state.folders.filter(f => f.parent_id === state.activeFolderId);
       const docsCache  = state.allDocs.length ? state.allDocs : state.documents;
 
-      // Unterordner-Kacheln
+      // Unterordner-Kacheln (kein Label — Items direkt wie Finder)
       if (subfolders.length) {
-        const hdr = document.createElement('div');
-        hdr.style.cssText = 'grid-column:1/-1;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:.1rem 0 .2rem';
-        hdr.textContent = 'Unterordner';
-        grid.appendChild(hdr);
 
         subfolders.forEach(f => {
           const card = document.createElement('div');
@@ -3154,16 +3150,8 @@ window.renderDocuments = function() {
         });
       }
 
-      // Dateien — IMMER anzeigen (nicht verstecken wenn Unterordner vorhanden)
-      if (docs.length) {
-        if (subfolders.length) {
-          const sep = document.createElement('div');
-          sep.style.cssText = 'grid-column:1/-1;font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding:.5rem 0 .2rem;border-top:1px solid var(--line);margin-top:.25rem';
-          sep.textContent = 'Dateien';
-          grid.appendChild(sep);
-        }
-        docs.forEach(doc => grid.appendChild(makeDocCard(doc)));
-      }
+      // Dateien — IMMER anzeigen, kein Label (Finder-Style)
+      docs.forEach(doc => grid.appendChild(makeDocCard(doc)));
 
       // Leerer Ordner
       if (!subfolders.length && !docs.length) {
@@ -3329,57 +3317,63 @@ function renderFolderDrillList(docs, listEl) {
   const docsCache  = state.allDocs.length ? state.allDocs : docs;
   const hl = (t) => state.search ? highlight(escHtml(t||''), state.search.toLowerCase()) : escHtml(t||'');
 
+  // Leerer Ordner
+  if (!subfolders.length && !docs.length) {
+    listEl.innerHTML = `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:3rem;gap:.75rem;color:var(--muted);text-align:center">
+      <i class="fa-solid fa-folder-open" style="font-size:2.5rem;opacity:.3"></i>
+      <div style="font-size:.9rem;font-weight:600;color:var(--ink)">Ordner ist leer</div>
+      <div style="font-size:.82rem">Lade Dokumente hoch oder erstelle Unterordner.</div>
+      <button class="btn-primary" style="margin-top:.25rem" onclick="openQuickUpload()"><i class="fa-solid fa-cloud-arrow-up"></i> Hochladen</button>
+    </div>`;
+    return;
+  }
+
+  // Finder-Style: Ordner und Dateien direkt ohne Section-Labels anzeigen
   let html = `<div class="finder-list">`;
 
-  // ── Unterordner ────────────────────────────────────────────────────────────
-  if (subfolders.length) {
-    html += `<div class="finder-list-section-label">Unterordner</div>`;
-    subfolders.forEach(f => {
-      const directDocs = docsCache.filter(d => d.folder_id === f.id).length;
-      const subCount   = state.folders.filter(sf => sf.parent_id === f.id).length;
-      const meta = [
-        directDocs ? `${directDocs} Datei${directDocs!==1?'en':''}` : '',
-        subCount   ? `${subCount} Unterordner` : ''
-      ].filter(Boolean).join(' · ') || 'Leer';
-      const fJson = JSON.stringify(f).replace(/"/g,'&quot;');
-      html += `<div class="finder-list-row finder-list-folder" onclick="navigateTo('${f.id}','${escHtml(f.name)}')" oncontextmenu="event.stopPropagation();showCtxMenu(event,'folder',${fJson})">
-        <div class="finder-list-icon"><i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')}"></i></div>
-        <div class="finder-list-name"><strong>${escHtml(f.name)}</strong></div>
-        <div class="finder-list-meta">${escHtml(meta)}</div>
-        <div class="finder-list-date"></div>
-        <div class="finder-list-actions">
-          <button class="btn-icon-sm" onclick="event.stopPropagation();showCtxMenu(event,'folder',${fJson})"><i class="fa-solid fa-ellipsis"></i></button>
-        </div>
-      </div>`;
-    });
-  }
+  // Unterordner-Zeilen (Ordner immer zuerst, wie Finder)
+  subfolders.forEach(f => {
+    const directDocs = docsCache.filter(d => d.folder_id === f.id).length;
+    const subCount   = state.folders.filter(sf => sf.parent_id === f.id).length;
+    const meta = [
+      directDocs ? `${directDocs} Datei${directDocs!==1?'en':''}` : '',
+      subCount   ? `${subCount} Unterordner` : ''
+    ].filter(Boolean).join(' · ') || 'Leer';
+    const fJson = JSON.stringify(f).replace(/"/g,'&quot;');
+    html += `<div class="finder-list-row finder-list-folder" onclick="navigateTo('${f.id}','${escHtml(f.name)}')" oncontextmenu="event.stopPropagation();showCtxMenu(event,'folder',${fJson})">
+      <div class="finder-list-icon"><i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')}"></i></div>
+      <div class="finder-list-name"><strong>${escHtml(f.name)}</strong></div>
+      <div class="finder-list-meta">${escHtml(meta)}</div>
+      <div class="finder-list-date"></div>
+      <div class="finder-list-actions">
+        <button class="btn-icon-sm" onclick="event.stopPropagation();showCtxMenu(event,'folder',${fJson})"><i class="fa-solid fa-ellipsis"></i></button>
+      </div>
+    </div>`;
+  });
 
-  // ── Dokumente ──────────────────────────────────────────────────────────────
-  if (docs.length) {
-    if (subfolders.length) html += `<div class="finder-list-section-label">Dateien</div>`;
-    docs.forEach(doc => {
-      const tags = Array.isArray(doc.tags) ? doc.tags : [];
-      const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
-      const size = doc.file_size_bytes ? formatBytes(doc.file_size_bytes) : '';
-      const docJson = JSON.stringify(doc).replace(/"/g,'&quot;');
-      html += `<div class="finder-list-row" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" oncontextmenu="showCtxMenu(event,'doc',${docJson})">
-        <div class="finder-list-icon"><i class="fa-solid fa-file-lines" style="color:var(--brand)"></i></div>
-        <div class="finder-list-name">${hl(doc.title||'Dokument')}</div>
-        <div class="finder-list-meta">
-          ${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.64rem;padding:.08rem .35rem">${escHtml(t)}</span>`).join('')}
-          ${!tags.length && size ? `<span style="font-size:.73rem;color:var(--muted)">${escHtml(size)}</span>` : ''}
-        </div>
-        <div class="finder-list-date">
-          <span style="font-size:.73rem;color:var(--muted)">${date}</span>
-          ${size && tags.length ? `<span style="font-size:.7rem;color:var(--line);margin-left:.4rem">${escHtml(size)}</span>` : ''}
-        </div>
-        <div class="finder-list-actions">
-          <button class="btn-icon-sm" onclick="event.stopPropagation();openDocPreview('${doc.id}','${escHtml(doc.title)}')" title="Vorschau"><i class="fa-solid fa-eye"></i></button>
-          <button class="btn-icon-sm" onclick="event.stopPropagation();showCtxMenu(event,'doc',${docJson})"><i class="fa-solid fa-ellipsis"></i></button>
-        </div>
-      </div>`;
-    });
-  }
+  // Datei-Zeilen direkt danach (kein Label)
+  docs.forEach(doc => {
+    const tags = Array.isArray(doc.tags) ? doc.tags : [];
+    const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
+    const size = doc.file_size_bytes ? formatBytes(doc.file_size_bytes) : '';
+    const docJson = JSON.stringify(doc).replace(/"/g,'&quot;');
+    html += `<div class="finder-list-row" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" oncontextmenu="showCtxMenu(event,'doc',${docJson})">
+      <div class="finder-list-icon"><i class="fa-solid fa-file-lines" style="color:var(--brand)"></i></div>
+      <div class="finder-list-name">${hl(doc.title||'Dokument')}</div>
+      <div class="finder-list-meta">
+        ${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.64rem;padding:.08rem .35rem">${escHtml(t)}</span>`).join('')}
+        ${!tags.length && size ? `<span style="font-size:.73rem;color:var(--muted)">${escHtml(size)}</span>` : ''}
+      </div>
+      <div class="finder-list-date">
+        <span style="font-size:.73rem;color:var(--muted)">${date}</span>
+        ${size && tags.length ? `<span style="font-size:.7rem;color:var(--line);margin-left:.4rem">${escHtml(size)}</span>` : ''}
+      </div>
+      <div class="finder-list-actions">
+        <button class="btn-icon-sm" onclick="event.stopPropagation();openDocPreview('${doc.id}','${escHtml(doc.title)}')" title="Vorschau"><i class="fa-solid fa-eye"></i></button>
+        <button class="btn-icon-sm" onclick="event.stopPropagation();showCtxMenu(event,'doc',${docJson})"><i class="fa-solid fa-ellipsis"></i></button>
+      </div>
+    </div>`;
+  });
 
   html += `</div>`;
   listEl.innerHTML = html;
