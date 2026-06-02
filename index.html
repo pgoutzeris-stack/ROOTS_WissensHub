@@ -2944,7 +2944,8 @@ window.renderDocuments = function() {
     const dir = state.listSortDir === 'asc' ? 1 : -1;
     docs.sort((a, b) => {
       if (state.listSortField === 'title') return dir * (a.title||'').localeCompare(b.title||'', 'de');
-      if (state.listSortField === 'chunk_count') return dir * ((a.chunk_count||0) - (b.chunk_count||0));
+      if (state.listSortField === 'chunk_count' || state.listSortField === 'file_size_bytes') return dir * ((a[state.listSortField]||0) - (b[state.listSortField]||0));
+      if (state.listSortField === 'uploader_name') return dir * (a.uploader_name||'').localeCompare(b.uploader_name||'','de');
       if (state.listSortField === 'folder') {
         const fa = state.folders.find(f => f.id === a.folder_id)?.name || '';
         const fb = state.folders.find(f => f.id === b.folder_id)?.name || '';
@@ -2981,9 +2982,43 @@ window.renderDocuments = function() {
     // Liste: immer mit Ordner-Gruppierung wenn kein spezifischer Ordner aktiv
     renderListViewTable(docs);
   } else {
-    // Kacheln: Ordner-Gruppenansicht nur bei "Alle Dokumente"
-    // Wenn ein spezifischer Ordner ausgewählt ist → flat (keine Untergruppen)
     if (state.activeFolderId) {
+      // Spezifischer Ordner aktiv: Unterordner als Ordner-Kacheln zuerst, dann Dokumente
+      const subfolders = state.folders.filter(f => f.parent_id === state.activeFolderId);
+      if (subfolders.length) {
+        // Unterordner-Header
+        const subHdr = document.createElement('div');
+        subHdr.style.cssText = 'grid-column:1/-1;font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:.25rem 0 .1rem';
+        subHdr.textContent = 'Unterordner';
+        grid.appendChild(subHdr);
+        // Unterordner-Kacheln
+        subfolders.forEach(f => {
+          const card = document.createElement('div');
+          card.className = 'doc-card';
+          card.style.cursor = 'pointer';
+          const docCount = state.documents.filter(d => d.folder_id === f.id).length;
+          card.innerHTML = `
+            <div class="doc-card__header">
+              <i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')};font-size:1.1rem;margin-right:.4rem"></i>
+              <div class="doc-card__title" style="flex:1">${escHtml(f.name)}</div>
+            </div>
+            <div style="font-size:.76rem;color:var(--muted);margin-top:.3rem">${docCount} Dokument${docCount!==1?'e':''}</div>`;
+          card.onclick = () => {
+            state.activeFolderId = f.id;
+            state.activeFilter = 'folder';
+            renderFinderTree();
+            loadDocuments();
+          };
+          grid.appendChild(card);
+        });
+        // Dateien-Header wenn vorhanden
+        if (docs.length) {
+          const docHdr = document.createElement('div');
+          docHdr.style.cssText = 'grid-column:1/-1;font-size:.72rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:.5rem 0 .1rem;border-top:1px solid var(--line);margin-top:.25rem';
+          docHdr.textContent = 'Dokumente';
+          grid.appendChild(docHdr);
+        }
+      }
       docs.forEach(doc => grid.appendChild(makeDocCard(doc)));
     } else {
       renderGroupedCards(docs, grid);
@@ -3148,17 +3183,16 @@ function renderListViewTable(docs) {
   const renderRow = (doc) => {
     const tags = Array.isArray(doc.tags) ? doc.tags : [];
     const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
-    const embSt = doc.embedding_status || 'pending';
-    const sc = embSt==='done'?'verarbeitet':embSt==='error'?'fehler':'pending';
-    const sl = embSt==='done'?'OK':embSt==='error'?'Fehler':'…';
+    const time = doc.created_at ? new Date(doc.created_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) : '';
+    const size = doc.file_size_bytes ? formatBytes(doc.file_size_bytes) : '–';
     const hl = (t) => state.search ? highlight(escHtml(t||''),state.search.toLowerCase()) : escHtml(t||'');
     const docJson = JSON.stringify(doc).replace(/"/g,'&quot;');
     return `<tr class="doc-table-row" oncontextmenu="showCtxMenu(event,'doc',${docJson})">
       <td class="doc-table-name"><i class="fa-solid fa-file-lines" style="color:var(--brand);margin-right:.4rem;font-size:.76rem"></i><span onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" style="cursor:pointer">${hl(doc.title||'Dokument')}</span></td>
       <td class="doc-table-tags">${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.65rem">${escHtml(t)}</span>`).join('')}</td>
-      <td class="doc-table-size"><div style="display:flex;align-items:center;gap:.3rem"><div style="width:32px;height:3px;background:var(--line);border-radius:2px"><div style="height:100%;background:var(--brand);border-radius:2px;width:${Math.min(100,(doc.chunk_count||0)*7)}%"></div></div><span style="font-size:.7rem;color:var(--muted)">${doc.chunk_count||0}</span></div></td>
-      <td style="font-size:.75rem;color:var(--muted)">${date}</td>
-      <td><span class="status-badge ${sc}" style="font-size:.67rem"><span class="status-dot"></span>${sl}</span></td>
+      <td style="font-size:.76rem;color:var(--muted);white-space:nowrap">${size}</td>
+      <td style="font-size:.75rem;color:var(--muted);white-space:nowrap">${date}<span style="color:var(--line);margin:0 .25rem">·</span>${time}</td>
+      <td style="font-size:.75rem;color:var(--muted)">${escHtml(doc.uploader_name||'–')}</td>
       <td class="doc-table-actions"><button class="btn-icon-sm" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" title="Vorschau"><i class="fa-solid fa-eye"></i></button><button class="btn-icon-sm" onclick="showCtxMenu(event,'doc',${docJson})" title="Mehr"><i class="fa-solid fa-ellipsis"></i></button></td>
     </tr>`;
   };
@@ -3180,9 +3214,9 @@ function renderListViewTable(docs) {
   let html = `<table class="doc-table"><thead><tr>
     <th onclick="sortDocList('title')" style="cursor:pointer">Name ${sortIcon('title')}</th>
     <th>Tags</th>
-    <th onclick="sortDocList('chunk_count')" style="cursor:pointer">Größe ${sortIcon('chunk_count')}</th>
-    <th onclick="sortDocList('created_at')" style="cursor:pointer">Datum ${sortIcon('created_at')}</th>
-    <th>Status</th>
+    <th onclick="sortDocList('file_size_bytes')" style="cursor:pointer">Dateigröße ${sortIcon('file_size_bytes')}</th>
+    <th onclick="sortDocList('created_at')" style="cursor:pointer">Erstellt ${sortIcon('created_at')}</th>
+    <th onclick="sortDocList('uploader_name')" style="cursor:pointer">Hochgeladen von ${sortIcon('uploader_name')}</th>
     <th></th>
   </tr></thead><tbody>`;
 
