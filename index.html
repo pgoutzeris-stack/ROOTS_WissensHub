@@ -5079,6 +5079,17 @@ function initKnowledgeGraph() {
   }, 1000);
 }
 
+function _makeNode(id,type,label,color,r,tx,ty,px,py,revealAt,extra={}) {
+  return { id,type,label,color,r,
+    tx,ty,          // Zielposition
+    x:px, y:py,     // Startposition = Eltern (spring animation)
+    vx:0,vy:0,
+    parentX:px, parentY:py,
+    revealAt,
+    revealP: revealAt <= 0 ? 1 : 0,  // sofort sichtbar wenn revealAt=0
+    ...extra };
+}
+
 // ── Hierarchisches Radial-Layout ─────────────────────────────────────────────
 function _buildHierarchicalLayout() {
   const W = _gv.width, H = _gv.height;
