@@ -1108,6 +1108,55 @@ async function handleDeleteFolder(
 }
 
 // ---------------------------------------------------------------------------
+// ACTION: move_documents
+// ---------------------------------------------------------------------------
+async function handleMoveDocuments(
+  body: Record<string, unknown>,
+  req: Request,
+  origin: string | null
+): Promise<Response> {
+  const auth = await requireAuth(req);
+  if (!auth) return errorResponse(origin, "Unauthorized", 401);
+
+  const { document_ids, folder_id } = body as {
+    document_ids?: string[];
+    folder_id?: string | null;
+  };
+
+  if (!Array.isArray(document_ids) || document_ids.length === 0) {
+    return errorResponse(origin, "document_ids is required");
+  }
+  if (document_ids.length > 100) {
+    return errorResponse(origin, "At most 100 documents can be moved at once");
+  }
+
+  const cleanIds = [...new Set(document_ids.filter((id) => typeof id === "string" && id))];
+  if (!cleanIds.length) return errorResponse(origin, "document_ids is required");
+
+  const supabase = getAdminClient();
+  if (folder_id) {
+    const { data: folder, error: folderError } = await supabase
+      .schema("knowledge")
+      .from("folders")
+      .select("id")
+      .eq("id", folder_id)
+      .maybeSingle();
+    if (folderError) return errorResponse(origin, folderError.message, 500);
+    if (!folder) return errorResponse(origin, "Folder not found", 404);
+  }
+
+  const { data, error } = await supabase
+    .schema("knowledge")
+    .from("documents")
+    .update({ folder_id: folder_id ?? null, updated_at: new Date().toISOString() })
+    .in("id", cleanIds)
+    .select("id,folder_id,updated_at");
+
+  if (error) return errorResponse(origin, error.message, 500);
+  return corsResponse(origin, { moved: data || [], count: data?.length || 0 });
+}
+
+// ---------------------------------------------------------------------------
 // ACTION: documents
 // ---------------------------------------------------------------------------
 async function handleDocuments(params: Record<string, unknown>, origin: string): Promise<Response> {
@@ -1246,6 +1295,9 @@ serve(async (req: Request) => {
 
       case "delete_folder":
         return await handleDeleteFolder(body, req, origin);
+
+      case "move_documents":
+        return await handleMoveDocuments(body, req, origin);
 
       case "documents":
         return await handleDocuments(body.folder_id ? body : Object.fromEntries(url.searchParams), origin);

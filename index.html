@@ -444,12 +444,101 @@
     .view-panel { display: none; flex-direction: column; height: 100%; }
     .view-panel.active { display: flex; }
 
-    /* ─── Document Cards ─── */
+    /* ─── Document Workspace ─── */
+    .dash-content { scroll-behavior: smooth; }
+    .doc-workspace {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      min-height: 100%;
+    }
+    .view-toggle { flex-wrap: wrap; }
+    .view-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      min-height: 30px;
+      padding: 5px 9px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: .78rem;
+      font-weight: 700;
+      transition: background .16s, color .16s, transform .16s;
+    }
+    .view-toggle-btn:hover { transform: translateY(-1px); color: var(--ink); }
+    .view-toggle-btn.active { background: var(--bg); color: var(--ink); box-shadow: 0 1px 6px rgba(15,23,42,.08); }
+    .smart-folder-panel {
+      display: grid;
+      grid-template-columns: minmax(210px,.7fr) minmax(0,1.3fr);
+      gap: 1rem;
+      padding: 1rem;
+      border: 1px solid rgba(32,110,251,.16);
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 12% 12%, rgba(32,110,251,.14), transparent 32%),
+        linear-gradient(135deg, rgba(255,255,255,.96), rgba(241,245,249,.84));
+      box-shadow: 0 18px 42px rgba(15,23,42,.08);
+      animation: docReveal .38s ease both;
+    }
+    .smart-folder-panel[hidden] { display: none; }
+    .smart-folder-panel__eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      color: var(--brand);
+      font-size: .75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .smart-folder-panel__title { margin-top: .4rem; font-size: 1rem; font-weight: 800; color: var(--ink); }
+    .smart-folder-panel__text { margin-top: .3rem; color: var(--muted); font-size: .84rem; line-height: 1.55; }
+    .smart-suggestion-list { display: grid; gap: .65rem; }
+    .smart-suggestion-card {
+      display: grid;
+      grid-template-columns: minmax(0,1fr) auto;
+      gap: .75rem;
+      align-items: center;
+      padding: .8rem;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,.86);
+      backdrop-filter: blur(14px);
+    }
+    .smart-suggestion-card strong { color: var(--ink); }
+    .smart-suggestion-card small { display:block; color:var(--muted); margin-top:.16rem; line-height:1.45; }
+    .smart-folder-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      padding: .24rem .58rem;
+      border-radius: var(--radius-pill);
+      background: rgba(32,110,251,.1);
+      color: var(--brand);
+      font-size: .72rem;
+      font-weight: 800;
+      border: 1px solid rgba(32,110,251,.18);
+    }
     .doc-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
       gap: 1rem;
     }
+    .doc-grid.doc-layout-list { display: flex; flex-direction: column; gap: .45rem; }
+    .doc-grid.doc-layout-columns {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(285px, 360px);
+      grid-template-columns: none;
+      overflow-x: auto;
+      padding-bottom: .8rem;
+      scroll-snap-type: x proximity;
+    }
+    .doc-grid.doc-layout-smart { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start; }
     .doc-card {
       background: var(--bg);
       border: 1px solid var(--line);
@@ -461,6 +550,7 @@
       transition: box-shadow .2s, border-color .2s, transform .2s;
       cursor: pointer;
       position: relative;
+      animation: docReveal .32s ease both;
     }
     .doc-card:hover {
       box-shadow: 0 8px 28px rgba(15,23,42,.1);
@@ -539,6 +629,69 @@
       align-items: center;
       gap: .3rem;
     }
+    .doc-list-row {
+      display: grid;
+      grid-template-columns: minmax(210px,1.35fr) minmax(120px,.8fr) minmax(120px,.8fr) auto;
+      gap: .9rem;
+      align-items: center;
+      padding: .72rem .85rem;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      animation: docReveal .28s ease both;
+      transition: transform .18s, box-shadow .18s, border-color .18s;
+    }
+    .doc-list-row:hover { transform: translateX(3px); border-color: rgba(32,110,251,.24); box-shadow: 0 10px 26px rgba(15,23,42,.08); }
+    .doc-list-row__main { min-width: 0; }
+    .doc-list-row__title { font-weight: 800; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .doc-list-row__sub, .doc-list-row__cell { color: var(--muted); font-size: .78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .folder-column {
+      display: flex;
+      flex-direction: column;
+      gap: .65rem;
+      min-height: 220px;
+      padding: .82rem;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.94), rgba(248,250,252,.78)),
+        radial-gradient(circle at 92% 8%, rgba(32,110,251,.12), transparent 26%);
+      scroll-snap-align: start;
+    }
+    .folder-column__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .65rem;
+      padding-bottom: .55rem;
+      border-bottom: 1px solid var(--line);
+      color: var(--ink);
+      font-weight: 800;
+    }
+    .folder-column__docs { display: flex; flex-direction: column; gap: .5rem; }
+    .doc-mini-card {
+      padding: .7rem;
+      border: 1px solid rgba(226,232,240,.9);
+      border-radius: 12px;
+      background: rgba(255,255,255,.86);
+      cursor: pointer;
+      transition: transform .16s, border-color .16s;
+    }
+    .doc-mini-card:hover { transform: translateY(-1px); border-color: rgba(32,110,251,.25); }
+    .doc-mini-card__title { color: var(--ink); font-size: .84rem; font-weight: 800; line-height: 1.35; }
+    .doc-mini-card__meta { color: var(--muted); font-size: .72rem; margin-top: .3rem; }
+    .smart-lane {
+      display: flex;
+      flex-direction: column;
+      gap: .65rem;
+      padding: 1rem;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgba(255,255,255,.96), rgba(241,245,249,.8));
+      min-height: 220px;
+    }
+    .smart-lane__title { display:flex;align-items:center;gap:.45rem;font-weight:850;color:var(--ink); }
+    .smart-lane__hint { color: var(--muted); font-size: .78rem; line-height:1.45; }
     .btn-icon {
       width: 28px;
       height: 28px;
@@ -556,6 +709,52 @@
     }
     .btn-icon:hover { background: var(--surface); color: var(--ink); }
     .btn-icon.danger:hover { background: rgba(220,38,38,.08); color: var(--danger); }
+
+    .graph-controlbar {
+      position: absolute;
+      top: .85rem;
+      left: .85rem;
+      right: .85rem;
+      z-index: 8;
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      flex-wrap: wrap;
+      pointer-events: none;
+    }
+    .graph-controlbar > * { pointer-events: auto; }
+    .graph-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .42rem;
+      min-height: 34px;
+      padding: 0 .82rem;
+      border: 1px solid rgba(226,232,240,.82);
+      border-radius: var(--radius-pill);
+      background: rgba(255,255,255,.78);
+      color: var(--ink);
+      backdrop-filter: blur(16px);
+      box-shadow: 0 10px 28px rgba(15,23,42,.1);
+      font-size: .78rem;
+      font-weight: 800;
+    }
+    .graph-pill button {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 800;
+      padding: .25rem .35rem;
+      border-radius: 999px;
+    }
+    .graph-pill button.active, .graph-pill button:hover { background: var(--brand-light); color: var(--brand); }
+    .graph-hint {
+      margin-left: auto;
+      color: var(--muted);
+      max-width: 360px;
+      line-height: 1.4;
+    }
 
     /* Status badges */
     .status-badge {
@@ -615,6 +814,19 @@
     }
     .empty-state__title { font-size: 1.05rem; font-weight: 700; color: var(--ink); }
     .empty-state__text { font-size: .88rem; color: var(--muted); max-width: 300px; line-height: 1.55; }
+
+    @keyframes docReveal {
+      from { opacity: 0; transform: translateY(9px) scale(.992); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    @media (max-width: 900px) {
+      .smart-folder-panel { grid-template-columns: 1fr; }
+      .doc-list-row { grid-template-columns: 1fr auto; }
+      .doc-list-row__cell:nth-child(2), .doc-list-row__cell:nth-child(3) { display: none; }
+      .view-toggle-btn span { display: none; }
+      .graph-hint { display: none; }
+    }
 
     /* ─── Upload View ─── */
     .upload-container {
@@ -1494,11 +1706,20 @@
           <div class="active-filter-chips" id="active-tag-chips"></div>
           <div class="toolbar-spacer"></div>
           <div class="view-toggle" style="display:flex;gap:2px;background:var(--surface-2,#f1f5f9);border-radius:8px;padding:3px">
-            <button id="btn-view-cards" class="view-toggle-btn active" onclick="setDocView('cards')" title="Kartenansicht" style="padding:5px 8px;border:none;border-radius:6px;background:var(--bg);cursor:pointer;color:var(--ink)">
-              <i class="fa-solid fa-grip"></i>
+            <button id="btn-view-cards" class="view-toggle-btn active" onclick="setDocView('cards')" title="Kartenansicht">
+              <i class="fa-solid fa-grip"></i><span>Kacheln</span>
             </button>
-            <button id="btn-view-graph" class="view-toggle-btn" onclick="setDocView('graph')" title="Wissensgraph" style="padding:5px 8px;border:none;border-radius:6px;background:transparent;cursor:pointer;color:var(--muted)">
-              <i class="fa-solid fa-diagram-project"></i>
+            <button id="btn-view-list" class="view-toggle-btn" onclick="setDocView('list')" title="Finder-Liste">
+              <i class="fa-solid fa-list"></i><span>Liste</span>
+            </button>
+            <button id="btn-view-columns" class="view-toggle-btn" onclick="setDocView('columns')" title="Spaltenansicht">
+              <i class="fa-solid fa-table-columns"></i><span>Spalten</span>
+            </button>
+            <button id="btn-view-smart" class="view-toggle-btn" onclick="setDocView('smart')" title="Smarte Ordner">
+              <i class="fa-solid fa-wand-magic-sparkles"></i><span>Smart</span>
+            </button>
+            <button id="btn-view-graph" class="view-toggle-btn" onclick="setDocView('graph')" title="Mindmap">
+              <i class="fa-solid fa-diagram-project"></i><span>Map</span>
             </button>
           </div>
           <button class="btn-primary" onclick="switchView('upload')">
@@ -1507,8 +1728,30 @@
           </button>
         </div>
         <div class="dash-content" id="doc-content">
-          <div class="doc-grid" id="doc-grid"></div>
+          <div class="doc-workspace" id="doc-workspace">
+            <div class="smart-folder-panel" id="smart-folder-panel" hidden>
+              <div>
+                <div class="smart-folder-panel__eyebrow"><i class="fa-solid fa-sparkles"></i> Smart Filing</div>
+                <div class="smart-folder-panel__title">Vorschläge für saubere Ablage</div>
+                <div class="smart-folder-panel__text">Ich erkenne Muster aus Titel, Tags und bestehenden Ordnernamen. Erst wenn du bestätigst, werden Dokumente verschoben.</div>
+              </div>
+              <div class="smart-suggestion-list" id="smart-suggestion-list"></div>
+            </div>
+            <div class="doc-grid" id="doc-grid"></div>
+          </div>
           <div id="doc-graph-wrap" style="display:none;width:100%;height:100%;position:relative">
+            <div class="graph-controlbar">
+              <div class="graph-pill">
+                <i class="fa-solid fa-route" style="color:var(--brand)"></i>
+                <button id="graph-mode-mindmap" class="active" onclick="setGraphMode('mindmap')">Mindmap</button>
+                <button id="graph-mode-cluster" onclick="setGraphMode('cluster')">Cluster</button>
+              </div>
+              <div class="graph-pill">
+                <button onclick="resetGraphView()"><i class="fa-solid fa-crosshairs"></i> Zentrieren</button>
+                <button onclick="reheatGraph()"><i class="fa-solid fa-arrows-rotate"></i> Neu ordnen</button>
+              </div>
+              <div class="graph-pill graph-hint"><i class="fa-solid fa-hand-pointer"></i> Ziehen zum Bewegen, Mausrad zum Zoomen, Hover zeigt Zusammenhänge.</div>
+            </div>
             <canvas id="graph-canvas" style="width:100%;height:100%;border-radius:12px"></canvas>
             <div id="graph-tooltip" style="position:absolute;display:none;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:.8rem;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.12);max-width:220px;z-index:10">
               <div id="graph-tt-title" style="font-weight:600;color:var(--ink);margin-bottom:4px"></div>
@@ -1869,6 +2112,9 @@ const state = {
   tags: [],
   activeFolderId: '',
   activeTagFilters: [],
+  docView: 'cards',
+  graphMode: 'mindmap',
+  smartSuggestions: [],
   search: '',
   sort: 'newest',
   uploadFiles: [],
@@ -2235,13 +2481,18 @@ async function loadDocuments() {
 
 window.renderDocuments = function() {
   const grid = document.getElementById('doc-grid');
+  const panel = document.getElementById('smart-folder-panel');
   let docs = [...state.documents];
   const sort = document.getElementById('sort-select')?.value || state.sort;
   if (sort === 'newest') docs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   else if (sort === 'oldest') docs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
   else if (sort === 'alpha') docs.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
 
+  grid.className = `doc-grid doc-layout-${state.docView === 'graph' ? 'cards' : state.docView}`;
+  if (panel) renderSmartFolderPanel(docs);
+
   if (!docs.length) {
+    if (panel) panel.hidden = true;
     grid.innerHTML = `
       <div class="empty-state" style="grid-column:1/-1">
         <div class="empty-state__icon"><i class="fa-solid fa-file-lines"></i></div>
@@ -2253,12 +2504,21 @@ window.renderDocuments = function() {
   }
 
   grid.innerHTML = '';
-  docs.forEach(doc => grid.appendChild(makeDocCard(doc)));
+  if (state.docView === 'list') {
+    docs.forEach((doc, index) => grid.appendChild(makeDocListRow(doc, index)));
+  } else if (state.docView === 'columns') {
+    renderColumnLayout(grid, docs);
+  } else if (state.docView === 'smart') {
+    renderSmartLayout(grid, docs);
+  } else {
+    docs.forEach((doc, index) => grid.appendChild(makeDocCard(doc, index)));
+  }
 };
 
-function makeDocCard(doc) {
+function makeDocCard(doc, index = 0) {
   const card = document.createElement('div');
   card.className = 'doc-card';
+  card.style.animationDelay = `${Math.min(index, 16) * 24}ms`;
   const embSt = doc.embedding_status || 'pending';
   const statusClass = embSt === 'done' ? 'verarbeitet' : embSt === 'error' ? 'fehler' : 'pending';
   const statusLabel = embSt === 'done' ? 'Verarbeitet' : embSt === 'error' ? 'Fehler' : embSt === 'processing' ? 'Wird verarbeitet…' : 'Ausstehend';
@@ -2288,8 +2548,226 @@ function makeDocCard(doc) {
         ${state.isAdmin ? `<button class="btn-icon danger" title="Löschen" onclick="openDeleteModal(event,'${doc.id}',${JSON.stringify(doc.title || doc.file_name || 'Dokument')})"><i class="fa-solid fa-trash"></i></button>` : ''}
       </div>
     </div>`;
+  card.onclick = (event) => {
+    if (event.target.closest('button')) return;
+    window.openDocPreview?.(doc.id);
+  };
   return card;
 }
+
+function makeDocListRow(doc, index = 0) {
+  const row = document.createElement('div');
+  row.className = 'doc-list-row';
+  row.style.animationDelay = `${Math.min(index, 18) * 18}ms`;
+  const tags = Array.isArray(doc.tags) ? doc.tags : [];
+  const folderName = folderNameFor(doc.folder_id) || 'Root';
+  const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE') : '';
+  row.innerHTML = `
+    <div class="doc-list-row__main">
+      <div class="doc-list-row__title"><i class="fa-regular fa-file-lines" style="color:var(--brand);margin-right:.45rem"></i>${escHtml(doc.title || doc.filename || 'Dokument')}</div>
+      <div class="doc-list-row__sub">${tags.length ? tags.slice(0, 4).map(t => `#${escHtml(t)}`).join(' · ') : 'Keine Tags'}</div>
+    </div>
+    <div class="doc-list-row__cell"><i class="fa-solid fa-folder" style="margin-right:.35rem"></i>${escHtml(folderName)}</div>
+    <div class="doc-list-row__cell">${escHtml(doc.uploader_name || 'Unbekannt')} · ${date}</div>
+    <div class="doc-card__actions">
+      ${doc.chunk_count != null ? `<span style="font-size:.72rem;color:var(--muted)">${doc.chunk_count} Chunks</span>` : ''}
+      <button class="btn-icon" title="Herunterladen" onclick="downloadDoc(event,'${doc.id}')"><i class="fa-solid fa-download"></i></button>
+      ${state.isAdmin ? `<button class="btn-icon danger" title="Löschen" onclick="openDeleteModal(event,'${doc.id}',${JSON.stringify(doc.title || doc.filename || 'Dokument')})"><i class="fa-solid fa-trash"></i></button>` : ''}
+    </div>`;
+  row.onclick = (event) => {
+    if (event.target.closest('button')) return;
+    window.openDocPreview?.(doc.id);
+  };
+  return row;
+}
+
+function renderColumnLayout(grid, docs) {
+  const groups = groupDocsByFolder(docs);
+  groups.forEach(group => {
+    const column = document.createElement('section');
+    column.className = 'folder-column';
+    column.innerHTML = `
+      <div class="folder-column__header">
+        <span><i class="fa-solid fa-folder" style="color:${escHtml(group.color || '#206efb')};margin-right:.45rem"></i>${escHtml(group.name)}</span>
+        <span class="folder-count">${group.docs.length}</span>
+      </div>
+      <div class="folder-column__docs"></div>`;
+    const list = column.querySelector('.folder-column__docs');
+    group.docs.forEach(doc => list.appendChild(makeMiniDocCard(doc)));
+    grid.appendChild(column);
+  });
+}
+
+function renderSmartLayout(grid, docs) {
+  const lanes = buildSmartLanes(docs);
+  lanes.forEach(lane => {
+    const section = document.createElement('section');
+    section.className = 'smart-lane';
+    section.innerHTML = `
+      <div class="smart-lane__title"><i class="fa-solid ${lane.icon}"></i>${escHtml(lane.title)} <span class="folder-count">${lane.docs.length}</span></div>
+      <div class="smart-lane__hint">${escHtml(lane.hint)}</div>
+      <div class="folder-column__docs"></div>`;
+    const list = section.querySelector('.folder-column__docs');
+    lane.docs.slice(0, 8).forEach(doc => list.appendChild(makeMiniDocCard(doc)));
+    if (lane.docs.length > 8) {
+      const more = document.createElement('div');
+      more.className = 'doc-mini-card__meta';
+      more.textContent = `+ ${lane.docs.length - 8} weitere Dokumente`;
+      list.appendChild(more);
+    }
+    grid.appendChild(section);
+  });
+}
+
+function makeMiniDocCard(doc) {
+  const mini = document.createElement('article');
+  mini.className = 'doc-mini-card';
+  const tags = Array.isArray(doc.tags) ? doc.tags : [];
+  mini.innerHTML = `
+    <div class="doc-mini-card__title">${escHtml(doc.title || doc.filename || 'Dokument')}</div>
+    <div class="doc-mini-card__meta">${tags.length ? tags.slice(0, 3).map(t => `#${escHtml(t)}`).join(' · ') : 'Ohne Tags'}${doc.chunk_count ? ` · ${doc.chunk_count} Chunks` : ''}</div>`;
+  mini.onclick = () => window.openDocPreview?.(doc.id);
+  return mini;
+}
+
+function groupDocsByFolder(docs) {
+  const byId = new Map(state.folders.map(folder => [folder.id, { ...folder, docs: [] }]));
+  const root = { id: '', name: 'Root / Nicht abgelegt', color: '#64748b', docs: [] };
+  docs.forEach(doc => {
+    const bucket = doc.folder_id && byId.get(doc.folder_id) ? byId.get(doc.folder_id) : root;
+    bucket.docs.push(doc);
+  });
+  return [root, ...byId.values()].filter(group => group.docs.length);
+}
+
+function buildSmartLanes(docs) {
+  const unfiled = docs.filter(doc => !doc.folder_id);
+  const recent = [...docs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 10);
+  const processing = docs.filter(doc => (doc.embedding_status || 'pending') !== 'done');
+  const tagMap = new Map();
+  docs.forEach(doc => (Array.isArray(doc.tags) ? doc.tags : []).forEach(tag => {
+    if (!tagMap.has(tag)) tagMap.set(tag, []);
+    tagMap.get(tag).push(doc);
+  }));
+  const strongestTags = [...tagMap.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .slice(0, 3)
+    .map(([tag, tagDocs]) => ({ title: `Tag: ${tag}`, icon: 'fa-hashtag', hint: 'Automatische Sammlung aus identischen Tags.', docs: tagDocs }));
+  return [
+    { title: 'Noch nicht abgelegt', icon: 'fa-inbox', hint: 'Dokumente ohne festen Ordner. Gute Kandidaten für Smart Filing.', docs: unfiled },
+    { title: 'Zuletzt bewegt / hochgeladen', icon: 'fa-clock-rotate-left', hint: 'Schneller Einstieg in die jüngsten Wissensbausteine.', docs: recent },
+    { title: 'Indexierung offen', icon: 'fa-wave-square', hint: 'Dokumente, die noch verarbeitet werden oder Aufmerksamkeit brauchen.', docs: processing },
+    ...strongestTags,
+  ].filter(lane => lane.docs.length);
+}
+
+function renderSmartFolderPanel(docs) {
+  const panel = document.getElementById('smart-folder-panel');
+  const list = document.getElementById('smart-suggestion-list');
+  if (!panel || !list || state.docView === 'graph') return;
+  const suggestions = buildFolderSuggestions(docs);
+  panel.hidden = !suggestions.length;
+  if (!suggestions.length) {
+    list.innerHTML = '';
+    return;
+  }
+  list.innerHTML = suggestions.map((suggestion, index) => `
+    <div class="smart-suggestion-card">
+      <div>
+        <span class="smart-folder-chip"><i class="fa-solid fa-folder-tree"></i>${escHtml(suggestion.folder.name)}</span>
+        <strong style="display:block;margin-top:.45rem">${suggestion.docs.length} Dokument${suggestion.docs.length !== 1 ? 'e' : ''} passen vermutlich hierhin</strong>
+        <small>${escHtml(suggestion.reason)} · ${suggestion.docs.slice(0, 3).map(doc => escHtml(doc.title || doc.filename || 'Dokument')).join(', ')}${suggestion.docs.length > 3 ? ' …' : ''}</small>
+      </div>
+      <button class="btn-primary" style="height:34px;padding:0 .85rem;font-size:.78rem" onclick="applySmartSuggestion(${index})">
+        <i class="fa-solid fa-check"></i> Ablegen
+      </button>
+    </div>`).join('');
+  state.smartSuggestions = suggestions;
+}
+
+function buildFolderSuggestions(docs) {
+  if (!state.folders.length) return [];
+  const candidates = [];
+  docs.forEach(doc => {
+    const currentFolderId = doc.folder_id || '';
+    const scored = state.folders
+      .filter(folder => folder.id !== currentFolderId)
+      .map(folder => ({ folder, score: scoreFolderMatch(doc, folder) }))
+      .filter(item => item.score >= 4)
+      .sort((a, b) => b.score - a.score);
+    if (scored[0]) candidates.push({ doc, folder: scored[0].folder, score: scored[0].score });
+  });
+  const grouped = new Map();
+  candidates.forEach(item => {
+    if (!grouped.has(item.folder.id)) grouped.set(item.folder.id, { folder: item.folder, docs: [], score: 0 });
+    const group = grouped.get(item.folder.id);
+    group.docs.push(item.doc);
+    group.score += item.score;
+  });
+  return [...grouped.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map(group => ({
+      ...group,
+      docs: group.docs.slice(0, 8),
+      reason: `Treffer aus Ordnername, Dokumenttitel und Tags (${Math.round(group.score)} Punkte)`,
+    }));
+}
+
+function scoreFolderMatch(doc, folder) {
+  const haystack = tokenize(`${doc.title || ''} ${doc.filename || ''} ${(Array.isArray(doc.tags) ? doc.tags : []).join(' ')}`);
+  const folderTokens = tokenize(`${folder.name || ''} ${folder.description || ''}`);
+  let score = 0;
+  folderTokens.forEach(token => {
+    if (haystack.includes(token)) score += 3;
+    haystack.forEach(word => {
+      if (word.length > 4 && token.length > 4 && (word.includes(token) || token.includes(word))) score += 1.2;
+    });
+  });
+  if (!doc.folder_id) score += 1;
+  return score;
+}
+
+function tokenize(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9äöüß]+/gi, ' ')
+    .split(/\s+/)
+    .filter(token => token.length > 2);
+}
+
+function folderNameFor(folderId) {
+  if (!folderId) return '';
+  return state.folders.find(folder => folder.id === folderId)?.name || '';
+}
+
+window.applySmartSuggestion = async function(index) {
+  const suggestion = state.smartSuggestions?.[index];
+  if (!suggestion) return;
+  setSyncing(true);
+  try {
+    const headers = { ...await authHeaders(), 'Content-Type': 'application/json' };
+    const res = await fetch(WISSENSHUB_API_URL, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        action: 'move_documents',
+        folder_id: suggestion.folder.id,
+        document_ids: suggestion.docs.map(doc => doc.id),
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    toast(`${suggestion.docs.length} Dokument${suggestion.docs.length !== 1 ? 'e' : ''} in "${suggestion.folder.name}" abgelegt.`, 'ok');
+    await Promise.all([loadFolders(), loadDocuments()]);
+  } catch (err) {
+    console.error('applySmartSuggestion:', err);
+    toast('Smart-Ablage fehlgeschlagen: ' + (err.message || err), 'err');
+  } finally {
+    setSyncing(false);
+  }
+};
 
 // ─── Download ─────────────────────────────────────────────────────────────────
 window.downloadDoc = async function(e, docId) {
@@ -3188,210 +3666,359 @@ window.selectModel = selectModel;
 window.toggleKeyVisibility = toggleKeyVisibility;
 window.saveAiSettings = saveAiSettings;
 
-// ─── Wissensgraph (Canvas Force-Simulation) ─────────────────────────────────
+// ─── Wissensgraph / Mindmap ──────────────────────────────────────────────────
 let _graphRunning = false;
 let _graphAnim = null;
+let _graphScene = null;
+let _graphDrag = null;
 
 window.setDocView = function(view) {
-  const gridEl = document.getElementById('doc-grid');
+  state.docView = view;
+  const workspaceEl = document.getElementById('doc-workspace');
   const graphEl = document.getElementById('doc-graph-wrap');
-  const btnCards = document.getElementById('btn-view-cards');
-  const btnGraph = document.getElementById('btn-view-graph');
+  ['cards', 'list', 'columns', 'smart', 'graph'].forEach(name => {
+    document.getElementById(`btn-view-${name}`)?.classList.toggle('active', view === name);
+  });
   if (view === 'graph') {
-    gridEl.style.display = 'none';
+    workspaceEl.style.display = 'none';
     graphEl.style.display = 'block';
-    btnCards.style.background = 'transparent';
-    btnCards.style.color = 'var(--muted)';
-    btnGraph.style.background = 'var(--bg)';
-    btnGraph.style.color = 'var(--ink)';
     initKnowledgeGraph();
   } else {
-    gridEl.style.display = '';
+    workspaceEl.style.display = '';
     graphEl.style.display = 'none';
-    btnCards.style.background = 'var(--bg)';
-    btnCards.style.color = 'var(--ink)';
-    btnGraph.style.background = 'transparent';
-    btnGraph.style.color = 'var(--muted)';
-    if (_graphAnim) { cancelAnimationFrame(_graphAnim); _graphRunning = false; }
+    stopGraph();
+    renderDocuments();
   }
 };
 
+window.setGraphMode = function(mode) {
+  state.graphMode = mode;
+  document.getElementById('graph-mode-mindmap')?.classList.toggle('active', mode === 'mindmap');
+  document.getElementById('graph-mode-cluster')?.classList.toggle('active', mode === 'cluster');
+  initKnowledgeGraph();
+};
+
+window.resetGraphView = function() {
+  if (!_graphScene) return;
+  _graphScene.zoom = 1;
+  _graphScene.panX = 0;
+  _graphScene.panY = 0;
+  _graphScene.energy = 110;
+};
+
+window.reheatGraph = function() {
+  if (!_graphScene) return initKnowledgeGraph();
+  _graphScene.nodes.forEach((node, index) => {
+    const angle = index / Math.max(1, _graphScene.nodes.length) * Math.PI * 2;
+    node.vx += Math.cos(angle) * 2.2;
+    node.vy += Math.sin(angle) * 2.2;
+  });
+  _graphScene.energy = 180;
+  startGraphLoop();
+};
+
+function stopGraph() {
+  if (_graphAnim) cancelAnimationFrame(_graphAnim);
+  _graphRunning = false;
+  _graphAnim = null;
+}
+
 function initKnowledgeGraph() {
-  if (_graphRunning) { cancelAnimationFrame(_graphAnim); _graphRunning = false; }
+  stopGraph();
   const canvas = document.getElementById('graph-canvas');
   const wrap = document.getElementById('doc-graph-wrap');
-  canvas.width = wrap.clientWidth || 800;
-  canvas.height = wrap.clientHeight || 600;
-  const W = canvas.width, H = canvas.height;
+  canvas.width = Math.max(640, wrap.clientWidth || 800) * window.devicePixelRatio;
+  canvas.height = Math.max(440, wrap.clientHeight || 600) * window.devicePixelRatio;
+  canvas.style.width = `${wrap.clientWidth || 800}px`;
+  canvas.style.height = `${wrap.clientHeight || 600}px`;
   const ctx = canvas.getContext('2d');
-  const docs = state.documents;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  const width = canvas.width / window.devicePixelRatio;
+  const height = canvas.height / window.devicePixelRatio;
+  const docs = state.documents || [];
+
   if (!docs.length) {
-    ctx.fillStyle = 'var(--muted)'; ctx.font = '14px sans-serif';
-    ctx.fillText('Keine Dokumente', W/2-60, H/2); return;
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = '#64748b';
+    ctx.font = '14px Circular Std, sans-serif';
+    ctx.fillText('Keine Dokumente für die Mindmap', width / 2 - 100, height / 2);
+    return;
   }
 
-  // Color palette per folder
-  const COLORS = ['#206efb','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316'];
-  const folderIds = [...new Set(docs.map(d => d.folder_id || ''))];
-  const folderColor = {};
-  folderIds.forEach((fid, i) => folderColor[fid] = COLORS[i % COLORS.length]);
+  _graphScene = buildGraphScene(docs, width, height);
+  attachGraphEvents(canvas, wrap);
+  startGraphLoop();
+}
 
-  // Nodes
-  const nodes = docs.map((doc, i) => ({
-    id: doc.id, title: doc.title || doc.filename || 'Dokument',
-    tags: Array.isArray(doc.tags) ? doc.tags : [],
-    folder_id: doc.folder_id || '',
-    chunks: doc.chunk_count || 1,
-    x: W/2 + (Math.cos(i/docs.length*2*Math.PI)) * Math.min(W,H)*0.3,
-    y: H/2 + (Math.sin(i/docs.length*2*Math.PI)) * Math.min(W,H)*0.3,
-    vx: 0, vy: 0,
-    r: Math.max(8, Math.min(20, 8 + (doc.chunk_count||1)))
-  }));
-
-  // Edges (shared tags)
+function buildGraphScene(docs, width, height) {
+  const colors = ['#206efb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#64748b'];
+  const nodes = [];
   const edges = [];
+  const nodeById = new Map();
+  const addNode = (node) => {
+    if (nodeById.has(node.id)) return nodeById.get(node.id);
+    const angle = nodes.length / Math.max(1, docs.length + state.folders.length) * Math.PI * 2;
+    const radius = node.type === 'root' ? 0 : Math.min(width, height) * (node.type === 'doc' ? .32 : .2);
+    const created = {
+      ...node,
+      x: width / 2 + Math.cos(angle) * radius + (Math.random() - .5) * 20,
+      y: height / 2 + Math.sin(angle) * radius + (Math.random() - .5) * 20,
+      vx: 0,
+      vy: 0,
+    };
+    nodes.push(created);
+    nodeById.set(node.id, created);
+    return created;
+  };
+  const addEdge = (from, to, weight = 1, kind = 'related') => edges.push({ from, to, weight, kind });
+
+  addNode({ id: 'root:knowledge', title: 'WissensHub', type: 'root', r: 26, color: '#0f172a' });
+  const activeFolderIds = [...new Set(docs.map(doc => doc.folder_id || 'root'))];
+  activeFolderIds.forEach((folderId, index) => {
+    const folder = state.folders.find(item => item.id === folderId);
+    const nodeId = `folder:${folderId}`;
+    addNode({
+      id: nodeId,
+      title: folder?.name || 'Root',
+      type: 'folder',
+      r: 18,
+      color: folder?.color || colors[index % colors.length],
+    });
+    addEdge('root:knowledge', nodeId, 1.4, 'folder');
+  });
+
+  docs.forEach((doc, index) => {
+    const folderId = doc.folder_id || 'root';
+    const docNode = addNode({
+      id: `doc:${doc.id}`,
+      docId: doc.id,
+      title: doc.title || doc.filename || 'Dokument',
+      type: 'doc',
+      tags: Array.isArray(doc.tags) ? doc.tags : [],
+      chunks: doc.chunk_count || 1,
+      r: Math.max(9, Math.min(21, 9 + Math.sqrt(doc.chunk_count || 1) * 2)),
+      color: colors[index % colors.length],
+    });
+    addEdge(`folder:${folderId}`, docNode.id, state.graphMode === 'mindmap' ? 1.8 : .8, 'contains');
+    if (state.graphMode === 'mindmap') {
+      docNode.x += (index % 2 ? 1 : -1) * 80;
+    }
+    (Array.isArray(doc.tags) ? doc.tags : []).slice(0, 5).forEach(tag => {
+      const tagNode = addNode({ id: `tag:${tag}`, title: `#${tag}`, type: 'tag', r: 10, color: '#94a3b8' });
+      addEdge(tagNode.id, docNode.id, .72, 'tag');
+    });
+  });
+
+  if (state.graphMode === 'cluster') {
+    const docNodes = nodes.filter(node => node.type === 'doc');
+    for (let i = 0; i < docNodes.length; i++) {
+      for (let j = i + 1; j < docNodes.length; j++) {
+        const shared = docNodes[i].tags.filter(tag => docNodes[j].tags.includes(tag)).length;
+        if (shared) addEdge(docNodes[i].id, docNodes[j].id, shared * .52, 'shared');
+      }
+    }
+  }
+
+  return {
+    nodes,
+    edges: edges.map(edge => ({ ...edge, a: nodeById.get(edge.from), b: nodeById.get(edge.to) })).filter(edge => edge.a && edge.b),
+    nodeById,
+    width,
+    height,
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    hover: null,
+    energy: 220,
+  };
+}
+
+function startGraphLoop() {
+  if (_graphRunning) return;
+  _graphRunning = true;
+  const canvas = document.getElementById('graph-canvas');
+  const ctx = canvas.getContext('2d');
+  function loop() {
+    if (!_graphRunning || !_graphScene) return;
+    tickGraph(_graphScene);
+    drawGraph(ctx, _graphScene);
+    _graphScene.energy *= .985;
+    if (_graphScene.energy > 1 || _graphScene.hover) _graphAnim = requestAnimationFrame(loop);
+    else _graphRunning = false;
+  }
+  loop();
+}
+
+function tickGraph(scene) {
+  const { nodes, edges, width, height } = scene;
+  const repel = state.graphMode === 'mindmap' ? 6200 : 4200;
   for (let i = 0; i < nodes.length; i++) {
-    for (let j = i+1; j < nodes.length; j++) {
-      const shared = nodes[i].tags.filter(t => nodes[j].tags.includes(t)).length;
-      if (shared > 0) edges.push({ s: i, t: j, w: shared });
-      // Also connect same folder (weaker)
-      else if (nodes[i].folder_id && nodes[i].folder_id === nodes[j].folder_id) {
-        edges.push({ s: i, t: j, w: 0.3 });
-      }
-    }
-  }
-
-  // Force simulation
-  const REPEL = 3000, ATTRACT = 0.008, DAMP = 0.82, CENTER = 0.003;
-  function tick() {
-    // Repulsion
-    for (let i = 0; i < nodes.length; i++) {
-      for (let j = i+1; j < nodes.length; j++) {
-        const dx = nodes[j].x - nodes[i].x, dy = nodes[j].y - nodes[i].y;
-        const d2 = dx*dx + dy*dy + 1;
-        const f = REPEL / d2;
-        const fx = f * dx / Math.sqrt(d2), fy = f * dy / Math.sqrt(d2);
-        nodes[i].vx -= fx; nodes[i].vy -= fy;
-        nodes[j].vx += fx; nodes[j].vy += fy;
-      }
-    }
-    // Attraction (edges)
-    for (const e of edges) {
-      const a = nodes[e.s], b = nodes[e.t];
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i], b = nodes[j];
       const dx = b.x - a.x, dy = b.y - a.y;
-      const d = Math.sqrt(dx*dx + dy*dy) + 1;
-      const tgt = 80 / (e.w + 0.5);
-      const f = (d - tgt) * ATTRACT;
-      a.vx += f * dx/d; a.vy += f * dy/d;
-      b.vx -= f * dx/d; b.vy -= f * dy/d;
-    }
-    // Center gravity
-    for (const n of nodes) {
-      n.vx += (W/2 - n.x) * CENTER;
-      n.vy += (H/2 - n.y) * CENTER;
-      n.vx *= DAMP; n.vy *= DAMP;
-      n.x += n.vx; n.y += n.vy;
-      n.x = Math.max(n.r+10, Math.min(W-n.r-10, n.x));
-      n.y = Math.max(n.r+10, Math.min(H-n.r-10, n.y));
+      const dist2 = dx * dx + dy * dy + 28;
+      const force = repel / dist2;
+      const dist = Math.sqrt(dist2);
+      a.vx -= force * dx / dist; a.vy -= force * dy / dist;
+      b.vx += force * dx / dist; b.vy += force * dy / dist;
     }
   }
+  edges.forEach(edge => {
+    const dx = edge.b.x - edge.a.x, dy = edge.b.y - edge.a.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const target = edge.kind === 'folder' ? 118 : edge.kind === 'tag' ? 72 : state.graphMode === 'mindmap' ? 92 : 118;
+    const force = (dist - target) * .012 * edge.weight;
+    edge.a.vx += force * dx / dist; edge.a.vy += force * dy / dist;
+    edge.b.vx -= force * dx / dist; edge.b.vy -= force * dy / dist;
+  });
+  nodes.forEach(node => {
+    const centerStrength = node.type === 'root' ? .04 : .004;
+    node.vx += (width / 2 - node.x) * centerStrength;
+    node.vy += (height / 2 - node.y) * centerStrength;
+    node.vx *= .82;
+    node.vy *= .82;
+    node.x += node.vx;
+    node.y += node.vy;
+  });
+}
 
-  // Draw
-  function draw() {
-    ctx.clearRect(0,0,W,H);
-    // Background
-    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--surface-2') || '#f8fafc';
-    ctx.fillRect(0,0,W,H);
-    // Edges
-    for (const e of edges) {
-      const a = nodes[e.s], b = nodes[e.t];
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-      ctx.strokeStyle = e.w > 0.5 ? 'rgba(32,110,251,0.25)' : 'rgba(148,163,184,0.15)';
-      ctx.lineWidth = Math.max(0.5, e.w * 1.5);
-      ctx.stroke();
-    }
-    // Nodes
-    for (const n of nodes) {
-      const color = folderColor[n.folder_id] || '#206efb';
-      // Shadow
-      ctx.shadowColor = color + '44'; ctx.shadowBlur = 10;
-      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
-      ctx.fillStyle = color; ctx.fill();
-      ctx.shadowBlur = 0;
-      // Border
-      ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-      // Label (short)
-      ctx.fillStyle = '#0f172a'; ctx.font = `${Math.max(9,Math.min(11,n.r))}px system-ui,sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      const label = n.title.length > 14 ? n.title.slice(0,13)+'…' : n.title;
-      ctx.fillText(label, n.x, n.y + n.r + 4);
-    }
-    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-  }
+function drawGraph(ctx, scene) {
+  const { width, height, nodes, edges, hover, zoom, panX, panY } = scene;
+  ctx.save();
+  ctx.clearRect(0, 0, width, height);
+  const bg = ctx.createLinearGradient(0, 0, width, height);
+  bg.addColorStop(0, '#f8fafc');
+  bg.addColorStop(.55, '#eef5ff');
+  bg.addColorStop(1, '#f8fafc');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, width, height);
+  ctx.translate(width / 2 + panX, height / 2 + panY);
+  ctx.scale(zoom, zoom);
+  ctx.translate(-width / 2, -height / 2);
 
-  // Tooltip
+  const connected = hover ? new Set([hover.id]) : null;
+  if (hover) edges.forEach(edge => {
+    if (edge.a.id === hover.id || edge.b.id === hover.id) {
+      connected.add(edge.a.id);
+      connected.add(edge.b.id);
+    }
+  });
+
+  edges.forEach(edge => {
+    const active = !connected || (connected.has(edge.a.id) && connected.has(edge.b.id));
+    ctx.beginPath();
+    ctx.moveTo(edge.a.x, edge.a.y);
+    const midX = (edge.a.x + edge.b.x) / 2;
+    const midY = (edge.a.y + edge.b.y) / 2 - (edge.kind === 'tag' ? 8 : 0);
+    ctx.quadraticCurveTo(midX, midY, edge.b.x, edge.b.y);
+    ctx.strokeStyle = active ? edgeColor(edge.kind, edge.weight) : 'rgba(148,163,184,.08)';
+    ctx.lineWidth = active ? Math.max(1, edge.weight * 1.6) : 1;
+    ctx.stroke();
+  });
+
+  nodes.forEach(node => {
+    const active = !connected || connected.has(node.id);
+    ctx.globalAlpha = active ? 1 : .18;
+    ctx.shadowColor = `${node.color}55`;
+    ctx.shadowBlur = active && hover?.id === node.id ? 24 : 10;
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, node.r, 0, Math.PI * 2);
+    ctx.fillStyle = node.color;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = node.type === 'root' ? 3 : 2;
+    ctx.strokeStyle = '#fff';
+    ctx.stroke();
+    ctx.fillStyle = node.type === 'tag' ? '#475569' : '#0f172a';
+    ctx.font = `${node.type === 'root' ? 13 : 11}px Circular Std, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const maxChars = node.type === 'tag' ? 18 : 20;
+    const label = node.title.length > maxChars ? `${node.title.slice(0, maxChars - 1)}…` : node.title;
+    ctx.fillText(label, node.x, node.y + node.r + 5);
+  });
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function edgeColor(kind, weight) {
+  if (kind === 'folder') return 'rgba(15,23,42,.18)';
+  if (kind === 'tag') return 'rgba(148,163,184,.32)';
+  if (kind === 'shared') return `rgba(32,110,251,${Math.min(.42, .16 + weight * .08)})`;
+  return 'rgba(32,110,251,.22)';
+}
+
+function attachGraphEvents(canvas, wrap) {
   const tooltip = document.getElementById('graph-tooltip');
   const ttTitle = document.getElementById('graph-tt-title');
   const ttTags = document.getElementById('graph-tt-tags');
   const ttChunks = document.getElementById('graph-tt-chunks');
-  canvas.onmousemove = function(e) {
+  const toWorld = (event) => {
     const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
-    let hit = null;
-    for (const n of nodes) {
-      const dx = n.x - mx, dy = n.y - my;
-      if (dx*dx + dy*dy < n.r*n.r + 100) { hit = n; break; }
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const scene = _graphScene;
+    return {
+      x: (x - scene.width / 2 - scene.panX) / scene.zoom + scene.width / 2,
+      y: (y - scene.height / 2 - scene.panY) / scene.zoom + scene.height / 2,
+    };
+  };
+  const hitTest = (point) => {
+    if (!_graphScene) return null;
+    return [..._graphScene.nodes].reverse().find(node => {
+      const dx = node.x - point.x, dy = node.y - point.y;
+      return dx * dx + dy * dy <= Math.pow(node.r + 8, 2);
+    }) || null;
+  };
+
+  canvas.onmousemove = (event) => {
+    if (!_graphScene) return;
+    if (_graphDrag) {
+      _graphScene.panX = _graphDrag.panX + event.clientX - _graphDrag.x;
+      _graphScene.panY = _graphDrag.panY + event.clientY - _graphDrag.y;
+      _graphScene.energy = 12;
+      startGraphLoop();
+      return;
     }
+    const hit = hitTest(toWorld(event));
+    _graphScene.hover = hit;
+    canvas.style.cursor = hit ? 'pointer' : 'grab';
     if (hit) {
       ttTitle.textContent = hit.title;
-      ttTags.textContent = hit.tags.length ? '🏷 ' + hit.tags.join(', ') : 'Keine Tags';
-      ttChunks.textContent = `${hit.chunks} Chunk${hit.chunks !== 1 ? 's' : ''}`;
+      ttTags.textContent = hit.type === 'doc' && hit.tags?.length ? `Tags: ${hit.tags.join(', ')}` : hit.type === 'folder' ? 'Ordner-Ast' : hit.type === 'tag' ? 'Tag-Verbindung' : 'Zentrale Wissensmap';
+      ttChunks.textContent = hit.type === 'doc' ? `${hit.chunks} Chunk${hit.chunks !== 1 ? 's' : ''}` : 'Hover markiert verbundene Stränge';
       tooltip.style.display = 'block';
-      tooltip.style.left = (e.clientX - wrap.getBoundingClientRect().left + 12) + 'px';
-      tooltip.style.top = (e.clientY - wrap.getBoundingClientRect().top - 10) + 'px';
+      tooltip.style.left = `${event.clientX - wrap.getBoundingClientRect().left + 12}px`;
+      tooltip.style.top = `${event.clientY - wrap.getBoundingClientRect().top - 8}px`;
     } else {
       tooltip.style.display = 'none';
     }
+    _graphScene.energy = 10;
+    startGraphLoop();
   };
-  canvas.onmouseleave = () => { tooltip.style.display = 'none'; };
-  canvas.onclick = function(e) {
-    const rect = canvas.getBoundingClientRect();
-    const mx = (e.clientX - rect.left) * (canvas.width / rect.width);
-    const my = (e.clientY - rect.top) * (canvas.height / rect.height);
-    for (const n of nodes) {
-      const dx = n.x - mx, dy = n.y - my;
-      if (dx*dx + dy*dy < n.r*n.r + 100) {
-        setDocView('cards');
-        // Find and highlight the doc
-        const doc = state.documents.find(d => d.id === n.id);
-        if (doc) {
-          document.getElementById('doc-search').value = doc.title;
-          renderDocuments();
-        }
-        break;
-      }
-    }
+  canvas.onmousedown = (event) => {
+    _graphDrag = { x: event.clientX, y: event.clientY, panX: _graphScene?.panX || 0, panY: _graphScene?.panY || 0 };
+    canvas.style.cursor = 'grabbing';
   };
-
-  // Animation loop
-  _graphRunning = true;
-  let frame = 0;
-  function loop() {
-    if (!_graphRunning) return;
-    tick();
-    draw();
-    frame++;
-    if (frame < 300) _graphAnim = requestAnimationFrame(loop);
-    else {
-      // Settle: only draw on mouse interaction
-      draw();
-      canvas.onmousemove_orig = canvas.onmousemove;
-      _graphRunning = false;
-    }
-  }
-  loop();
+  window.onmouseup = () => { _graphDrag = null; };
+  canvas.onmouseleave = () => {
+    tooltip.style.display = 'none';
+    if (_graphScene) _graphScene.hover = null;
+  };
+  canvas.onwheel = (event) => {
+    event.preventDefault();
+    if (!_graphScene) return;
+    const next = _graphScene.zoom * (event.deltaY > 0 ? .92 : 1.08);
+    _graphScene.zoom = Math.max(.45, Math.min(2.4, next));
+    _graphScene.energy = 16;
+    startGraphLoop();
+  };
+  canvas.onclick = (event) => {
+    const hit = hitTest(toWorld(event));
+    if (!hit?.docId) return;
+    setDocView('cards');
+    window.openDocPreview?.(hit.docId);
+  };
 }
 
 </script>
