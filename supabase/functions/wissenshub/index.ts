@@ -1396,6 +1396,86 @@ serve(async (req: Request) => {
       case "move_documents":
         return await handleMoveDocuments(body, req, origin);
 
+      case "move_document": {
+        const { document_id, folder_id } = body as { document_id: string; folder_id: string | null };
+        if (!document_id) return errorResponse(origin, "document_id required");
+        const admin = getAdminClient();
+        const { data, error } = await admin.schema("knowledge").from("documents")
+          .update({ folder_id: folder_id ?? null, updated_at: new Date().toISOString() })
+          .eq("id", document_id).select("id, title, folder_id").single();
+        if (error) return errorResponse(origin, error.message, 500);
+        return corsResponse(origin, { document: data });
+      }
+
+      case "copy_document": {
+        const { document_id, target_folder_id } = body as { document_id: string; target_folder_id?: string };
+        if (!document_id) return errorResponse(origin, "document_id required");
+        const admin = getAdminClient();
+        const { data: orig } = await admin.schema("knowledge").from("documents")
+          .select("*").eq("id", document_id).single();
+        if (!orig) return errorResponse(origin, "Document not found", 404);
+        const { data: copy, error } = await admin.schema("knowledge").from("documents").insert({
+          folder_id: target_folder_id ?? orig.folder_id,
+          title: orig.title + " (Kopie)",
+          filename: orig.filename,
+          content: orig.content,
+          file_size_bytes: orig.file_size_bytes,
+          tags: orig.tags,
+          embedding_status: "pending",
+          uploader_name: orig.uploader_name,
+          uploader_kuerzel: orig.uploader_kuerzel,
+          uploaded_by: orig.uploaded_by,
+        }).select().single();
+        if (error) return errorResponse(origin, error.message, 500);
+        // Trigger embed for copy
+        if (copy) await handleEmbed({ document_id: copy.id }, origin).catch(() => {});
+        return corsResponse(origin, { document: copy });
+      }
+
+      case "rename_document": {
+        const { document_id, title } = body as { document_id: string; title: string };
+        if (!document_id || !title) return errorResponse(origin, "document_id and title required");
+        const admin = getAdminClient();
+        const { data, error } = await admin.schema("knowledge").from("documents")
+          .update({ title: title.trim(), updated_at: new Date().toISOString() })
+          .eq("id", document_id).select("id, title").single();
+        if (error) return errorResponse(origin, error.message, 500);
+        return corsResponse(origin, { document: data });
+      }
+
+      case "update_document_tags": {
+        const { document_id, tags } = body as { document_id: string; tags: string[] };
+        if (!document_id) return errorResponse(origin, "document_id required");
+        const admin = getAdminClient();
+        const { data, error } = await admin.schema("knowledge").from("documents")
+          .update({ tags: Array.isArray(tags) ? tags : [], updated_at: new Date().toISOString() })
+          .eq("id", document_id).select("id, tags").single();
+        if (error) return errorResponse(origin, error.message, 500);
+        return corsResponse(origin, { document: data });
+      }
+
+      case "rename_folder": {
+        const { folder_id, name } = body as { folder_id: string; name: string };
+        if (!folder_id || !name) return errorResponse(origin, "folder_id and name required");
+        const admin = getAdminClient();
+        const { data, error } = await admin.schema("knowledge").from("folders")
+          .update({ name: name.trim(), updated_at: new Date().toISOString() })
+          .eq("id", folder_id).select("id, name").single();
+        if (error) return errorResponse(origin, error.message, 500);
+        return corsResponse(origin, { folder: data });
+      }
+
+      case "move_folder": {
+        const { folder_id, parent_id } = body as { folder_id: string; parent_id: string | null };
+        if (!folder_id) return errorResponse(origin, "folder_id required");
+        const admin = getAdminClient();
+        const { data, error } = await admin.schema("knowledge").from("folders")
+          .update({ parent_id: parent_id ?? null, updated_at: new Date().toISOString() })
+          .eq("id", folder_id).select().single();
+        if (error) return errorResponse(origin, error.message, 500);
+        return corsResponse(origin, { folder: data });
+      }
+
       case "documents":
         return await handleDocuments(body.folder_id ? body : Object.fromEntries(url.searchParams), origin);
 

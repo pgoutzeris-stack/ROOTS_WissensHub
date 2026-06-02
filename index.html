@@ -1653,6 +1653,51 @@
       from { background-position: 200% center; }
       to { background-position: -200% center; }
     }
+
+    /* Smart Search Dropdown */
+    .search-dropdown-section { padding:.4rem .75rem .2rem; font-size:.7rem; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; }
+    .search-dropdown-item { display:flex; align-items:center; gap:.6rem; padding:.5rem .75rem; cursor:pointer; transition:background .1s; }
+    .search-dropdown-item:hover { background:var(--surface-2,#f1f5f9); }
+    .search-dropdown-item i { width:16px; text-align:center; color:var(--muted); font-size:.8rem; }
+    .search-dropdown-item-title { font-size:.82rem; font-weight:500; color:var(--ink); }
+    .search-dropdown-item-sub { font-size:.72rem; color:var(--muted); margin-top:1px; }
+
+    /* Smart pills inside search */
+    .smart-search-wrap .dash-search { border-radius:8px 8px 0 0; border-bottom-color:transparent; }
+    .smart-search-wrap:not(.has-pills) .dash-search { border-radius:8px; }
+    .smart-search-wrap:not(.has-pills) #search-pills { display:none !important; }
+    #search-pills { background:var(--surface-2,#f8fafc); border-radius:0 0 8px 8px; border:1px solid var(--line); border-top:none; }
+    .smart-pill { display:inline-flex; align-items:center; gap:4px; padding:.18rem .6rem; border-radius:999px; font-size:.73rem; font-weight:500; cursor:pointer; border:1px solid transparent; transition:all .15s; }
+    .smart-pill.active { background:var(--brand); color:#fff; border-color:var(--brand); }
+    .smart-pill:not(.active) { background:var(--bg); border-color:var(--line); color:var(--ink); }
+    .smart-pill:not(.active):hover { border-color:var(--brand); color:var(--brand); }
+
+    /* Context Menu */
+    #ctx-menu .ctx-item { display:flex; align-items:center; gap:.6rem; padding:.5rem .9rem; cursor:pointer; transition:background .1s; white-space:nowrap; }
+    #ctx-menu .ctx-item:hover { background:var(--surface-2,#f1f5f9); }
+    #ctx-menu .ctx-item i { width:14px; text-align:center; font-size:.8rem; color:var(--muted); }
+    #ctx-menu .ctx-item.danger { color:var(--danger, #ef4444); }
+    #ctx-menu .ctx-item.danger i { color:var(--danger, #ef4444); }
+    #ctx-menu .ctx-divider { height:1px; background:var(--line); margin:.25rem 0; }
+
+    /* Folder tree enhanced */
+    .folder-item { position:relative; }
+    .folder-item .folder-ctx-btn { display:none; position:absolute; right:.3rem; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--muted); padding:2px 5px; border-radius:4px; font-size:.7rem; }
+    .folder-item:hover .folder-ctx-btn { display:block; }
+    .folder-item .folder-ctx-btn:hover { background:var(--surface-2); color:var(--ink); }
+    .folder-item.drag-over { background:var(--brand-10, #eff6ff) !important; border:1px dashed var(--brand); }
+
+    /* Doc card drag */
+    .doc-card[draggable="true"] { cursor:grab; }
+    .doc-card[draggable="true"]:active { cursor:grabbing; opacity:.7; }
+    .doc-card.drag-over { outline:2px dashed var(--brand); }
+
+    /* Tag in folder tree */
+    .folder-tags { display:flex; flex-wrap:wrap; gap:2px; padding:.15rem .5rem .3rem 2.2rem; }
+    .folder-tag-mini { font-size:.65rem; padding:.1rem .4rem; border-radius:999px; background:var(--surface-2); color:var(--muted); border:1px solid var(--line); }
+
+    /* Modal header (used by new modals) */
+    .modal-header { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.5rem .75rem; border-bottom:1px solid var(--line); }
   </style>
 </head>
 <body>
@@ -1762,7 +1807,10 @@
           </button>
         </div>
         <div class="folder-tree" id="folder-tree">
-          <button class="folder-item active" data-folder-id="" onclick="selectFolder(this, '')">
+          <button class="folder-item active" data-folder-id=""
+            onclick="selectFolder(this,'')"
+            ondragover="event.preventDefault()"
+            ondrop="onDropToFolder(event,'')">
             <i class="fa-solid fa-inbox"></i>
             Alle Dokumente
             <span class="folder-count" id="folder-count-all">–</span>
@@ -1793,49 +1841,47 @@
 
       <!-- ═══ DOCUMENTS VIEW ═══ -->
       <div id="view-documents" class="view-panel active" style="display:flex;flex-direction:column;height:100%">
-        <div class="dash-toolbar">
-          <div class="dash-search-wrap">
-            <i class="fa-solid fa-magnifying-glass search-icon"></i>
-            <input type="text" class="dash-search" id="doc-search" placeholder="Smart RAG Suche in Dokumenten…" autocomplete="off" />
+        <div class="dash-toolbar" style="gap:.5rem;flex-wrap:wrap">
+          <!-- Smart Search mit Dropdown -->
+          <div class="smart-search-wrap" id="smart-search-wrap" style="position:relative;flex:1;min-width:200px">
+            <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:.75rem;top:50%;transform:translateY(-50%);color:var(--muted);font-size:.85rem;pointer-events:none"></i>
+            <input type="text" class="dash-search" id="doc-search"
+              placeholder="Suchen…" autocomplete="off"
+              style="padding-left:2.2rem;padding-right:.75rem"
+              oninput="onSearchInput(this.value)"
+              onfocus="showSearchDropdown()"
+              onblur="setTimeout(hideSearchDropdown,200)" />
+            <!-- Smart Filter Pills in Suchleiste -->
+            <div id="search-pills" style="display:flex;gap:4px;padding:.25rem .5rem;flex-wrap:wrap;border-top:1px solid var(--line)"></div>
+            <!-- Dropdown -->
+            <div id="search-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--bg);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:200;max-height:320px;overflow-y:auto;margin-top:3px"></div>
           </div>
-          <div class="search-mode-strip" id="search-mode-strip" aria-label="Suchmodus">
-            <button id="search-mode-rag" class="search-mode-pill active" onclick="setSearchMode('rag')" title="Semantische RAG-Suche">
-              <i class="fa-solid fa-brain"></i> Smart RAG
-            </button>
-            <button id="search-mode-filename" class="search-mode-pill" onclick="setSearchMode('filename')" title="Nur Dateiname und Titel">
-              <i class="fa-regular fa-file-lines"></i> Dateiname
-            </button>
-            <button id="search-mode-content" class="search-mode-pill" onclick="setSearchMode('content')" title="Exakter Textinhalt">
-              <i class="fa-solid fa-align-left"></i> Textinhalt
-            </button>
-            <button id="search-mode-all" class="search-mode-pill" onclick="setSearchMode('all')" title="Titel, Dateiname und Textinhalt">
-              <i class="fa-solid fa-layer-group"></i> Alles
-            </button>
-          </div>
-          <select class="toolbar-select" id="folder-filter" onchange="onFolderFilterChange()">
-            <option value="">Alle Ordner</option>
-          </select>
+          <!-- Sort -->
           <select class="toolbar-select" id="sort-select" onchange="renderDocuments()">
             <option value="newest">Neueste zuerst</option>
             <option value="oldest">Älteste zuerst</option>
             <option value="alpha">A – Z</option>
           </select>
+          <!-- Active tag chips -->
           <div class="active-filter-chips" id="active-tag-chips"></div>
           <div class="toolbar-spacer"></div>
-          <div class="view-toggle" style="display:flex;gap:2px;background:var(--surface-2,#f1f5f9);border-radius:8px;padding:3px">
-            <button id="btn-view-cards" class="view-toggle-btn active" onclick="setDocView('cards')" title="Kartenansicht">
-              <i class="fa-solid fa-grip"></i><span>Kacheln</span>
+          <!-- View toggle -->
+          <div style="display:flex;gap:2px;background:var(--surface-2,#f1f5f9);border-radius:8px;padding:3px">
+            <button id="btn-view-cards" onclick="setDocView('cards')" title="Kartenansicht"
+              style="padding:5px 8px;border:none;border-radius:6px;background:var(--bg);cursor:pointer;color:var(--ink)">
+              <i class="fa-solid fa-grip"></i>
             </button>
-            <button id="btn-view-list" class="view-toggle-btn" onclick="setDocView('list')" title="Finder-Liste">
-              <i class="fa-solid fa-list"></i><span>Liste</span>
-            </button>
-            <button id="btn-view-columns" class="view-toggle-btn" onclick="setDocView('columns')" title="Spaltenansicht">
-              <i class="fa-solid fa-table-columns"></i><span>Spalten</span>
-            </button>
-            <button id="btn-view-graph" class="view-toggle-btn" onclick="setDocView('graph')" title="Mindmap">
-              <i class="fa-solid fa-diagram-project"></i><span>Map</span>
+            <button id="btn-view-graph" onclick="setDocView('graph')" title="Wissensgraph"
+              style="padding:5px 8px;border:none;border-radius:6px;background:transparent;cursor:pointer;color:var(--muted)">
+              <i class="fa-solid fa-diagram-project"></i>
             </button>
           </div>
+          <!-- Neuer Ordner Button -->
+          <button class="btn-ghost" onclick="openNewFolderModal()" style="height:36px;padding:0 .9rem;font-size:.82rem;gap:.4rem">
+            <i class="fa-solid fa-folder-plus"></i>
+            Ordner
+          </button>
+          <!-- Upload Button -->
           <button class="btn-primary" onclick="switchView('upload')">
             <i class="fa-solid fa-cloud-arrow-up"></i>
             Hochladen
@@ -2489,21 +2535,43 @@ function renderFolderTree(folders) {
   roots.forEach(f => renderFolderNode(tree, f, folders));
 }
 
-function renderFolderNode(container, folder, allFolders) {
+function renderFolderNode(container, folder, allFolders, depth = 0) {
+  const wrap = document.createElement('div');
+  wrap.style.paddingLeft = depth > 0 ? '.8rem' : '0';
+
   const btn = document.createElement('button');
   btn.className = `folder-item${state.activeFolderId === folder.id ? ' active' : ''}`;
   btn.dataset.folderId = folder.id;
-  btn.onclick = () => selectFolder(btn, folder.id);
-  btn.innerHTML = `<i class="fa-solid ${escHtml(folder.icon || 'fa-folder')}" style="color:${escHtml(folder.color || '#206efb')}"></i>${escHtml(folder.name)}<span class="folder-count">${folder.doc_count ?? ''}</span>`;
-  container.appendChild(btn);
-  // children
+
+  const tags = allFolders._docTags?.[folder.id] || [];
+  const tagsHtml = tags.length ? `<span style="font-size:.65rem;color:var(--muted);margin-left:.3rem">[${tags.slice(0,2).join(', ')}]</span>` : '';
+
+  btn.innerHTML = `<i class="fa-solid ${escHtml(folder.icon || 'fa-folder')}${state.activeFolderId === folder.id ? '-open' : ''}" style="color:${escHtml(folder.color || '#206efb')}"></i>
+    ${escHtml(folder.name)}${tagsHtml}
+    <span class="folder-count">${folder.doc_count ?? ''}</span>
+    <button class="folder-ctx-btn" onclick="event.stopPropagation();showCtxMenu(event,'folder',${JSON.stringify(folder).replace(/"/g,'&quot;')})">
+      <i class="fa-solid fa-ellipsis"></i>
+    </button>`;
+
+  btn.onclick = (e) => { if (!e.target.closest('.folder-ctx-btn')) selectFolder(btn, folder.id); };
+  btn.addEventListener('contextmenu', e => showCtxMenu(e, 'folder', folder));
+  btn.addEventListener('dragover', e => { e.preventDefault(); btn.classList.add('drag-over'); });
+  btn.addEventListener('dragleave', () => btn.classList.remove('drag-over'));
+  btn.addEventListener('drop', e => { btn.classList.remove('drag-over'); onDropToFolder(e, folder.id); });
+
+  wrap.appendChild(btn);
+
+
   const children = allFolders.filter(f => f.parent_id === folder.id);
   if (children.length) {
     const sub = document.createElement('div');
-    sub.style.paddingLeft = '1rem';
-    children.forEach(c => renderFolderNode(sub, c, allFolders));
-    container.appendChild(sub);
+    sub.style.paddingLeft = '.75rem';
+    sub.style.borderLeft = '1px solid var(--line)';
+    sub.style.marginLeft = '.7rem';
+    children.forEach(c => renderFolderNode(sub, c, allFolders, depth + 1));
+    wrap.appendChild(sub);
   }
+  container.appendChild(wrap);
 }
 
 function renderStructurePreview() {
@@ -2545,14 +2613,11 @@ window.selectFolder = function(el, folderId) {
   state.activeFolderId = folderId;
   document.querySelectorAll('#folder-tree .folder-item').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
-  // sync toolbar dropdown
-  const sel = document.getElementById('folder-filter');
-  if (sel) sel.value = folderId;
   loadDocuments();
 };
 
 function populateFolderSelects(folders) {
-  const selects = ['folder-filter', 'upload-folder', 'new-folder-parent'];
+  const selects = ['upload-folder', 'new-folder-parent'];
   selects.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
@@ -2562,7 +2627,7 @@ function populateFolderSelects(folders) {
     else {
       const opt = document.createElement('option');
       opt.value = '';
-      opt.textContent = id === 'new-folder-parent' ? 'Kein übergeordneter Ordner' : 'Alle Ordner';
+      opt.textContent = id === 'new-folder-parent' ? 'Kein übergeordneter Ordner' : 'Kein Ordner (Root)';
       sel.appendChild(opt);
     }
     folders.forEach(f => {
@@ -2586,14 +2651,7 @@ function folderDepth(folderId, seen = new Set()) {
   return 1 + folderDepth(folder.parent_id, seen);
 }
 
-window.onFolderFilterChange = function() {
-  const sel = document.getElementById('folder-filter');
-  state.activeFolderId = sel.value;
-  document.querySelectorAll('#folder-tree .folder-item').forEach(b => {
-    b.classList.toggle('active', b.dataset.folderId === sel.value);
-  });
-  loadDocuments();
-};
+// onFolderFilterChange removed — folder filter is now done via the sidebar tree only
 
 // ─── Tags ─────────────────────────────────────────────────────────────────────
 async function loadTags() {
@@ -2656,12 +2714,7 @@ function renderActiveTagChips() {
 }
 
 // ─── Documents ────────────────────────────────────────────────────────────────
-let searchDebounce;
-document.getElementById('doc-search').addEventListener('input', (e) => {
-  clearTimeout(searchDebounce);
-  state.search = e.target.value.trim();
-  searchDebounce = setTimeout(loadDocuments, 280);
-});
+// doc-search oninput is handled by onSearchInput() set in HTML attribute
 document.getElementById('sort-select').addEventListener('change', (e) => {
   state.sort = e.target.value;
   renderDocuments();
@@ -2746,6 +2799,12 @@ function makeDocCard(doc, index = 0) {
   const card = document.createElement('div');
   card.className = 'doc-card';
   card.style.animationDelay = `${Math.min(index, 16) * 24}ms`;
+  card.draggable = true;
+  card.addEventListener('dragstart', e => {
+    e.dataTransfer.setData('text/plain', doc.id);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  card.addEventListener('contextmenu', e => showCtxMenu(e, 'doc', doc));
   const embSt = doc.embedding_status || 'pending';
   const statusClass = embSt === 'done' ? 'verarbeitet' : embSt === 'error' ? 'fehler' : 'pending';
   const statusLabel = embSt === 'done' ? 'Verarbeitet' : embSt === 'error' ? 'Fehler' : embSt === 'processing' ? 'Wird verarbeitet…' : 'Ausstehend';
@@ -3185,6 +3244,10 @@ window.clearUpload = function() {
 window.handleUploadAll = async function() {
   if (!state.uploadFiles.length) return;
   const folderId = document.getElementById('upload-folder').value || null;
+  if (!folderId) {
+    const confirmed = confirm('Kein Ordner ausgewählt. In die allgemeine Ablage hochladen?');
+    if (!confirmed) return;
+  }
   const tags = [...state.uploadTags];
   let successCount = 0;
   let errorCount = 0;
@@ -3770,7 +3833,6 @@ window.sendChatMessage = window.sendChatMessage;
 window.addUploadTag = window.addUploadTag;
 window.removeUploadTag = window.removeUploadTag;
 window.selectFolder = window.selectFolder;
-window.onFolderFilterChange = window.onFolderFilterChange;
 window.selectFolderById = window.selectFolderById;
 window.setSearchMode = window.setSearchMode;
 window.renderDocuments = window.renderDocuments;
@@ -4307,8 +4369,406 @@ function attachGraphEvents(canvas, wrap) {
   };
 }
 
+// ─── Search: Smart Pills + Dropdown ──────────────────────────────────────────
+const SEARCH_FILTER_MODES = [
+  { id: 'all',      label: 'Alle',        icon: 'fa-search' },
+  { id: 'title',    label: 'Dateiname',   icon: 'fa-file' },
+  { id: 'content',  label: 'Inhalt',      icon: 'fa-align-left' },
+  { id: 'tag',      label: 'Tag',         icon: 'fa-tag' },
+  { id: 'folder',   label: 'Ordner',      icon: 'fa-folder' },
+];
+let _searchMode = 'all';
+
+function initSearchPills() {
+  const wrap = document.getElementById('search-pills');
+  if (!wrap) return;
+  wrap.innerHTML = SEARCH_FILTER_MODES.map(m =>
+    `<button class="smart-pill${_searchMode === m.id ? ' active' : ''}"
+      onclick="setSearchMode('${m.id}')" title="${m.label}">
+      <i class="fa-solid ${m.icon}"></i>${m.label}
+    </button>`
+  ).join('');
+  document.getElementById('smart-search-wrap')?.classList.toggle('has-pills', true);
+}
+
+window.setSearchMode = function(mode) {
+  _searchMode = mode;
+  initSearchPills();
+  const q = document.getElementById('doc-search')?.value.trim();
+  if (q) onSearchInput(q);
+};
+
+window.onSearchInput = function(val) {
+  state.search = val;
+  renderDocuments();
+  if (val.length >= 1) buildSearchDropdown(val);
+  else hideSearchDropdown();
+};
+
+function buildSearchDropdown(q) {
+  const dd = document.getElementById('search-dropdown');
+  if (!dd) return;
+  const ql = q.toLowerCase();
+  const docs = state.documents.filter(d => {
+    if (_searchMode === 'title') return (d.title||'').toLowerCase().includes(ql);
+    if (_searchMode === 'tag')   return Array.isArray(d.tags) && d.tags.some(t => t.toLowerCase().includes(ql));
+    if (_searchMode === 'folder') {
+      const f = state.folders.find(f => f.id === d.folder_id);
+      return f && f.name.toLowerCase().includes(ql);
+    }
+    return (d.title||'').toLowerCase().includes(ql) || (Array.isArray(d.tags) && d.tags.some(t => t.toLowerCase().includes(ql)));
+  }).slice(0, 8);
+
+  if (!docs.length) { hideSearchDropdown(); return; }
+
+  dd.innerHTML = `<div class="search-dropdown-section">${docs.length} Treffer</div>` +
+    docs.map(d => {
+      const folder = state.folders.find(f => f.id === d.folder_id);
+      const tags = Array.isArray(d.tags) && d.tags.length ? d.tags.slice(0,3).join(', ') : '';
+      return `<div class="search-dropdown-item" onmousedown="selectSearchResult('${d.id}','${escHtml(d.title)}')">
+        <i class="fa-solid fa-file-lines"></i>
+        <div>
+          <div class="search-dropdown-item-title">${escHtml(d.title)}</div>
+          <div class="search-dropdown-item-sub">${folder ? escHtml(folder.name) + (tags ? ' · ' : '') : ''}${tags}</div>
+        </div>
+      </div>`;
+    }).join('');
+  dd.style.display = 'block';
+}
+
+window.selectSearchResult = function(docId, title) {
+  document.getElementById('doc-search').value = title;
+  state.search = title;
+  renderDocuments();
+  hideSearchDropdown();
+};
+
+window.showSearchDropdown = function() {
+  const q = document.getElementById('doc-search')?.value.trim();
+  if (q) buildSearchDropdown(q);
+};
+
+window.hideSearchDropdown = function() {
+  const dd = document.getElementById('search-dropdown');
+  if (dd) dd.style.display = 'none';
+};
+
+// Init pills on load
+document.addEventListener('DOMContentLoaded', () => setTimeout(initSearchPills, 500));
+// Also init after auth
+document.addEventListener('roots-profile-ready', () => initSearchPills());
+
+// ─── Context Menu ─────────────────────────────────────────────────────────────
+let _ctxTarget = null;
+let _ctxType = null; // 'doc' | 'folder'
+
+function showCtxMenu(e, type, target) {
+  e.preventDefault();
+  e.stopPropagation();
+  _ctxTarget = target;
+  _ctxType = type;
+  const menu = document.getElementById('ctx-menu');
+  const items = type === 'doc' ? buildDocCtxItems(target) : buildFolderCtxItems(target);
+  menu.innerHTML = items;
+  menu.style.display = 'block';
+  const x = Math.min(e.clientX, window.innerWidth - 200);
+  const y = Math.min(e.clientY, window.innerHeight - 220);
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+}
+
+function buildDocCtxItems(doc) {
+  return `
+    <div class="ctx-item" onclick="ctxOpenPreview()"><i class="fa-solid fa-eye"></i>Vorschau</div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item" onclick="ctxRenameDoc()"><i class="fa-solid fa-pencil"></i>Umbenennen</div>
+    <div class="ctx-item" onclick="ctxEditTags()"><i class="fa-solid fa-tags"></i>Tags bearbeiten</div>
+    <div class="ctx-item" onclick="ctxMoveDoc()"><i class="fa-solid fa-folder-arrow-down"></i>Verschieben nach…</div>
+    <div class="ctx-item" onclick="ctxCopyDoc()"><i class="fa-solid fa-copy"></i>Kopie erstellen</div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item danger" onclick="ctxDeleteDoc()"><i class="fa-solid fa-trash"></i>Löschen</div>`;
+}
+
+function buildFolderCtxItems(folder) {
+  return `
+    <div class="ctx-item" onclick="ctxRenameFolder()"><i class="fa-solid fa-pencil"></i>Umbenennen</div>
+    <div class="ctx-item" onclick="ctxCreateSubfolder()"><i class="fa-solid fa-folder-plus"></i>Unterordner erstellen</div>
+    <div class="ctx-divider"></div>
+    <div class="ctx-item danger" onclick="ctxDeleteFolder()"><i class="fa-solid fa-trash"></i>Ordner löschen</div>`;
+}
+
+function hideCtxMenu() {
+  document.getElementById('ctx-menu').style.display = 'none';
+  _ctxTarget = null; _ctxType = null;
+}
+
+document.addEventListener('click', hideCtxMenu);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCtxMenu(); });
+
+// Context menu actions
+async function ctxOpenPreview() {
+  hideCtxMenu();
+  if (_ctxTarget) openDocPreview(_ctxTarget.id, _ctxTarget.title);
+}
+
+// Rename
+let _renameTarget = null;
+let _renameType = null;
+function ctxRenameDoc() { hideCtxMenu(); _renameTarget = _ctxTarget; _renameType = 'doc'; openRenameModal(_ctxTarget.title, 'Dokument umbenennen'); }
+function ctxRenameFolder() { hideCtxMenu(); _renameTarget = _ctxTarget; _renameType = 'folder'; openRenameModal(_ctxTarget.name, 'Ordner umbenennen'); }
+
+function openRenameModal(currentName, title) {
+  document.getElementById('rename-modal-title').textContent = title;
+  document.getElementById('rename-input').value = currentName || '';
+  document.getElementById('modal-rename').classList.add('open');
+  setTimeout(() => { const inp = document.getElementById('rename-input'); inp.focus(); inp.select(); }, 100);
+}
+
+window.closeRenameModal = function() { document.getElementById('modal-rename').classList.remove('open'); };
+
+window.confirmRename = async function() {
+  const newName = document.getElementById('rename-input').value.trim();
+  if (!newName) return;
+  closeRenameModal();
+  try {
+    const action = _renameType === 'doc' ? 'rename_document' : 'rename_folder';
+    const body = _renameType === 'doc'
+      ? { action, document_id: _renameTarget.id, title: newName }
+      : { action, folder_id: _renameTarget.id, name: newName };
+    const res = await fetch(WISSENSHUB_API_URL, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!res.ok) throw new Error('Fehler');
+    toast(`Umbenannt in "${newName}"`, 'ok');
+    await Promise.all([loadDocuments(), loadFolders()]);
+  } catch { toast('Fehler beim Umbenennen', 'err'); }
+};
+
+// Tags bearbeiten
+let _editTagsDocId = null;
+let _editTagsCurrent = [];
+
+function ctxEditTags() {
+  hideCtxMenu();
+  _editTagsDocId = _ctxTarget.id;
+  _editTagsCurrent = Array.isArray(_ctxTarget.tags) ? [..._ctxTarget.tags] : [];
+  renderEditTagsPills();
+  document.getElementById('modal-edit-tags').classList.add('open');
+  document.getElementById('edit-tags-input').value = '';
+  setTimeout(() => document.getElementById('edit-tags-input').focus(), 100);
+}
+
+function renderEditTagsPills() {
+  const wrap = document.getElementById('edit-tags-pills');
+  wrap.innerHTML = _editTagsCurrent.map((t, i) =>
+    `<span style="display:inline-flex;align-items:center;gap:3px;background:var(--brand-10,#eff6ff);color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:.15rem .5rem;font-size:.75rem">
+      ${escHtml(t)}
+      <button onclick="_editTagsCurrent.splice(${i},1);renderEditTagsPills()" style="background:none;border:none;cursor:pointer;color:var(--brand);font-size:.7rem;padding:0;line-height:1"><i class="fa-solid fa-xmark"></i></button>
+    </span>`
+  ).join('');
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('edit-tags-input');
+  if (inp) {
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const v = inp.value.trim().replace(/,$/, '');
+        if (v && !_editTagsCurrent.includes(v)) { _editTagsCurrent.push(v); renderEditTagsPills(); }
+        inp.value = '';
+      }
+    });
+  }
+});
+
+window.closeEditTagsModal = function() { document.getElementById('modal-edit-tags').classList.remove('open'); };
+
+window.confirmEditTags = async function() {
+  closeEditTagsModal();
+  // Add pending input
+  const inp = document.getElementById('edit-tags-input');
+  if (inp?.value.trim()) { _editTagsCurrent.push(inp.value.trim()); inp.value = ''; }
+  try {
+    const res = await fetch(WISSENSHUB_API_URL, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_document_tags', document_id: _editTagsDocId, tags: _editTagsCurrent })
+    });
+    if (!res.ok) throw new Error('Fehler');
+    toast('Tags gespeichert', 'ok');
+    await Promise.all([loadDocuments(), loadTags()]);
+  } catch { toast('Fehler beim Speichern', 'err'); }
+};
+
+// Verschieben
+let _moveDocId = null;
+function ctxMoveDoc() {
+  hideCtxMenu();
+  _moveDocId = _ctxTarget.id;
+  // Populate folder select
+  const sel = document.getElementById('move-doc-folder-select');
+  sel.innerHTML = '<option value="">— Kein Ordner (Ablage) —</option>' +
+    state.folders.map(f => `<option value="${f.id}">${escHtml(f.name)}</option>`).join('');
+  sel.value = _ctxTarget.folder_id || '';
+  document.getElementById('modal-move-doc').classList.add('open');
+}
+
+window.confirmMoveDoc = async function() {
+  document.getElementById('modal-move-doc').classList.remove('open');
+  const folderId = document.getElementById('move-doc-folder-select').value || null;
+  try {
+    const res = await fetch(WISSENSHUB_API_URL, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'move_document', document_id: _moveDocId, folder_id: folderId })
+    });
+    if (!res.ok) throw new Error('Fehler');
+    toast('Dokument verschoben', 'ok');
+    await loadDocuments();
+  } catch { toast('Fehler beim Verschieben', 'err'); }
+};
+
+// Kopieren
+async function ctxCopyDoc() {
+  hideCtxMenu();
+  const doc = _ctxTarget;
+  try {
+    setSyncing(true);
+    const res = await fetch(WISSENSHUB_API_URL, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'copy_document', document_id: doc.id })
+    });
+    if (!res.ok) throw new Error('Fehler');
+    toast(`Kopie von "${doc.title}" erstellt`, 'ok');
+    await loadDocuments();
+  } catch { toast('Fehler beim Kopieren', 'err'); }
+  finally { setSyncing(false); }
+}
+
+// Löschen
+async function ctxDeleteDoc() {
+  hideCtxMenu();
+  const doc = _ctxTarget;
+  state.pendingDeleteId = doc.id;
+  state.pendingDeleteName = doc.title;
+  document.getElementById('delete-doc-name').textContent = doc.title;
+  document.getElementById('modal-delete-confirm').classList.add('open');
+}
+
+async function ctxDeleteFolder() {
+  hideCtxMenu();
+  const folder = _ctxTarget;
+  if (!confirm(`Ordner "${folder.name}" löschen? Enthaltene Dokumente werden in die Ablage verschoben.`)) return;
+  try {
+    const res = await fetch(WISSENSHUB_API_URL, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete_folder', id: folder.id })
+    });
+    if (!res.ok) throw new Error('Fehler');
+    toast(`Ordner "${folder.name}" gelöscht`, 'ok');
+    await Promise.all([loadFolders(), loadDocuments()]);
+  } catch { toast('Fehler beim Löschen', 'err'); }
+}
+
+async function ctxCreateSubfolder() {
+  hideCtxMenu();
+  const parent = _ctxTarget;
+  const name = prompt(`Unterordner in "${parent.name}" erstellen:`);
+  if (!name?.trim()) return;
+  try {
+    const res = await fetch(WISSENSHUB_API_URL, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create_folder', name: name.trim(), parent_id: parent.id })
+    });
+    if (!res.ok) throw new Error('Fehler');
+    toast(`Unterordner "${name}" erstellt`, 'ok');
+    await loadFolders();
+  } catch { toast('Fehler beim Erstellen', 'err'); }
+}
+
+// ─── Drag & Drop ──────────────────────────────────────────────────────────────
+window.onDropToFolder = async function(event, folderId) {
+  event.preventDefault();
+  document.querySelectorAll('.folder-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+  const docId = event.dataTransfer.getData('text/plain');
+  if (!docId) return;
+  try {
+    const res = await fetch(WISSENSHUB_API_URL, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'move_document', document_id: docId, folder_id: folderId || null })
+    });
+    if (!res.ok) throw new Error('Fehler');
+    const folder = state.folders.find(f => f.id === folderId);
+    toast(`Verschoben${folder ? ' nach "' + folder.name + '"' : ' in die Ablage'}`, 'ok');
+    await loadDocuments();
+  } catch { toast('Fehler beim Verschieben', 'err'); }
+};
+
 </script>
 
 <script src="https://pgoutzeris-stack.github.io/ROOTS_Intranet/roots-user-bridge.js?v=20260601-final"></script>
+
+<!-- Context Menu -->
+<div id="ctx-menu" style="display:none;position:fixed;background:var(--bg);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:9999;min-width:180px;padding:.35rem 0;font-size:.82rem">
+</div>
+
+<!-- Rename Modal -->
+<div class="modal-overlay" id="modal-rename">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-header"><span class="modal-title" id="rename-modal-title">Umbenennen</span>
+      <button class="btn-close-modal" onclick="closeRenameModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="padding:1rem 1.5rem 1.5rem">
+      <input type="text" id="rename-input" class="form-input" style="width:100%" placeholder="Neuer Name" />
+      <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end">
+        <button class="btn-ghost" onclick="closeRenameModal()">Abbrechen</button>
+        <button class="btn-primary" onclick="confirmRename()">Umbenennen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tag Edit Modal -->
+<div class="modal-overlay" id="modal-edit-tags">
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-header"><span class="modal-title">Tags bearbeiten</span>
+      <button class="btn-close-modal" onclick="closeEditTagsModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="padding:1rem 1.5rem 1.5rem">
+      <div id="edit-tags-pills" style="display:flex;flex-wrap:wrap;gap:4px;min-height:36px;border:1px solid var(--line);border-radius:8px;padding:.4rem;margin-bottom:.75rem;cursor:text" onclick="document.getElementById('edit-tags-input').focus()"></div>
+      <input type="text" id="edit-tags-input" class="form-input" placeholder="Tag hinzufügen (Enter)" style="width:100%" />
+      <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end">
+        <button class="btn-ghost" onclick="closeEditTagsModal()">Abbrechen</button>
+        <button class="btn-primary" onclick="confirmEditTags()">Speichern</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Move Document Modal -->
+<div class="modal-overlay" id="modal-move-doc">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-header"><span class="modal-title">Verschieben in…</span>
+      <button class="btn-close-modal" onclick="document.getElementById('modal-move-doc').classList.remove('open')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="padding:1rem 1.5rem 1.5rem">
+      <select id="move-doc-folder-select" class="form-input" style="width:100%">
+        <option value="">— Kein Ordner (Ablage) —</option>
+      </select>
+      <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end">
+        <button class="btn-ghost" onclick="document.getElementById('modal-move-doc').classList.remove('open')">Abbrechen</button>
+        <button class="btn-primary" onclick="confirmMoveDoc()">Verschieben</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
