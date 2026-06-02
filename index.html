@@ -471,6 +471,98 @@
     }
     .view-toggle-btn:hover { transform: translateY(-1px); color: var(--ink); }
     .view-toggle-btn.active { background: var(--bg); color: var(--ink); box-shadow: 0 1px 6px rgba(15,23,42,.08); }
+    .search-mode-strip {
+      display: flex;
+      align-items: center;
+      gap: .35rem;
+      flex-wrap: wrap;
+      min-width: 260px;
+    }
+    .search-mode-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: .34rem;
+      min-height: 30px;
+      padding: 0 .68rem;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-pill);
+      background: var(--bg);
+      color: var(--muted);
+      cursor: pointer;
+      font: inherit;
+      font-size: .75rem;
+      font-weight: 800;
+      transition: background .16s, color .16s, border-color .16s, transform .16s;
+    }
+    .search-mode-pill:hover { transform: translateY(-1px); border-color: rgba(32,110,251,.35); color: var(--brand); }
+    .search-mode-pill.active { background: var(--brand-light); color: var(--brand); border-color: rgba(32,110,251,.28); }
+    .structure-panel {
+      display: grid;
+      grid-template-columns: minmax(220px,.75fr) minmax(0,1.25fr);
+      gap: 1rem;
+      padding: 1rem;
+      border: 1px solid rgba(15,23,42,.08);
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 90% 12%, rgba(16,185,129,.14), transparent 30%),
+        linear-gradient(135deg, rgba(255,255,255,.98), rgba(248,250,252,.9));
+      box-shadow: 0 16px 38px rgba(15,23,42,.07);
+      animation: docReveal .34s ease both;
+    }
+    .structure-panel__eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      color: #059669;
+      font-size: .73rem;
+      font-weight: 850;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .structure-panel__title { margin-top:.38rem;font-size:1rem;font-weight:850;color:var(--ink); }
+    .structure-panel__text { margin-top:.3rem;font-size:.83rem;line-height:1.55;color:var(--muted); }
+    .structure-panel__actions { display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.72rem; }
+    .structure-tree-preview {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: .55rem;
+      align-content: start;
+    }
+    .structure-folder-card {
+      display: flex;
+      align-items: center;
+      gap: .55rem;
+      min-width: 0;
+      padding: .68rem .72rem;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,.86);
+      cursor: pointer;
+      transition: transform .16s, border-color .16s, box-shadow .16s;
+    }
+    .structure-folder-card:hover { transform: translateY(-1px); border-color: rgba(32,110,251,.25); box-shadow:0 10px 24px rgba(15,23,42,.07); }
+    .structure-folder-card__icon {
+      width: 32px;
+      height: 32px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 11px;
+      background: var(--brand-light);
+      color: var(--brand);
+      flex-shrink: 0;
+    }
+    .structure-folder-card__name { font-size:.82rem;font-weight:850;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .structure-folder-card__meta { margin-top:.12rem;font-size:.7rem;color:var(--muted); }
+    .folder-path {
+      display: inline-flex;
+      align-items: center;
+      gap: .28rem;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: .72rem;
+    }
+    .folder-path i { color: var(--brand); }
     .smart-folder-panel {
       display: grid;
       grid-template-columns: minmax(210px,.7fr) minmax(0,1.3fr);
@@ -538,7 +630,6 @@
       padding-bottom: .8rem;
       scroll-snap-type: x proximity;
     }
-    .doc-grid.doc-layout-smart { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); align-items: start; }
     .doc-card {
       background: var(--bg);
       border: 1px solid var(--line);
@@ -1693,7 +1784,21 @@
         <div class="dash-toolbar">
           <div class="dash-search-wrap">
             <i class="fa-solid fa-magnifying-glass search-icon"></i>
-            <input type="text" class="dash-search" id="doc-search" placeholder="Dokumente durchsuchen…" autocomplete="off" />
+            <input type="text" class="dash-search" id="doc-search" placeholder="Smart RAG Suche in Dokumenten…" autocomplete="off" />
+          </div>
+          <div class="search-mode-strip" id="search-mode-strip" aria-label="Suchmodus">
+            <button id="search-mode-rag" class="search-mode-pill active" onclick="setSearchMode('rag')" title="Semantische RAG-Suche">
+              <i class="fa-solid fa-brain"></i> Smart RAG
+            </button>
+            <button id="search-mode-filename" class="search-mode-pill" onclick="setSearchMode('filename')" title="Nur Dateiname und Titel">
+              <i class="fa-regular fa-file-lines"></i> Dateiname
+            </button>
+            <button id="search-mode-content" class="search-mode-pill" onclick="setSearchMode('content')" title="Exakter Textinhalt">
+              <i class="fa-solid fa-align-left"></i> Textinhalt
+            </button>
+            <button id="search-mode-all" class="search-mode-pill" onclick="setSearchMode('all')" title="Titel, Dateiname und Textinhalt">
+              <i class="fa-solid fa-layer-group"></i> Alles
+            </button>
           </div>
           <select class="toolbar-select" id="folder-filter" onchange="onFolderFilterChange()">
             <option value="">Alle Ordner</option>
@@ -1715,9 +1820,6 @@
             <button id="btn-view-columns" class="view-toggle-btn" onclick="setDocView('columns')" title="Spaltenansicht">
               <i class="fa-solid fa-table-columns"></i><span>Spalten</span>
             </button>
-            <button id="btn-view-smart" class="view-toggle-btn" onclick="setDocView('smart')" title="Smarte Ordner">
-              <i class="fa-solid fa-wand-magic-sparkles"></i><span>Smart</span>
-            </button>
             <button id="btn-view-graph" class="view-toggle-btn" onclick="setDocView('graph')" title="Mindmap">
               <i class="fa-solid fa-diagram-project"></i><span>Map</span>
             </button>
@@ -1729,13 +1831,21 @@
         </div>
         <div class="dash-content" id="doc-content">
           <div class="doc-workspace" id="doc-workspace">
-            <div class="smart-folder-panel" id="smart-folder-panel" hidden>
+            <div class="structure-panel" id="structure-panel">
               <div>
-                <div class="smart-folder-panel__eyebrow"><i class="fa-solid fa-sparkles"></i> Smart Filing</div>
-                <div class="smart-folder-panel__title">Vorschläge für saubere Ablage</div>
-                <div class="smart-folder-panel__text">Ich erkenne Muster aus Titel, Tags und bestehenden Ordnernamen. Erst wenn du bestätigst, werden Dokumente verschoben.</div>
+                <div class="structure-panel__eyebrow"><i class="fa-solid fa-folder-tree"></i> Strukturmanagement</div>
+                <div class="structure-panel__title">Ordner, Unterordner und Wissenspfade</div>
+                <div class="structure-panel__text">Baue deine Ablage wie in Finder oder Obsidian: Ordnerstrukturen sind in Kacheln, Liste, Spalten und Map sichtbar.</div>
+                <div class="structure-panel__actions">
+                  <button class="btn-primary" style="height:34px;padding:0 .85rem;font-size:.78rem" onclick="openNewFolderModal()">
+                    <i class="fa-solid fa-folder-plus"></i> Ordner anlegen
+                  </button>
+                  <button class="btn-ghost" style="height:34px;padding:0 .85rem;font-size:.78rem" onclick="setDocView('columns')">
+                    <i class="fa-solid fa-table-columns"></i> Struktur ansehen
+                  </button>
+                </div>
               </div>
-              <div class="smart-suggestion-list" id="smart-suggestion-list"></div>
+              <div class="structure-tree-preview" id="structure-tree-preview"></div>
             </div>
             <div class="doc-grid" id="doc-grid"></div>
           </div>
@@ -1892,6 +2002,28 @@
         <select class="form-select" id="new-folder-parent">
           <option value="">Kein übergeordneter Ordner</option>
         </select>
+      </div>
+      <div class="form-field">
+        <label class="form-label">Beschreibung / Zweck</label>
+        <input class="form-input" id="new-folder-description" type="text" placeholder="z.B. Alle SOPs für Onboarding und Training" autocomplete="off" />
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 120px;gap:.75rem">
+        <div class="form-field">
+          <label class="form-label">Icon</label>
+          <select class="form-select" id="new-folder-icon">
+            <option value="fa-folder">Ordner</option>
+            <option value="fa-book">Wissen</option>
+            <option value="fa-sitemap">Struktur</option>
+            <option value="fa-briefcase">Business</option>
+            <option value="fa-graduation-cap">Training</option>
+            <option value="fa-bullhorn">Marketing</option>
+            <option value="fa-shield-halved">Compliance</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label class="form-label">Farbe</label>
+          <input class="form-input" id="new-folder-color" type="color" value="#206efb" style="padding:.25rem;height:42px" />
+        </div>
       </div>
     </div>
     <div class="modal-foot">
@@ -2114,7 +2246,7 @@ const state = {
   activeTagFilters: [],
   docView: 'cards',
   graphMode: 'mindmap',
-  smartSuggestions: [],
+  searchMode: 'rag',
   search: '',
   sort: 'newest',
   uploadFiles: [],
@@ -2303,6 +2435,7 @@ async function loadFolders() {
     const { folders } = await res.json();
     state.folders = folders || [];
     renderFolderTree(state.folders);
+    renderStructurePreview();
     populateFolderSelects(state.folders);
   } catch (err) {
     console.error('loadFolders:', err);
@@ -2327,7 +2460,7 @@ function renderFolderNode(container, folder, allFolders) {
   btn.className = `folder-item${state.activeFolderId === folder.id ? ' active' : ''}`;
   btn.dataset.folderId = folder.id;
   btn.onclick = () => selectFolder(btn, folder.id);
-  btn.innerHTML = `<i class="fa-solid fa-folder"></i>${escHtml(folder.name)}<span class="folder-count">${folder.doc_count ?? ''}</span>`;
+  btn.innerHTML = `<i class="fa-solid ${escHtml(folder.icon || 'fa-folder')}" style="color:${escHtml(folder.color || '#206efb')}"></i>${escHtml(folder.name)}<span class="folder-count">${folder.doc_count ?? ''}</span>`;
   container.appendChild(btn);
   // children
   const children = allFolders.filter(f => f.parent_id === folder.id);
@@ -2338,6 +2471,41 @@ function renderFolderNode(container, folder, allFolders) {
     container.appendChild(sub);
   }
 }
+
+function renderStructurePreview() {
+  const wrap = document.getElementById('structure-tree-preview');
+  if (!wrap) return;
+  if (!state.folders.length) {
+    wrap.innerHTML = `
+      <button class="structure-folder-card" onclick="openNewFolderModal()">
+        <span class="structure-folder-card__icon"><i class="fa-solid fa-folder-plus"></i></span>
+        <span>
+          <span class="structure-folder-card__name">Erste Struktur anlegen</span>
+          <span class="structure-folder-card__meta">Ordner und Unterordner erstellen</span>
+        </span>
+      </button>`;
+    return;
+  }
+  const roots = state.folders.filter(folder => !folder.parent_id).slice(0, 8);
+  wrap.innerHTML = roots.map(folder => {
+    const children = state.folders.filter(item => item.parent_id === folder.id).length;
+    return `
+      <button class="structure-folder-card" onclick="selectFolderById('${folder.id}')">
+        <span class="structure-folder-card__icon" style="background:${escHtml(folder.color || '#206efb')}18;color:${escHtml(folder.color || '#206efb')}">
+          <i class="fa-solid ${escHtml(folder.icon || 'fa-folder')}"></i>
+        </span>
+        <span style="min-width:0">
+          <span class="structure-folder-card__name">${escHtml(folder.name)}</span>
+          <span class="structure-folder-card__meta">${children} Unterordner · ${folder.doc_count ?? 0} Dokumente</span>
+        </span>
+      </button>`;
+  }).join('');
+}
+
+window.selectFolderById = function(folderId) {
+  const btn = document.querySelector(`#folder-tree .folder-item[data-folder-id="${CSS.escape(folderId)}"]`);
+  if (btn) selectFolder(btn, folderId);
+};
 
 window.selectFolder = function(el, folderId) {
   state.activeFolderId = folderId;
@@ -2364,12 +2532,24 @@ function populateFolderSelects(folders) {
       sel.appendChild(opt);
     }
     folders.forEach(f => {
-      const opt = document.createElement('option');
-      opt.value = f.id;
-      opt.textContent = f.name;
+    const opt = document.createElement('option');
+    opt.value = f.id;
+      opt.textContent = folderOptionLabel(f);
       sel.appendChild(opt);
     });
   });
+}
+
+function folderOptionLabel(folder) {
+  const depth = folderDepth(folder.id);
+  return `${'— '.repeat(depth)}${folder.name}`;
+}
+
+function folderDepth(folderId, seen = new Set()) {
+  const folder = state.folders.find(item => item.id === folderId);
+  if (!folder?.parent_id || seen.has(folderId)) return 0;
+  seen.add(folderId);
+  return 1 + folderDepth(folder.parent_id, seen);
 }
 
 window.onFolderFilterChange = function() {
@@ -2453,12 +2633,29 @@ document.getElementById('sort-select').addEventListener('change', (e) => {
   renderDocuments();
 });
 
+window.setSearchMode = function(mode) {
+  state.searchMode = mode;
+  ['rag', 'filename', 'content', 'all'].forEach(name => {
+    document.getElementById(`search-mode-${name}`)?.classList.toggle('active', mode === name);
+  });
+  const labels = {
+    rag: 'Smart RAG Suche in Dokumenten…',
+    filename: 'Nach Dateiname oder Titel suchen…',
+    content: 'Exakt im Textinhalt suchen…',
+    all: 'In Titel, Dateiname und Text suchen…',
+  };
+  const input = document.getElementById('doc-search');
+  if (input) input.placeholder = labels[mode] || labels.rag;
+  if (state.search) loadDocuments();
+};
+
 async function loadDocuments() {
   setSyncing(true);
   try {
     const params = new URLSearchParams({ action: 'documents' });
     if (state.activeFolderId) params.set('folder_id', state.activeFolderId);
     if (state.search) params.set('search', state.search);
+    if (state.search) params.set('search_mode', state.searchMode || 'rag');
     if (state.activeTagFilters.length) params.set('tags', state.activeTagFilters.join(','));
 
     const res = await fetch(`${WISSENSHUB_API_URL}?${params}`, {
@@ -2470,6 +2667,7 @@ async function loadDocuments() {
     document.getElementById('folder-count-all').textContent = total ?? state.documents.length;
     document.getElementById('chat-doc-count').textContent = `${total ?? state.documents.length} Dokument${(total ?? state.documents.length) !== 1 ? 'e' : ''} indexiert`;
     renderDocuments();
+    if (state.docView === 'graph') initKnowledgeGraph();
   } catch (err) {
     console.error('loadDocuments:', err);
     state.documents = [];
@@ -2481,7 +2679,6 @@ async function loadDocuments() {
 
 window.renderDocuments = function() {
   const grid = document.getElementById('doc-grid');
-  const panel = document.getElementById('smart-folder-panel');
   let docs = [...state.documents];
   const sort = document.getElementById('sort-select')?.value || state.sort;
   if (sort === 'newest') docs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -2489,10 +2686,8 @@ window.renderDocuments = function() {
   else if (sort === 'alpha') docs.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
 
   grid.className = `doc-grid doc-layout-${state.docView === 'graph' ? 'cards' : state.docView}`;
-  if (panel) renderSmartFolderPanel(docs);
 
   if (!docs.length) {
-    if (panel) panel.hidden = true;
     grid.innerHTML = `
       <div class="empty-state" style="grid-column:1/-1">
         <div class="empty-state__icon"><i class="fa-solid fa-file-lines"></i></div>
@@ -2508,8 +2703,6 @@ window.renderDocuments = function() {
     docs.forEach((doc, index) => grid.appendChild(makeDocListRow(doc, index)));
   } else if (state.docView === 'columns') {
     renderColumnLayout(grid, docs);
-  } else if (state.docView === 'smart') {
-    renderSmartLayout(grid, docs);
   } else {
     docs.forEach((doc, index) => grid.appendChild(makeDocCard(doc, index)));
   }
@@ -2523,7 +2716,7 @@ function makeDocCard(doc, index = 0) {
   const statusClass = embSt === 'done' ? 'verarbeitet' : embSt === 'error' ? 'fehler' : 'pending';
   const statusLabel = embSt === 'done' ? 'Verarbeitet' : embSt === 'error' ? 'Fehler' : embSt === 'processing' ? 'Wird verarbeitet…' : 'Ausstehend';
   const tags = Array.isArray(doc.tags) ? doc.tags : [];
-  const folderName = doc.folder_name || '';
+  const folderPath = folderPathFor(doc.folder_id);
   const uploader = doc.uploader_name || 'Unbekannt';
   const initials = uploader.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase();
   const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
@@ -2535,7 +2728,8 @@ function makeDocCard(doc, index = 0) {
         <span class="status-dot"></span>${statusLabel}
       </span>
     </div>
-    ${folderName ? `<div class="doc-card__folder"><i class="fa-solid fa-folder"></i>${escHtml(folderName)}</div>` : ''}
+    ${folderPath ? `<div class="doc-card__folder">${folderPathHtml(doc.folder_id)}</div>` : '<div class="doc-card__folder"><i class="fa-solid fa-inbox"></i>Root</div>'}
+    ${doc.search_excerpt ? `<div style="font-size:.76rem;color:var(--muted);line-height:1.45;background:var(--surface);border-radius:10px;padding:.48rem .58rem">${escHtml(doc.search_excerpt)}</div>` : ''}
     ${tags.length ? `<div class="doc-card__tags">${tags.map(t => `<span class="tag-pill">${escHtml(t)}</span>`).join('')}</div>` : ''}
     <div class="doc-card__footer">
       <div class="doc-card__meta">
@@ -2560,14 +2754,14 @@ function makeDocListRow(doc, index = 0) {
   row.className = 'doc-list-row';
   row.style.animationDelay = `${Math.min(index, 18) * 18}ms`;
   const tags = Array.isArray(doc.tags) ? doc.tags : [];
-  const folderName = folderNameFor(doc.folder_id) || 'Root';
+  const folderName = folderPathFor(doc.folder_id) || 'Root';
   const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE') : '';
   row.innerHTML = `
     <div class="doc-list-row__main">
       <div class="doc-list-row__title"><i class="fa-regular fa-file-lines" style="color:var(--brand);margin-right:.45rem"></i>${escHtml(doc.title || doc.filename || 'Dokument')}</div>
       <div class="doc-list-row__sub">${tags.length ? tags.slice(0, 4).map(t => `#${escHtml(t)}`).join(' · ') : 'Keine Tags'}</div>
     </div>
-    <div class="doc-list-row__cell"><i class="fa-solid fa-folder" style="margin-right:.35rem"></i>${escHtml(folderName)}</div>
+    <div class="doc-list-row__cell">${folderPathHtml(doc.folder_id) || '<i class="fa-solid fa-inbox" style="margin-right:.35rem"></i>Root'}</div>
     <div class="doc-list-row__cell">${escHtml(doc.uploader_name || 'Unbekannt')} · ${date}</div>
     <div class="doc-card__actions">
       ${doc.chunk_count != null ? `<span style="font-size:.72rem;color:var(--muted)">${doc.chunk_count} Chunks</span>` : ''}
@@ -2737,9 +2931,25 @@ function tokenize(value) {
     .filter(token => token.length > 2);
 }
 
-function folderNameFor(folderId) {
+function folderPathFor(folderId) {
   if (!folderId) return '';
-  return state.folders.find(folder => folder.id === folderId)?.name || '';
+  const parts = [];
+  const seen = new Set();
+  let current = state.folders.find(folder => folder.id === folderId);
+  while (current && !seen.has(current.id)) {
+    seen.add(current.id);
+    parts.unshift(current.name);
+    current = current.parent_id ? state.folders.find(folder => folder.id === current.parent_id) : null;
+  }
+  return parts.join(' / ');
+}
+
+function folderPathHtml(folderId) {
+  if (!folderId) return '';
+  const path = folderPathFor(folderId);
+  if (!path) return '';
+  const folder = state.folders.find(item => item.id === folderId);
+  return `<span class="folder-path"><i class="fa-solid ${escHtml(folder?.icon || 'fa-folder')}" style="color:${escHtml(folder?.color || '#206efb')}"></i>${escHtml(path)}</span>`;
 }
 
 window.applySmartSuggestion = async function(index) {
@@ -2773,7 +2983,7 @@ window.applySmartSuggestion = async function(index) {
 window.downloadDoc = async function(e, docId) {
   e.stopPropagation();
   try {
-    const res = await fetch(`${WISSENSHUB_API_URL}?action=download&id=${docId}`, { headers: await authHeaders() });
+    const res = await fetch(`${WISSENSHUB_API_URL}?action=download_document&id=${encodeURIComponent(docId)}`, { headers: await authHeaders() });
     if (!res.ok) throw new Error('Download fehlgeschlagen');
     const blob = await res.blob();
     const cd = res.headers.get('content-disposition') || '';
@@ -2802,8 +3012,10 @@ window.confirmDelete = async function() {
   if (!state.pendingDeleteId) return;
   try {
     setSyncing(true);
-    const res = await fetch(`${WISSENSHUB_API_URL}?action=delete&id=${state.pendingDeleteId}`, {
-      method: 'DELETE', headers: await authHeaders()
+    const res = await fetch(`${WISSENSHUB_API_URL}`, {
+      method: 'POST',
+      headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete_document', id: state.pendingDeleteId })
     });
     if (!res.ok) throw new Error('Fehler beim Löschen');
     toast('Dokument gelöscht.', 'ok');
@@ -2819,6 +3031,10 @@ window.confirmDelete = async function() {
 // ─── Folder modal ─────────────────────────────────────────────────────────────
 window.openNewFolderModal = function() {
   document.getElementById('new-folder-name').value = '';
+  document.getElementById('new-folder-description').value = '';
+  document.getElementById('new-folder-icon').value = 'fa-folder';
+  document.getElementById('new-folder-color').value = '#206efb';
+  document.getElementById('new-folder-parent').value = state.activeFolderId || '';
   document.getElementById('modal-new-folder').classList.add('open');
   setTimeout(() => document.getElementById('new-folder-name').focus(), 50);
 };
@@ -2828,18 +3044,21 @@ window.closeNewFolderModal = function() {
 window.createFolder = async function() {
   const name = document.getElementById('new-folder-name').value.trim();
   const parentId = document.getElementById('new-folder-parent').value || null;
+  const description = document.getElementById('new-folder-description').value.trim();
+  const icon = document.getElementById('new-folder-icon').value || 'fa-folder';
+  const color = document.getElementById('new-folder-color').value || '#206efb';
   if (!name) { toast('Bitte Ordnernamen eingeben.', 'err'); return; }
   try {
     setSyncing(true);
     const res = await fetch(`${WISSENSHUB_API_URL}?action=create_folder`, {
       method: 'POST',
       headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, parent_id: parentId })
+      body: JSON.stringify({ name, parent_id: parentId, description, icon, color })
     });
     if (!res.ok) throw new Error('Fehler beim Erstellen');
     toast(`Ordner "${name}" erstellt.`, 'ok');
     closeNewFolderModal();
-    await loadFolders();
+    await Promise.all([loadFolders(), loadDocuments()]);
   } catch (err) {
     toast('Ordner konnte nicht erstellt werden.', 'err');
   } finally {
@@ -3489,6 +3708,8 @@ window.addUploadTag = window.addUploadTag;
 window.removeUploadTag = window.removeUploadTag;
 window.selectFolder = window.selectFolder;
 window.onFolderFilterChange = window.onFolderFilterChange;
+window.selectFolderById = window.selectFolderById;
+window.setSearchMode = window.setSearchMode;
 window.renderDocuments = window.renderDocuments;
 window.downloadDoc = window.downloadDoc;
 window.openDeleteModal = window.openDeleteModal;
@@ -3676,7 +3897,7 @@ window.setDocView = function(view) {
   state.docView = view;
   const workspaceEl = document.getElementById('doc-workspace');
   const graphEl = document.getElementById('doc-graph-wrap');
-  ['cards', 'list', 'columns', 'smart', 'graph'].forEach(name => {
+  ['cards', 'list', 'columns', 'graph'].forEach(name => {
     document.getElementById(`btn-view-${name}`)?.classList.toggle('active', view === name);
   });
   if (view === 'graph') {
@@ -3737,11 +3958,11 @@ function initKnowledgeGraph() {
   const height = canvas.height / window.devicePixelRatio;
   const docs = state.documents || [];
 
-  if (!docs.length) {
+  if (!docs.length && !state.folders.length) {
     ctx.clearRect(0, 0, width, height);
     ctx.fillStyle = '#64748b';
     ctx.font = '14px Circular Std, sans-serif';
-    ctx.fillText('Keine Dokumente für die Mindmap', width / 2 - 100, height / 2);
+    ctx.fillText('Keine Dokumente oder Ordner für die Mindmap', width / 2 - 130, height / 2);
     return;
   }
 
@@ -3773,7 +3994,8 @@ function buildGraphScene(docs, width, height) {
   const addEdge = (from, to, weight = 1, kind = 'related') => edges.push({ from, to, weight, kind });
 
   addNode({ id: 'root:knowledge', title: 'WissensHub', type: 'root', r: 26, color: '#0f172a' });
-  const activeFolderIds = [...new Set(docs.map(doc => doc.folder_id || 'root'))];
+  const folderIds = ['root', ...state.folders.map(folder => folder.id), ...docs.map(doc => doc.folder_id || 'root')];
+  const activeFolderIds = [...new Set(folderIds)];
   activeFolderIds.forEach((folderId, index) => {
     const folder = state.folders.find(item => item.id === folderId);
     const nodeId = `folder:${folderId}`;
@@ -3784,7 +4006,8 @@ function buildGraphScene(docs, width, height) {
       r: 18,
       color: folder?.color || colors[index % colors.length],
     });
-    addEdge('root:knowledge', nodeId, 1.4, 'folder');
+    const parentId = folder?.parent_id ? `folder:${folder.parent_id}` : 'root:knowledge';
+    addEdge(parentId, nodeId, 1.6, 'folder');
   });
 
   docs.forEach((doc, index) => {

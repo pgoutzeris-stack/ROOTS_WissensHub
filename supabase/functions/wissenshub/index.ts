@@ -982,7 +982,17 @@ async function handleFolders(origin: string, _url?: URL): Promise<Response> {
   const admin = getAdminClient();
   const { data, error } = await admin.schema("knowledge").from("folders").select("*").order("name");
   if (error) return errorResponse(origin, "DB error: " + error.message, 500);
-  return jsonResponse(origin, { folders: data || [] });
+  const { data: docRows } = await admin.schema("knowledge").from("documents").select("folder_id");
+  const counts: Record<string, number> = {};
+  (docRows || []).forEach((row: { folder_id: string | null }) => {
+    if (!row.folder_id) return;
+    counts[row.folder_id] = (counts[row.folder_id] || 0) + 1;
+  });
+  const folders = (data || []).map((folder: Record<string, unknown>) => ({
+    ...folder,
+    doc_count: counts[String(folder.id)] || 0,
+  }));
+  return jsonResponse(origin, { folders });
 }
 
 // ---------------------------------------------------------------------------
@@ -1161,10 +1171,66 @@ async function handleMoveDocuments(
 // ---------------------------------------------------------------------------
 async function handleDocuments(params: Record<string, unknown>, origin: string): Promise<Response> {
   const admin = getAdminClient();
+  const search = String(params.search || "").trim();
+  const searchMode = String(params.search_mode || "rag");
+
+  if (search && searchMode === "rag") {
+    try {
+      const queryEmbedding = await embedText(search);
+      const { data: matchedChunks, error: rpcErr } = await admin.schema("knowledge").rpc("match_chunks", {
+        query_embedding: `[${queryEmbedding.join(",")}]`,
+        match_threshold: 0.28,
+        match_count: 36,
+        filter_folder_id: params.folder_id ? String(params.folder_id) : null,
+        filter_tags: params.tags ? String(params.tags).split(",") : null,
+      });
+      if (rpcErr) throw rpcErr;
+      const byDoc = new Map<string, { score: number; excerpt: string; heading: string | null }>();
+      (matchedChunks || []).forEach((chunk: Record<string, unknown>) => {
+        const docId = String(chunk.document_id || "");
+        if (!docId) return;
+        const score = Number(chunk.similarity || 0);
+        const existing = byDoc.get(docId);
+        if (!existing || score > existing.score) {
+          byDoc.set(docId, {
+            score,
+            excerpt: String(chunk.chunk_content || "").slice(0, 260),
+            heading: chunk.heading ? String(chunk.heading) : null,
+          });
+        }
+      });
+      const ids = [...byDoc.keys()];
+      if (!ids.length) return jsonResponse(origin, { documents: [], total: 0, search_mode: searchMode });
+      let docQuery = admin.schema("knowledge").from("documents")
+        .select("id,title,filename,folder_id,tags,chunk_count,embedding_status,uploader_name,uploader_kuerzel,uploaded_by,file_size_bytes,created_at,updated_at")
+        .in("id", ids);
+      const { data: docs, error } = await docQuery;
+      if (error) return errorResponse(origin, "DB error: " + error.message, 500);
+      const ordered = (docs || [])
+        .map((doc: Record<string, unknown>) => ({
+          ...doc,
+          search_score: byDoc.get(String(doc.id))?.score || 0,
+          search_excerpt: byDoc.get(String(doc.id))?.excerpt || "",
+          search_heading: byDoc.get(String(doc.id))?.heading || null,
+          search_mode: "rag",
+        }))
+        .sort((a: Record<string, unknown>, b: Record<string, unknown>) => Number(b.search_score || 0) - Number(a.search_score || 0));
+      return jsonResponse(origin, { documents: ordered, total: ordered.length, search_mode: searchMode });
+    } catch (err) {
+      console.warn("RAG search fallback:", err);
+      // If embedding is unavailable, fall through to text search instead of breaking the UI.
+    }
+  }
+
   let query = admin.schema("knowledge").from("documents")
     .select("id,title,filename,folder_id,tags,chunk_count,embedding_status,uploader_name,uploader_kuerzel,uploaded_by,file_size_bytes,created_at,updated_at");
   if (params.folder_id) query = query.eq("folder_id", String(params.folder_id));
-  if (params.search) query = query.or(`title.ilike.%${params.search}%,content.ilike.%${params.search}%`);
+  if (search) {
+    const safe = search.replace(/[,%()]/g, " ").trim();
+    if (searchMode === "filename") query = query.or(`title.ilike.%${safe}%,filename.ilike.%${safe}%`);
+    else if (searchMode === "content") query = query.ilike("content", `%${safe}%`);
+    else query = query.or(`title.ilike.%${safe}%,filename.ilike.%${safe}%,content.ilike.%${safe}%`);
+  }
   if (params.tags) {
     const tags = Array.isArray(params.tags) ? params.tags : String(params.tags).split(",");
     query = query.overlaps("tags", tags);
@@ -1175,7 +1241,38 @@ async function handleDocuments(params: Record<string, unknown>, origin: string):
   query = query.order(sortCol, { ascending });
   const { data, error } = await query;
   if (error) return errorResponse(origin, "DB error: " + error.message, 500);
-  return jsonResponse(origin, { documents: data || [] });
+  return jsonResponse(origin, { documents: data || [], total: data?.length || 0, search_mode: searchMode });
+}
+
+// ---------------------------------------------------------------------------
+// ACTION: download_document
+// ---------------------------------------------------------------------------
+async function handleDownloadDocument(params: Record<string, unknown>, req: Request, origin: string | null): Promise<Response> {
+  const auth = await requireAuth(req);
+  if (!auth) return errorResponse(origin, "Unauthorized", 401);
+
+  const id = String(params.id || params.document_id || "");
+  if (!id) return errorResponse(origin, "id is required");
+
+  const admin = getAdminClient();
+  const { data: doc, error } = await admin.schema("knowledge").from("documents")
+    .select("title,filename,content")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) return errorResponse(origin, error.message, 500);
+  if (!doc) return errorResponse(origin, "Document not found", 404);
+
+  const rawName = String(doc.filename || doc.title || "document.md");
+  const filename = rawName.toLowerCase().endsWith(".md") ? rawName : `${rawName}.md`;
+  const safeName = filename.replace(/[^\w.\- äöüÄÖÜß]/g, "_");
+  return new Response(String(doc.content || ""), {
+    status: 200,
+    headers: {
+      ...getCorsHeaders(origin),
+      "Content-Type": "text/markdown; charset=utf-8",
+      "Content-Disposition": `attachment; filename="${safeName}"`,
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1301,6 +1398,9 @@ serve(async (req: Request) => {
 
       case "documents":
         return await handleDocuments(body.folder_id ? body : Object.fromEntries(url.searchParams), origin);
+
+      case "download_document":
+        return await handleDownloadDocument(body.id ? body : Object.fromEntries(url.searchParams), req, origin);
 
       case "tags":
         return await handleTags(origin);
