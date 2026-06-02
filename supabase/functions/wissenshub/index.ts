@@ -129,9 +129,11 @@ function estimateChatCost(model: string, inputTokens: number, outputTokens: numb
 async function checkBudget(estimatedCost: number, origin: string | null): Promise<Response | null> {
   try {
     const admin = getAdminClient();
-    // Hard cost check (still keep as safety net)
-    const { data } = await admin.rpc("check_daily_budget", { p_estimated_cost: estimatedCost });
-    if (!data?.ok) {
+    // Must use .schema("knowledge") — functions live in knowledge schema, not public
+    const { data } = await admin.schema("knowledge").rpc("check_daily_budget", { p_estimated_cost: estimatedCost });
+    // Only block if data is non-null AND ok is explicitly false
+    // (null data = RPC error → allow request rather than false-block)
+    if (data !== null && data !== undefined && !data.ok) {
       return limitReachedResponse(origin);
     }
   } catch (e) {
@@ -143,8 +145,8 @@ async function checkBudget(estimatedCost: number, origin: string | null): Promis
 async function checkHardLimit(operation: "chat" | "upload", origin: string | null): Promise<Response | null> {
   try {
     const admin = getAdminClient();
-    const { data } = await admin.rpc("check_hard_limits", { p_operation: operation });
-    if (!data?.ok) {
+    const { data } = await admin.schema("knowledge").rpc("check_hard_limits", { p_operation: operation });
+    if (data !== null && data !== undefined && !data.ok) {
       return limitReachedResponse(origin);
     }
   } catch (e) {
@@ -511,7 +513,7 @@ async function handleChat(
     session_id,
     folder_id,
     tags,
-    model = "claude-sonnet-4-5",
+    model = "gpt-4o-mini",
   } = body as {
     message: string;
     session_id?: string;
@@ -626,39 +628,90 @@ Wenn du auf diese Quellen referenzierst, nenne den Dokumententitel.`
 
 Antworte immer auf Deutsch, präzise und hilfreich. Wenn du unsicher bist, sage es klar.`;
 
-  // Call Anthropic Claude
+  // ── Provider-Routing: Claude → Anthropic, GPT/o1 → OpenAI ─────────────────
   let assistantContent = "";
   let promptTokens = 0;
   let completionTokens = 0;
 
+  const isOpenAIModel = model.startsWith("gpt") || model.startsWith("o1") || model.startsWith("o3");
+  const isGeminiModel = model.startsWith("gemini");
+
   try {
-    const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": await getApiKey("anthropic"),
-        "anthropic-version": "2023-06-01",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 2048,
-        system: systemPrompt,
-        messages: [{ role: "user", content: message }],
-      }),
-    });
+    if (isOpenAIModel) {
+      // ── OpenAI ──────────────────────────────────────────────────────────────
+      const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${await getApiKey("openai")}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 2048,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: message },
+          ],
+        }),
+      });
+      if (!openaiRes.ok) {
+        const errText = await openaiRes.text();
+        return errorResponse(origin, `OpenAI API error: ${errText}`, 502);
+      }
+      const openaiJson = await openaiRes.json();
+      assistantContent = openaiJson.choices?.[0]?.message?.content ?? "Keine Antwort erhalten.";
+      promptTokens = openaiJson.usage?.prompt_tokens ?? 0;
+      completionTokens = openaiJson.usage?.completion_tokens ?? 0;
 
-    if (!anthropicRes.ok) {
-      const errText = await anthropicRes.text();
-      return errorResponse(origin, `Anthropic API error: ${errText}`, 502);
+    } else if (isGeminiModel) {
+      // ── Google Gemini ────────────────────────────────────────────────────────
+      const geminiKey = await getApiKey("google");
+      const geminiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiKey}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: systemPrompt + "\n\n" + message }] }],
+          }),
+        }
+      );
+      if (!geminiRes.ok) {
+        const errText = await geminiRes.text();
+        return errorResponse(origin, `Gemini API error: ${errText}`, 502);
+      }
+      const geminiJson = await geminiRes.json();
+      assistantContent = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "Keine Antwort erhalten.";
+      promptTokens = geminiJson.usageMetadata?.promptTokenCount ?? 0;
+      completionTokens = geminiJson.usageMetadata?.candidatesTokenCount ?? 0;
+
+    } else {
+      // ── Anthropic Claude (default) ───────────────────────────────────────────
+      const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": await getApiKey("anthropic"),
+          "anthropic-version": "2023-06-01",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 2048,
+          system: systemPrompt,
+          messages: [{ role: "user", content: message }],
+        }),
+      });
+      if (!anthropicRes.ok) {
+        const errText = await anthropicRes.text();
+        return errorResponse(origin, `Anthropic API error: ${errText}`, 502);
+      }
+      const anthropicJson = await anthropicRes.json();
+      assistantContent = anthropicJson.content?.[0]?.text ?? "Keine Antwort erhalten.";
+      promptTokens = anthropicJson.usage?.input_tokens ?? 0;
+      completionTokens = anthropicJson.usage?.output_tokens ?? 0;
     }
-
-    const anthropicJson = await anthropicRes.json();
-    assistantContent =
-      anthropicJson.content?.[0]?.text ?? "Keine Antwort erhalten.";
-    promptTokens = anthropicJson.usage?.input_tokens ?? 0;
-    completionTokens = anthropicJson.usage?.output_tokens ?? 0;
   } catch (err) {
-    return errorResponse(origin, `Anthropic call failed: ${err}`, 500);
+    return errorResponse(origin, `AI API call failed: ${err}`, 500);
   }
 
   // Persist messages
@@ -927,6 +980,29 @@ serve(async (req: Request) => {
 
       case "embed":
         return await handleEmbed(body, origin);
+
+      case "embed_all_pending": {
+        // Re-embed all documents with status 'error' or 'pending' (admin action)
+        const admin = getAdminClient();
+        const { data: pendingDocs } = await admin.schema("knowledge").from("documents")
+          .select("id, title")
+          .in("embedding_status", ["error", "pending"])
+          .limit(50);
+        if (!pendingDocs || pendingDocs.length === 0) {
+          return corsResponse(origin, { message: "Keine ausstehenden Dokumente.", count: 0 });
+        }
+        let triggered = 0;
+        for (const doc of pendingDocs) {
+          // Reset to pending first
+          await admin.schema("knowledge").from("documents")
+            .update({ embedding_status: "pending", embedding_error: null })
+            .eq("id", doc.id);
+          // Call embed inline (not fire-and-forget)
+          await handleEmbed({ document_id: doc.id }, origin);
+          triggered++;
+        }
+        return corsResponse(origin, { message: `${triggered} Dokument(e) neu eingebettet.`, count: triggered });
+      }
 
       case "chat":
         return await handleChat(body, req, origin);
