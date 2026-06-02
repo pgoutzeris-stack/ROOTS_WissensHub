@@ -2796,6 +2796,21 @@ async function loadDocuments() {
 window.renderDocuments = function() {
   const grid = document.getElementById('doc-grid');
   let docs = [...state.documents];
+
+  // Client-side filter: _searchMode bestimmt welches Feld durchsucht wird
+  if (state.search && _searchMode && _searchMode !== 'all') {
+    const q = state.search.toLowerCase();
+    docs = docs.filter(d => {
+      if (_searchMode === 'title')  return (d.title||'').toLowerCase().includes(q);
+      if (_searchMode === 'tag')    return Array.isArray(d.tags) && d.tags.some(t => t.toLowerCase().includes(q));
+      if (_searchMode === 'folder') {
+        const f = state.folders.find(f => f.id === d.folder_id);
+        return f && f.name.toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }
+
   const sort = document.getElementById('sort-select')?.value || state.sort;
   if (sort === 'newest') docs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   else if (sort === 'oldest') docs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
