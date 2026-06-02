@@ -634,7 +634,7 @@
       background: var(--bg);
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 1.1rem 1.2rem;
+      padding: .75rem;
       display: flex;
       flex-direction: column;
       gap: .7rem;
@@ -655,7 +655,7 @@
       gap: .5rem;
     }
     .doc-card__title {
-      font-size: .96rem;
+      font-size: .88rem;
       font-weight: 700;
       color: var(--ink);
       line-height: 1.3;
@@ -1724,6 +1724,32 @@
 
     /* Modal header (used by new modals) */
     .modal-header { display:flex; align-items:center; justify-content:space-between; padding:1rem 1.5rem .75rem; border-bottom:1px solid var(--line); }
+
+    /* ─── 1b. Folder color indicator ─── */
+    .folder-item { border-left: 3px solid transparent; padding-left: calc(.6rem - 3px); }
+    .folder-item.has-color { border-left-color: var(--folder-color, #206efb); }
+
+    /* ─── 2a. Doc card hover preview ─── */
+    .doc-card__preview {
+      font-size:.72rem; color:var(--muted); line-height:1.5;
+      max-height:0; overflow:hidden; transition:max-height .25s ease;
+      margin-top:0;
+    }
+    .doc-card:hover .doc-card__preview { max-height:60px; margin-top:.4rem; }
+
+    /* ─── 3. List table ─── */
+    .doc-table { width:100%; border-collapse:collapse; font-size:.82rem; }
+    .doc-table thead th { padding:.5rem .75rem; text-align:left; font-size:.72rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; border-bottom:2px solid var(--line); white-space:nowrap; user-select:none; }
+    .doc-table thead th:hover { color:var(--ink); }
+    .doc-table-row { border-bottom:1px solid var(--line); transition:background .1s; }
+    .doc-table-row:hover { background:var(--surface-2,#f8fafc); }
+    .doc-table-row td { padding:.55rem .75rem; vertical-align:middle; }
+    .doc-table-name { font-weight:500; color:var(--ink); max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .doc-table-folder { color:var(--muted); font-size:.78rem; white-space:nowrap; }
+    .doc-table-tags { min-width:80px; }
+    .doc-table-date { white-space:nowrap; }
+    .doc-table-actions { text-align:right; white-space:nowrap; opacity:0; transition:opacity .15s; }
+    .doc-table-row:hover .doc-table-actions { opacity:1; }
   </style>
 </head>
 <body>
@@ -1842,6 +1868,12 @@
             <span class="folder-count" id="folder-count-all">–</span>
           </button>
         </div>
+
+        <!-- 1c. Zuletzt geöffnet -->
+        <div class="folder-section-header" style="margin-top:.5rem">
+          <span class="folder-section-title">Zuletzt geöffnet</span>
+        </div>
+        <div id="recent-docs-list" style="display:flex;flex-direction:column;gap:1px"></div>
 
         <!-- Tag cloud -->
         <div class="folder-section-header" style="margin-top:.75rem">
@@ -2358,6 +2390,9 @@ const state = {
   chatLoading: false,
   isAdmin: false,
   currentSessionId: null,
+  recentDocIds: [],
+  listSortField: 'created_at',
+  listSortDir: 'desc',
 };
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -2581,12 +2616,18 @@ function renderFolderNode(container, folder, allFolders, depth = 0) {
   btn.className = `folder-item${state.activeFolderId === folder.id ? ' active' : ''}`;
   btn.dataset.folderId = folder.id;
 
-  const tags = allFolders._docTags?.[folder.id] || [];
-  const tagsHtml = tags.length ? `<span style="font-size:.65rem;color:var(--muted);margin-left:.3rem">[${tags.slice(0,2).join(', ')}]</span>` : '';
+  // 1a. Doc count badge from state.documents
+  const docCount = state.documents.filter(d => d.folder_id === folder.id).length;
+
+  // 1b. Color indicator
+  if (folder.color) {
+    btn.style.setProperty('--folder-color', folder.color);
+    btn.classList.add('has-color');
+  }
 
   btn.innerHTML = `<i class="fa-solid ${escHtml(folder.icon || 'fa-folder')}${state.activeFolderId === folder.id ? '-open' : ''}" style="color:${escHtml(folder.color || '#206efb')}"></i>
-    ${escHtml(folder.name)}${tagsHtml}
-    <span class="folder-count">${folder.doc_count ?? ''}</span>
+    ${escHtml(folder.name)}
+    <span class="folder-count">${docCount || (folder.doc_count ?? '')}</span>
     <button class="folder-ctx-btn" onclick="event.stopPropagation();showCtxMenu(event,'folder',${JSON.stringify(folder).replace(/"/g,'&quot;')})">
       <i class="fa-solid fa-ellipsis"></i>
     </button>`;
@@ -2599,6 +2640,19 @@ function renderFolderNode(container, folder, allFolders, depth = 0) {
 
   wrap.appendChild(btn);
 
+  // 1d. Folder tags as pills
+  const folderTags = [...new Set(
+    state.documents.filter(d => d.folder_id === folder.id)
+      .flatMap(d => Array.isArray(d.tags) ? d.tags : [])
+  )].slice(0, 5);
+  if (folderTags.length) {
+    const tagWrap = document.createElement('div');
+    tagWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:3px;padding:.15rem .5rem .3rem 2rem';
+    tagWrap.innerHTML = folderTags.map(t =>
+      `<span class="tag-chip" style="font-size:.62rem;padding:.1rem .35rem;cursor:pointer" onclick="toggleTagFilter('${escHtml(t)}',this)">${escHtml(t)}</span>`
+    ).join('');
+    wrap.appendChild(tagWrap);
+  }
 
   const children = allFolders.filter(f => f.parent_id === folder.id);
   if (children.length) {
@@ -2811,10 +2865,26 @@ window.renderDocuments = function() {
     });
   }
 
-  const sort = document.getElementById('sort-select')?.value || state.sort;
-  if (sort === 'newest') docs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-  else if (sort === 'oldest') docs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-  else if (sort === 'alpha') docs.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+  // Listen-Sortierung (Abschnitt 3)
+  if (state.docView === 'list' && state.listSortField) {
+    const dir = state.listSortDir === 'asc' ? 1 : -1;
+    docs.sort((a, b) => {
+      if (state.listSortField === 'title') return dir * (a.title||'').localeCompare(b.title||'', 'de');
+      if (state.listSortField === 'chunk_count') return dir * ((a.chunk_count||0) - (b.chunk_count||0));
+      if (state.listSortField === 'folder') {
+        const fa = state.folders.find(f => f.id === a.folder_id)?.name || '';
+        const fb = state.folders.find(f => f.id === b.folder_id)?.name || '';
+        return dir * fa.localeCompare(fb, 'de');
+      }
+      if (state.listSortField === 'created_at') return dir * (new Date(a.created_at) - new Date(b.created_at));
+      return 0;
+    });
+  } else {
+    const sort = document.getElementById('sort-select')?.value || state.sort;
+    if (sort === 'newest') docs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    else if (sort === 'oldest') docs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+    else if (sort === 'alpha') docs.sort((a, b) => (a.title || '').localeCompare(b.title || '', 'de'));
+  }
 
   grid.className = `doc-grid doc-layout-${state.docView === 'graph' ? 'cards' : state.docView}`;
 
@@ -2834,7 +2904,7 @@ window.renderDocuments = function() {
   if (listEl) listEl.innerHTML = '';
 
   if (state.docView === 'list') {
-    if (listEl) docs.forEach(doc => listEl.appendChild(makeDocListRow(doc)));
+    renderListViewTable(docs);
   } else {
     docs.forEach(doc => grid.appendChild(makeDocCard(doc)));
   }
@@ -2872,6 +2942,7 @@ function makeDocCard(doc, index = 0) {
   const card = document.createElement('div');
   card.className = 'doc-card';
   card.style.animationDelay = `${Math.min(index, 16) * 24}ms`;
+  card.style.padding = '.75rem';
   card.draggable = true;
   card.addEventListener('dragstart', e => {
     e.dataTransfer.setData('text/plain', doc.id);
@@ -2898,6 +2969,9 @@ function makeDocCard(doc, index = 0) {
     ${folderPath ? `<div class="doc-card__folder">${folderPathHtml(doc.folder_id)}</div>` : '<div class="doc-card__folder"><i class="fa-solid fa-inbox"></i>Root</div>'}
     ${doc.search_excerpt ? `<div style="font-size:.76rem;color:var(--muted);line-height:1.45;background:var(--surface);border-radius:10px;padding:.48rem .58rem">${escHtml(doc.search_excerpt)}</div>` : ''}
     ${tags.length ? `<div class="doc-card__tags">${tags.map(t => `<span class="tag-pill">${escHtml(t)}</span>`).join('')}</div>` : ''}
+    <div class="doc-card__size-bar" style="height:3px;background:var(--line);border-radius:2px;margin-top:auto">
+      <div style="height:100%;background:var(--brand);border-radius:2px;width:${Math.min(100, (doc.chunk_count||1) * 5)}%;transition:width .3s"></div>
+    </div>
     <div class="doc-card__footer">
       <div class="doc-card__meta">
         <div class="doc-avatar">${doc.avatar_url ? `<img src="${escHtml(doc.avatar_url)}" alt="${escHtml(initials)}" />` : initials}</div>
@@ -2917,6 +2991,76 @@ function makeDocCard(doc, index = 0) {
 }
 
 // makeDocListRow ist oben definiert (neuere Version mit drag+contextmenu)
+
+// ─── Abschnitt 3: List-View Table ─────────────────────────────────────────────
+function renderListViewTable(docs) {
+  const listEl = document.getElementById('doc-list');
+  if (!listEl) return;
+
+  const sortField = state.listSortField || 'created_at';
+  const sortDir   = state.listSortDir  || 'desc';
+
+  const sortIcon = (field) => sortField === field
+    ? `<i class="fa-solid fa-sort-${sortDir === 'asc' ? 'up' : 'down'}" style="color:var(--brand);margin-left:3px;font-size:.7rem"></i>`
+    : `<i class="fa-solid fa-sort" style="color:var(--line);margin-left:3px;font-size:.7rem"></i>`;
+
+  const sortBy = (field) => `window.sortDocList('${field}')`;
+
+  const rows = docs.map(doc => {
+    const folder = state.folders.find(f => f.id === doc.folder_id);
+    const tags = Array.isArray(doc.tags) ? doc.tags : [];
+    const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
+    const embSt = doc.embedding_status || 'pending';
+    const statusClass = embSt === 'done' ? 'verarbeitet' : embSt === 'error' ? 'fehler' : 'pending';
+    const statusLabel = embSt === 'done' ? 'OK' : embSt === 'error' ? 'Fehler' : '…';
+    const hl = (txt) => state.search ? highlight(escHtml(txt||''), state.search.toLowerCase()) : escHtml(txt||'');
+    const docJson = JSON.stringify(doc).replace(/"/g,'&quot;');
+    return `<tr class="doc-table-row" oncontextmenu="showCtxMenu(event,'doc',${docJson})">
+      <td class="doc-table-name">
+        <i class="fa-solid fa-file-lines" style="color:var(--brand);margin-right:.5rem;font-size:.8rem"></i>
+        <span style="cursor:pointer" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')">${hl(doc.title||'Dokument')}</span>
+      </td>
+      <td class="doc-table-folder">${folder ? `<i class="fa-solid fa-folder" style="color:${escHtml(folder.color||'#206efb')};margin-right:.3rem;font-size:.72rem"></i>${escHtml(folder.name)}` : '<span style="color:var(--muted)">—</span>'}</td>
+      <td class="doc-table-tags">${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.66rem">${escHtml(t)}</span>`).join('')}</td>
+      <td class="doc-table-size">
+        <div style="display:flex;align-items:center;gap:.4rem">
+          <div style="width:36px;height:4px;background:var(--line);border-radius:2px;flex-shrink:0">
+            <div style="height:100%;background:var(--brand);border-radius:2px;width:${Math.min(100,(doc.chunk_count||1)*6)}%"></div>
+          </div>
+          <span style="font-size:.72rem;color:var(--muted)">${doc.chunk_count||0}</span>
+        </div>
+      </td>
+      <td class="doc-table-date" style="font-size:.76rem;color:var(--muted)">${date}</td>
+      <td><span class="status-badge ${statusClass}" style="font-size:.68rem"><span class="status-dot"></span>${statusLabel}</span></td>
+      <td class="doc-table-actions">
+        <button class="btn-icon-sm" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" title="Vorschau"><i class="fa-solid fa-eye"></i></button>
+        <button class="btn-icon-sm" onclick="showCtxMenu(event,'doc',${docJson})" title="Optionen"><i class="fa-solid fa-ellipsis"></i></button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  listEl.innerHTML = `
+    <table class="doc-table">
+      <thead>
+        <tr>
+          <th onclick="${sortBy('title')}" style="cursor:pointer">Name ${sortIcon('title')}</th>
+          <th onclick="${sortBy('folder')}" style="cursor:pointer">Ordner ${sortIcon('folder')}</th>
+          <th>Tags</th>
+          <th onclick="${sortBy('chunk_count')}" style="cursor:pointer">Größe ${sortIcon('chunk_count')}</th>
+          <th onclick="${sortBy('created_at')}" style="cursor:pointer">Datum ${sortIcon('created_at')}</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+window.sortDocList = function(field) {
+  if (state.listSortField === field) state.listSortDir = state.listSortDir === 'asc' ? 'desc' : 'asc';
+  else { state.listSortField = field; state.listSortDir = 'asc'; }
+  renderDocuments();
+};
 
 function renderColumnLayout(grid, docs) {
   const groups = groupDocsByFolder(docs);
@@ -3801,9 +3945,30 @@ window.deleteSession = async function(e, sessionId) {
   } catch {}
 };
 
+// ─── Recent Docs ─────────────────────────────────────────────────────────────
+function updateRecentDocs() {
+  const list = document.getElementById('recent-docs-list');
+  if (!list) return;
+  const recentDocs = state.recentDocIds
+    .map(id => state.documents.find(d => d.id === id))
+    .filter(Boolean).slice(0, 3);
+  if (!recentDocs.length) {
+    list.innerHTML = '<span style="font-size:.72rem;color:var(--muted);padding:.2rem .6rem">—</span>';
+    return;
+  }
+  list.innerHTML = recentDocs.map(doc => `
+    <button class="folder-item" style="font-size:.75rem;padding:.3rem .6rem;gap:.4rem;border-left:2px solid var(--brand)" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')">
+      <i class="fa-solid fa-clock" style="color:var(--muted);font-size:.65rem"></i>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(doc.title)}</span>
+    </button>`).join('');
+}
+
 // ─── Document Preview ─────────────────────────────────────────────────────────
 window.openDocPreview = async function(docId, title) {
   if (!docId) return;
+  // 1c. Track recently opened
+  state.recentDocIds = [docId, ...state.recentDocIds.filter(id => id !== docId)].slice(0, 3);
+  updateRecentDocs();
   const modal = document.getElementById('modal-doc-preview');
   document.getElementById('preview-title').textContent = title || 'Dokument';
   document.getElementById('preview-meta').textContent = 'Lade…';
@@ -3893,6 +4058,9 @@ window.startNewChat = window.startNewChat;
 window.deleteSession = window.deleteSession;
 window.openDocPreview = window.openDocPreview;
 window.closeDocPreview = window.closeDocPreview;
+window.showCtxMenu = showCtxMenu;
+window.toggleTagFilter = toggleTagFilter;
+window.updateRecentDocs = updateRecentDocs;
 
 // ─── Duplikat-Erkennung ──────────────────────────────────────────────────────
 let _dupResolve = null;
@@ -4089,7 +4257,7 @@ window.setDocView = function(view) {
     initKnowledgeGraph();
   } else if (view === 'list') {
     gridEl.style.display  = 'none';
-    listEl.style.display  = 'flex';
+    listEl.style.display  = 'block';
     graphEl.style.display = 'none';
     if (typeof stopGraph === 'function') stopGraph();
     renderDocuments();
@@ -4197,7 +4365,7 @@ function buildGraphScene(docs, width, height) {
   const addNode = (node) => {
     if (nodeById.has(node.id)) return nodeById.get(node.id);
     const angle = nodes.length / Math.max(1, docs.length + state.folders.length) * Math.PI * 2;
-    const radius = node.type === 'root' ? 0 : Math.min(width, height) * (node.type === 'doc' ? .32 : .2);
+    const radius = Math.min(width, height) * (node.type === 'doc' ? .32 : .2);
     const created = {
       ...node,
       x: width / 2 + Math.cos(angle) * radius + (Math.random() - .5) * 20,
@@ -4211,7 +4379,7 @@ function buildGraphScene(docs, width, height) {
   };
   const addEdge = (from, to, weight = 1, kind = 'related') => edges.push({ from, to, weight, kind });
 
-  addNode({ id: 'root:knowledge', title: 'WissensHub', type: 'root', r: 26, color: '#0f172a' });
+  // 4a: No central root node — folders connect via proximity only
   const folderIds = ['root', ...state.folders.map(folder => folder.id), ...docs.map(doc => doc.folder_id || 'root')];
   const activeFolderIds = [...new Set(folderIds)];
   activeFolderIds.forEach((folderId, index) => {
@@ -4224,8 +4392,8 @@ function buildGraphScene(docs, width, height) {
       r: 18,
       color: folder?.color || colors[index % colors.length],
     });
-    const parentId = folder?.parent_id ? `folder:${folder.parent_id}` : 'root:knowledge';
-    addEdge(parentId, nodeId, 1.6, 'folder');
+    const parentId = folder?.parent_id ? `folder:${folder.parent_id}` : null;
+    if (parentId) addEdge(parentId, nodeId, 1.6, 'folder');
   });
 
   docs.forEach((doc, index) => {
@@ -4313,7 +4481,7 @@ function tickGraph(scene) {
     edge.b.vx -= force * dx / dist; edge.b.vy -= force * dy / dist;
   });
   nodes.forEach(node => {
-    const centerStrength = node.type === 'root' ? .04 : .004;
+    const centerStrength = node.type === 'folder' ? .006 : .003;
     node.vx += (width / 2 - node.x) * centerStrength;
     node.vy += (height / 2 - node.y) * centerStrength;
     node.vx *= .82;
@@ -4345,7 +4513,15 @@ function drawGraph(ctx, scene) {
     }
   });
 
+  // 4b: Zoom-level dependent visibility
+  const showDocs   = zoom >= 0.45;
+  const showTags   = zoom >= 1.3;
+  const showPostIt = zoom >= 1.6;
+
   edges.forEach(edge => {
+    // 4c: Hide doc edges at low zoom
+    if (edge.a.type === 'doc' && !showDocs) return;
+    if (edge.b.type === 'doc' && !showDocs) return;
     const active = !connected || (connected.has(edge.a.id) && connected.has(edge.b.id));
     ctx.beginPath();
     ctx.moveTo(edge.a.x, edge.a.y);
@@ -4358,8 +4534,39 @@ function drawGraph(ctx, scene) {
   });
 
   nodes.forEach(node => {
+    // 4b: Skip docs at low zoom, skip tags unless zoomed in
+    if (node.type === 'doc' && !showDocs) return;
+    if (node.type === 'tag' && !showTags) return;
+
     const active = !connected || connected.has(node.id);
     ctx.globalAlpha = active ? 1 : .18;
+
+    // 4b: Post-it mode for documents when zoomed in close
+    if (node.type === 'doc' && showPostIt) {
+      const pw = 110, ph = 54;
+      ctx.fillStyle = '#fff';
+      ctx.strokeStyle = node.color;
+      ctx.lineWidth = 2;
+      ctx.shadowColor = `${node.color}33`;
+      ctx.shadowBlur = 8;
+      const rx = node.x - pw/2, ry = node.y - ph/2;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(rx, ry, pw, ph, 6);
+      else { ctx.rect(rx, ry, pw, ph); }
+      ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+      ctx.fillStyle = '#0f172a'; ctx.font = `600 10px Circular Std, sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const titleLine = node.title.length > 18 ? node.title.slice(0,17)+'…' : node.title;
+      ctx.fillText(titleLine, node.x, node.y - 8);
+      if (Array.isArray(node.tags) && node.tags.length) {
+        ctx.font = `9px Circular Std, sans-serif`;
+        ctx.fillStyle = node.color;
+        ctx.fillText('#'+node.tags.slice(0,2).join(' #'), node.x, node.y + 8);
+      }
+      ctx.globalAlpha = 1;
+      return;
+    }
+
     ctx.shadowColor = `${node.color}55`;
     ctx.shadowBlur = active && hover?.id === node.id ? 24 : 10;
     ctx.beginPath();
@@ -4367,15 +4574,20 @@ function drawGraph(ctx, scene) {
     ctx.fillStyle = node.color;
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.lineWidth = node.type === 'root' ? 3 : 2;
+    ctx.lineWidth = 2;
     ctx.strokeStyle = '#fff';
     ctx.stroke();
-    ctx.fillStyle = node.type === 'tag' ? '#475569' : '#0f172a';
-    ctx.font = `${node.type === 'root' ? 13 : 11}px Circular Std, sans-serif`;
+
+    // 4d: Label with white background
+    ctx.font = `11px Circular Std, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     const maxChars = node.type === 'tag' ? 18 : 20;
     const label = node.title.length > maxChars ? `${node.title.slice(0, maxChars - 1)}…` : node.title;
+    const textWidth = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillRect(node.x - textWidth/2 - 2, node.y + node.r + 3, textWidth + 4, 14);
+    ctx.fillStyle = node.type === 'tag' ? '#475569' : '#0f172a';
     ctx.fillText(label, node.x, node.y + node.r + 5);
   });
   ctx.globalAlpha = 1;
@@ -4426,7 +4638,7 @@ function attachGraphEvents(canvas, wrap) {
     canvas.style.cursor = hit ? 'pointer' : 'grab';
     if (hit) {
       ttTitle.textContent = hit.title;
-      ttTags.textContent = hit.type === 'doc' && hit.tags?.length ? `Tags: ${hit.tags.join(', ')}` : hit.type === 'folder' ? 'Ordner-Ast' : hit.type === 'tag' ? 'Tag-Verbindung' : 'Zentrale Wissensmap';
+      ttTags.textContent = hit.type === 'doc' && hit.tags?.length ? `Tags: ${hit.tags.join(', ')}` : hit.type === 'folder' ? 'Ordner-Ast' : hit.type === 'tag' ? 'Tag-Verbindung' : '';
       ttChunks.textContent = hit.type === 'doc' ? `${hit.chunks} Chunk${hit.chunks !== 1 ? 's' : ''}` : 'Hover markiert verbundene Stränge';
       tooltip.style.display = 'block';
       tooltip.style.left = `${event.clientX - wrap.getBoundingClientRect().left + 12}px`;
@@ -4667,6 +4879,8 @@ document.addEventListener('DOMContentLoaded', () => {
     setSearchMode('all');
     if (typeof initSearchPills === 'function') initSearchPills();
   }, 200);
+  // Init recent docs placeholder
+  updateRecentDocs();
 });
 // Also init after auth
 document.addEventListener('roots-profile-ready', () => initSearchPills());
