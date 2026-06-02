@@ -129,24 +129,38 @@ function estimateChatCost(model: string, inputTokens: number, outputTokens: numb
 async function checkBudget(estimatedCost: number, origin: string | null): Promise<Response | null> {
   try {
     const admin = getAdminClient();
+    // Hard cost check (still keep as safety net)
     const { data } = await admin.rpc("check_daily_budget", { p_estimated_cost: estimatedCost });
     if (!data?.ok) {
-      return new Response(JSON.stringify({
-        error: "daily_budget_exceeded",
-        message: `Tageslimit erreicht: $${data?.spent_today ?? "?"} von $${DAILY_LIMIT_USD} verbraucht. Limit wird morgen zurückgesetzt.`,
-        spent_today: data?.spent_today,
-        limit: data?.limit,
-        remaining: data?.remaining,
-      }), {
-        status: 429,
-        headers: { ...getCorsHeaders(origin), "Content-Type": "application/json" },
-      });
+      return limitReachedResponse(origin);
     }
   } catch (e) {
     console.error("Budget check failed (allowing request):", e);
-    // Fail open — don't block on check errors
   }
-  return null; // ok to proceed
+  return null;
+}
+
+async function checkHardLimit(operation: "chat" | "upload", origin: string | null): Promise<Response | null> {
+  try {
+    const admin = getAdminClient();
+    const { data } = await admin.rpc("check_hard_limits", { p_operation: operation });
+    if (!data?.ok) {
+      return limitReachedResponse(origin);
+    }
+  } catch (e) {
+    console.error("Hard limit check failed (allowing request):", e);
+  }
+  return null;
+}
+
+function limitReachedResponse(origin: string | null): Response {
+  return new Response(JSON.stringify({
+    error: "limit_reached",
+    message: "Tageslimit erreicht. Morgen wieder verfügbar.",
+  }), {
+    status: 429,
+    headers: { ...getCorsHeaders(origin), "Content-Type": "application/json" },
+  });
 }
 
 async function logUsage(
@@ -537,7 +551,11 @@ async function handleChat(
   // Embed user message
   let queryEmbedding: number[];
   try {
-    // Budget check before embedding query
+    // Hard limit: max 80 chat messages per day
+    const chatLimitErr = await checkHardLimit("chat", origin);
+    if (chatLimitErr) return chatLimitErr;
+
+    // Cost safety check
     const queryBudgetErr = await checkBudget(estimateEmbedCost(message.length), origin);
     if (queryBudgetErr) return queryBudgetErr;
 

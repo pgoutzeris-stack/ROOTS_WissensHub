@@ -1941,8 +1941,8 @@ async function loadFolders() {
     });
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      if (res.status === 429 && errData.error === 'daily_budget_exceeded') {
-        throw new Error(`⚠️ Tageslimit erreicht: $${errData.spent_today} von $${errData.limit} heute verbraucht. Limit: $5/Tag. Morgen wieder verfügbar.`);
+      if (res.status === 429) {
+        throw new Error('Tageslimit erreicht. Morgen wieder verfügbar.');
       }
       throw new Error(errData.message || errData.error || `HTTP ${res.status}`);
     }
@@ -2377,8 +2377,8 @@ window.handleUploadAll = async function() {
       const res = await fetch(`${WISSENSHUB_API_URL}`, { method: 'POST', headers, body: payload });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
-        if (res.status === 429 && e.error === 'daily_budget_exceeded') {
-          throw new Error(`⚠️ Tageslimit erreicht: $${e.spent_today} von $${e.limit} heute. Morgen wieder verfügbar.`);
+        if (res.status === 429) {
+          throw new Error('Tageslimit erreicht. Morgen wieder verfügbar.');
         }
         throw new Error(e.error || e.message || `HTTP ${res.status}`);
       }
