@@ -1814,15 +1814,30 @@ async function onSessionReady(session) {
 }
 
 sb.auth.getSession().then(({ data: { session } }) => {
-  if (session) onSessionReady(session);
-  else showAuthOverlay(); // no session → always show login
+  if (session) {
+    onSessionReady(session);
+  } else {
+    // In iframe: bridge may sync session from parent — wait 1.5s before showing login
+    // Standalone: show login immediately
+    const delay = (window.parent !== window) ? 1500 : 0;
+    setTimeout(() => {
+      sb.auth.getSession().then(({ data: { s } }) => {
+        if (!s) showAuthOverlay();
+      });
+    }, delay);
+  }
 });
 sb.auth.onAuthStateChange((event, session) => {
   if (session) onSessionReady(session);
-  else {
+  else if (event === 'SIGNED_OUT') {
     showAuthOverlay();
     if (window.RootsUser) { window.RootsUser._uid = null; window.RootsUser._p = null; }
   }
+});
+
+// Bridge auth-ready event: called when bridge has synced session from parent
+window.addEventListener('roots-auth-ready', (e) => {
+  if (e.detail?.session) onSessionReady(e.detail.session);
 });
 
 document.getElementById('roots-login-form').addEventListener('submit', async (e) => {
