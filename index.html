@@ -5193,7 +5193,14 @@ function _springTick() {
 function _draw(ctx) {
   const {zoom:z, panX, panY, width:W, height:H, nodes, edges, hover} = _gv;
   ctx.clearRect(0,0,W,H);
-  ctx.fillStyle='#f8fafc'; ctx.fillRect(0,0,W,H);
+  // Futuristischer Hintergrund: weißes Papier mit feinem Dot-Grid
+  ctx.fillStyle='#fafbfc'; ctx.fillRect(0,0,W,H);
+  // Dot-Grid (im Canvas-Koordinatensystem, nicht mit zoom/pan)
+  const dotSpacing = 28, dotR = 0.85;
+  ctx.fillStyle = 'rgba(32,110,251,.09)';
+  for(let gx=0;gx<W;gx+=dotSpacing) for(let gy=0;gy<H;gy+=dotSpacing){
+    ctx.beginPath(); ctx.arc(gx,gy,dotR,0,Math.PI*2); ctx.fill();
+  }
 
   ctx.save();
   ctx.translate(W/2+panX, H/2+panY);
@@ -5222,10 +5229,10 @@ function _draw(ctx) {
       ctx.strokeStyle=g; ctx.lineWidth=1.2/z;
       ctx.setLineDash([5/z,4/z]);
     } else if (e.kind==='folder') {
-      ctx.strokeStyle=`rgba(100,116,139,${active?0.55:0.18})`; ctx.lineWidth=2/z;
+      ctx.strokeStyle=`rgba(32,110,251,${active?0.30:0.08})`; ctx.lineWidth=1.5/z;
       ctx.setLineDash([]);
     } else {
-      ctx.strokeStyle=`rgba(32,110,251,${active?0.45:0.1})`; ctx.lineWidth=1.5/z;
+      ctx.strokeStyle=`rgba(32,110,251,${active?0.55:0.1})`; ctx.lineWidth=1.2/z;
       ctx.setLineDash([]);
     }
     ctx.beginPath();
@@ -5277,11 +5284,18 @@ function _draw(ctx) {
       const tw=ctx.measureText(lbl).width;
       // Folder shape ist höher als der Radius — Label weiter unten
       const py = (n.type==='folder'||n.type==='subfolder') ? n.y + n.r*1.15 + 5 : n.y+n.r+5;
-      ctx.fillStyle='rgba(248,250,252,.92)';
-      ctx.fillRect(n.x-tw/2-4,py,tw+8,fs+5);
+      // Pill-Label
+      const lh=fs+6, lw=tw+12, lx=n.x-lw/2;
+      ctx.beginPath();
+      if(ctx.roundRect) ctx.roundRect(lx,py,lw,lh,lh/2);
+      else ctx.rect(lx,py,lw,lh);
+      ctx.fillStyle='rgba(255,255,255,.94)';
+      ctx.fill();
+      ctx.strokeStyle=n.color+'33'; ctx.lineWidth=1;
+      ctx.stroke();
       ctx.fillStyle=n.type==='folder'?'#0f172a':'#475569';
       ctx.textAlign='center'; ctx.textBaseline='top';
-      ctx.fillText(lbl, n.x, py+1);
+      ctx.fillText(lbl, n.x, py+2);
     }
     ctx.globalAlpha=1;
   });
@@ -5320,56 +5334,50 @@ function _drawDocCard(ctx, n, isHover, z) {
 }
 
 
-// ── Ordner-Form ────────────────────────────────────────────────────────────────
-function _drawFolderShape(ctx, n, isHover) {
-  const s = n.r * 2.2; // Größe (Breite des Ordners)
-  const w = s, h = s * 0.76;
-  const x = n.x - w/2, y = n.y - h/2;
-  const tab = w * 0.35, tabH = h * 0.16;
-  const rr = 4; // border-radius
 
-  // Schatten
-  if (isHover) { ctx.shadowColor = n.color+'66'; ctx.shadowBlur = 18; }
+// ── Icon-Nodes: Weißer Kreis + Font Awesome Icon (futuristisch) ──────────────
+function _drawIconNode(ctx, n, isHover) {
+  const x=n.x, y=n.y, r=n.r;
+  const isFolder = n.type==='folder'||n.type==='subfolder';
+  const iconSize = r * (isFolder ? 1.05 : 0.95);
+  const circleR  = r * 1.45;
 
-  // Hintergrund-Farbe (leichter Gradient)
-  const grd = ctx.createLinearGradient(x, y, x, y+h);
-  grd.addColorStop(0, _lighten(n.color, 18));
-  grd.addColorStop(1, n.color);
+  // ── Äußerer farbiger Ring (Glow bei Hover) ───────────────────────────────
+  if (isHover) {
+    ctx.beginPath(); ctx.arc(x,y,circleR+4,0,Math.PI*2);
+    ctx.fillStyle = n.color+'22'; ctx.fill();
+  }
 
-  // Tab (oben links)
-  ctx.beginPath();
-  ctx.moveTo(x+rr, y);
-  ctx.lineTo(x+tab, y);
-  ctx.lineTo(x+tab+tabH, y-tabH);
-  ctx.lineTo(x+tab+tabH+rr, y-tabH);
-  ctx.arcTo(x+tab+tabH+rr*2, y-tabH, x+tab+tabH+rr*2, y-tabH+rr, rr);
-  ctx.lineTo(x+tab+tabH+rr*2, y);
-  ctx.lineTo(x+w-rr, y);
-  ctx.arcTo(x+w, y, x+w, y+rr, rr);
-  ctx.lineTo(x+w, y+h-rr);
-  ctx.arcTo(x+w, y+h, x+w-rr, y+h, rr);
-  ctx.lineTo(x+rr, y+h);
-  ctx.arcTo(x, y+h, x, y+h-rr, rr);
-  ctx.lineTo(x, y+rr);
-  ctx.arcTo(x, y, x+rr, y, rr);
-  ctx.closePath();
-  ctx.fillStyle = grd;
+  // ── Farbiger Accent-Ring ─────────────────────────────────────────────────
+  ctx.beginPath(); ctx.arc(x,y,circleR,0,Math.PI*2);
+  ctx.fillStyle = isHover ? n.color+'18' : n.color+'0d';
   ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // Rand
-  ctx.strokeStyle = isHover ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.65)';
-  ctx.lineWidth = isHover ? 2 : 1.5;
+  ctx.strokeStyle = n.color + (isHover?'cc':'66');
+  ctx.lineWidth = isFolder ? (isHover?2.5:2) : (isHover?2:1.5);
   ctx.stroke();
 
-  // Innere Linien (Papier-Anmutung)
-  if (n.r > 12) {
-    ctx.strokeStyle = 'rgba(255,255,255,.3)';
-    ctx.lineWidth = 1;
-    const lineY1 = y + h*0.45, lineY2 = y + h*0.65;
-    const lx1 = x + w*0.18, lx2 = x + w*0.82;
-    ctx.beginPath(); ctx.moveTo(lx1, lineY1); ctx.lineTo(lx2, lineY1); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(lx1, lineY2); ctx.lineTo(lx2, lineY2); ctx.stroke();
+  // ── Weißer Innenkreis mit Schatten ───────────────────────────────────────
+  ctx.shadowColor = isHover ? n.color+'55' : 'rgba(15,23,42,.14)';
+  ctx.shadowBlur  = isHover ? 20 : 10;
+  ctx.shadowOffsetY = isHover ? 0 : 2;
+  ctx.beginPath(); ctx.arc(x,y,circleR-2,0,Math.PI*2);
+  ctx.fillStyle = '#ffffff'; ctx.fill();
+  ctx.shadowBlur=0; ctx.shadowOffsetY=0;
+
+  // ── Font Awesome Icon ────────────────────────────────────────────────────
+  // FA6 Solid Unicode: folder=\uf07b, folder-open=\uf07c, file-lines=\uf15c
+  const icon = isFolder ? '\uf07b' : '\uf15c';
+  ctx.font = `900 ${iconSize}px "Font Awesome 6 Free"`;
+  ctx.fillStyle = n.color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(icon, x, y + (isFolder ? 0 : 0.5));
+
+  // ── Knoten-Größen-Dot für Docs (Chunk-Indikator) ─────────────────────────
+  if (!isFolder && n.chunks > 0) {
+    const dotR2 = Math.min(3.5, 1.5 + n.chunks*0.15);
+    ctx.beginPath(); ctx.arc(x+circleR-dotR2*.8, y-circleR+dotR2*.8, dotR2, 0, Math.PI*2);
+    ctx.fillStyle = n.color; ctx.fill();
   }
 }
 
@@ -5576,7 +5584,8 @@ function _attachGraphEvents(canvas) {
     return _gv.nodes.find(n=>{
       if(n.revealP<0.3)return false;
       const dx=n.x-w.x,dy=n.y-w.y;
-      const hr=_gv.zoom>=Z_CARDS*_gv.baseZoom&&n.type==='doc'?80/_gv.zoom:n.r+8/_gv.zoom;
+      const nodeR = n.r*1.45+4; // Icon-Node Radius (circleR+border)
+      const hr=_gv.zoom>=Z_CARDS*_gv.baseZoom&&n.type==='doc'?80/_gv.zoom:nodeR/_gv.zoom+5;
       return dx*dx+dy*dy<hr*hr;
     })||null;
   };
