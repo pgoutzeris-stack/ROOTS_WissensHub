@@ -95,6 +95,12 @@ async function getApiKey(name: "openai" | "anthropic" | "google" | "voyage"): Pr
 }
 
 // User-scoped client from JWT
+function publicServiceClient() {
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+}
+
 function getUserClient(authHeader: string) {
   return createClient(SUPABASE_URL, Deno.env.get("SUPABASE_ANON_KEY")!, {
     global: { headers: { Authorization: authHeader } },
