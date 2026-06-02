@@ -2633,7 +2633,7 @@ function saveAiSettingsToStorage(settings) {
   localStorage.setItem('wh_ai_settings', JSON.stringify(settings));
 }
 
-function openAiSettings() {
+async function openAiSettings() {
   const settings = loadAiSettings();
   const selectedModel = settings.model || 'claude-sonnet-4-5';
 
