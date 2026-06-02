@@ -2747,19 +2747,19 @@ function renderFinderFolderNode(container, folder, depth) {
 
   btn.onclick = (e) => {
     if (!state.openFolderIds) state.openFolderIds = new Set();
-    const chevronClicked = e.target.dataset.chevron === '1';
+    // closest('[data-chevron]') fängt Klick auch bei Teiltreffern auf das Icon
+    const chevronClicked = !!e.target.closest('[data-chevron]');
 
     if (chevronClicked) {
-      // Nur aufklappen/zuklappen, NICHT navigieren
+      // ▶ Chevron: nur aufklappen/zuklappen, NICHT navigieren
       if (isOpen) state.openFolderIds.delete(folder.id);
       else state.openFolderIds.add(folder.id);
-      renderFinderTree(); // nur Tree neu rendern
+      renderFinderTree();
       return;
     }
 
-    // Ordner-Name/Icon geklickt → navigieren + aufklappen
-    if (!isOpen) state.openFolderIds.add(folder.id);
-    // Wenn schon aktiv: nicht zuklappen, nur offen lassen
+    // Ordner-Name/Icon: navigieren + aufklappen (nie zuklappen)
+    state.openFolderIds.add(folder.id); // immer aufklappen beim Navigieren
     navigateTo(folder.id, folder.name);
   };
 
@@ -3419,57 +3419,54 @@ function renderListViewTable(docs) {
     return;
   }
 
-  // Alle-Ansicht: nach Ordner gruppiert
-  const folderGroups = state.folders
-    .map(f => ({ folder: f, docs: docs.filter(d => d.folder_id === f.id) }))
-    .filter(g => g.docs.length > 0);
-  const unfiled = docs.filter(d => !d.folder_id);
+  // "Alle Dokumente" Ansicht: Finder-List-Format (gleich wie Kacheln-Gruppenansicht)
+  // Root-Ordner als klickbare Zeilen zuerst, dann ungrouped Docs
+  const docsCache = state.allDocs.length ? state.allDocs : docs;
+  const rootFolders = state.folders.filter(f => !f.parent_id);
 
-  const renderRow = (doc) => {
+  let html = `<div class="finder-list">`;
+
+  // Root-Ordner als navigierbare Zeilen
+  rootFolders.forEach(f => {
+    const directDocs = docsCache.filter(d => d.folder_id === f.id).length;
+    const subCount   = state.folders.filter(sf => sf.parent_id === f.id).length;
+    const meta = [
+      directDocs ? `${directDocs} Datei${directDocs!==1?'en':''}` : '',
+      subCount   ? `${subCount} Unterordner` : ''
+    ].filter(Boolean).join(' · ') || 'Leer';
+    const fJson = JSON.stringify(f).replace(/"/g,'&quot;');
+    html += `<div class="finder-list-row finder-list-folder" onclick="navigateTo('${f.id}','${escHtml(f.name)}')" oncontextmenu="event.stopPropagation();showCtxMenu(event,'folder',${fJson})">
+      <div class="finder-list-icon"><i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')}"></i></div>
+      <div class="finder-list-name"><strong>${escHtml(f.name)}</strong></div>
+      <div class="finder-list-meta">${escHtml(meta)}</div>
+      <div class="finder-list-date"></div>
+      <div class="finder-list-actions">
+        <button class="btn-icon-sm" onclick="event.stopPropagation();showCtxMenu(event,'folder',${fJson})"><i class="fa-solid fa-ellipsis"></i></button>
+      </div>
+    </div>`;
+  });
+
+  // Ungrouped Dokumente (ohne Ordner)
+  const unfiled = docs.filter(d => !d.folder_id);
+  const hl = (t) => state.search ? highlight(escHtml(t||''), state.search.toLowerCase()) : escHtml(t||'');
+  unfiled.forEach(doc => {
     const tags = Array.isArray(doc.tags) ? doc.tags : [];
     const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
-    const time = doc.created_at ? new Date(doc.created_at).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'}) : '';
-    const size = doc.file_size_bytes ? formatBytes(doc.file_size_bytes) : '–';
-    const hl = (t) => state.search ? highlight(escHtml(t||''),state.search.toLowerCase()) : escHtml(t||'');
+    const size = doc.file_size_bytes ? formatBytes(doc.file_size_bytes) : '';
     const docJson = JSON.stringify(doc).replace(/"/g,'&quot;');
-    return `<tr class="doc-table-row" oncontextmenu="showCtxMenu(event,'doc',${docJson})">
-      <td class="doc-table-name"><i class="fa-solid fa-file-lines" style="color:var(--brand);margin-right:.4rem;font-size:.76rem"></i><span onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" style="cursor:pointer">${hl(doc.title||'Dokument')}</span></td>
-      <td class="doc-table-tags">${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.65rem">${escHtml(t)}</span>`).join('')}</td>
-      <td style="font-size:.76rem;color:var(--muted);white-space:nowrap">${size}</td>
-      <td style="font-size:.75rem;color:var(--muted);white-space:nowrap">${date}<span style="color:var(--line);margin:0 .25rem">·</span>${time}</td>
-      <td style="font-size:.75rem;color:var(--muted)">${escHtml(doc.uploader_name||'–')}</td>
-      <td class="doc-table-actions"><button class="btn-icon-sm" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" title="Vorschau"><i class="fa-solid fa-eye"></i></button><button class="btn-icon-sm" onclick="showCtxMenu(event,'doc',${docJson})" title="Mehr"><i class="fa-solid fa-ellipsis"></i></button></td>
-    </tr>`;
-  };
+    html += `<div class="finder-list-row" onclick="openDocPreview('${doc.id}','${escHtml(doc.title)}')" oncontextmenu="showCtxMenu(event,'doc',${docJson})">
+      <div class="finder-list-icon"><i class="fa-solid fa-file-lines" style="color:var(--brand)"></i></div>
+      <div class="finder-list-name">${hl(doc.title||'Dokument')}</div>
+      <div class="finder-list-meta">${tags.slice(0,3).map(t=>`<span class="tag-pill" style="font-size:.64rem;padding:.08rem .35rem">${escHtml(t)}</span>`).join('')}</div>
+      <div class="finder-list-date"><span style="font-size:.73rem;color:var(--muted)">${date}${size ? ` · ${size}` : ''}</span></div>
+      <div class="finder-list-actions">
+        <button class="btn-icon-sm" onclick="event.stopPropagation();openDocPreview('${doc.id}','${escHtml(doc.title)}')" title="Vorschau"><i class="fa-solid fa-eye"></i></button>
+        <button class="btn-icon-sm" onclick="event.stopPropagation();showCtxMenu(event,'doc',${docJson})"><i class="fa-solid fa-ellipsis"></i></button>
+      </div>
+    </div>`;
+  });
 
-  const renderGroup = (folder, groupDocs) => {
-    const gid = folder?.id || '__unfiled__';
-    const isOpen = !state.collapsedGroups?.has(gid);
-    const hdr = folder
-      ? `<tr class="doc-table-folder-row" onclick="toggleListGroup('${folder.id}')"><td colspan="6" style="padding:.5rem .75rem;font-weight:700;cursor:pointer;background:var(--surface-2,#f8fafc)"><i class="fa-solid fa-chevron-right" style="font-size:.6rem;margin-right:.5rem;color:var(--muted);transition:transform .15s;${isOpen?'transform:rotate(90deg);display:inline-block':''}"></i><i class="fa-solid ${escHtml(folder.icon||'fa-folder')}" style="color:${escHtml(folder.color||'#206efb')};margin-right:.4rem"></i>${escHtml(folder.name)}<span style="font-size:.7rem;font-weight:400;color:var(--muted);margin-left:.5rem">${groupDocs.length} Dok.</span></td></tr>`
-      : `<tr class="doc-table-folder-row" onclick="toggleListGroup('__unfiled__')"><td colspan="6" style="padding:.5rem .75rem;font-weight:700;cursor:pointer;background:var(--surface-2,#f8fafc)"><i class="fa-solid fa-chevron-right" style="font-size:.6rem;margin-right:.5rem;color:var(--muted);${isOpen?'transform:rotate(90deg);display:inline-block':''}"></i><i class="fa-solid fa-inbox" style="color:var(--muted);margin-right:.4rem"></i>Ohne Ordner<span style="font-size:.7rem;font-weight:400;color:var(--muted);margin-left:.5rem">${groupDocs.length}</span></td></tr>`;
-    return hdr + (isOpen ? groupDocs.map(renderRow).join('') : '');
-  };
-
-  function sortIcon(field) {
-    if (state.listSortField !== field) return '<i class="fa-solid fa-sort" style="color:var(--line);margin-left:3px;font-size:.68rem"></i>';
-    return `<i class="fa-solid fa-sort-${state.listSortDir==='asc'?'up':'down'}" style="color:var(--brand);margin-left:3px;font-size:.68rem"></i>`;
-  }
-
-  let html = `<table class="doc-table"><thead><tr>
-    <th onclick="sortDocList('title')" style="cursor:pointer">Name ${sortIcon('title')}</th>
-    <th>Tags</th>
-    <th onclick="sortDocList('file_size_bytes')" style="cursor:pointer">Dateigröße ${sortIcon('file_size_bytes')}</th>
-    <th onclick="sortDocList('created_at')" style="cursor:pointer">Erstellt ${sortIcon('created_at')}</th>
-    <th onclick="sortDocList('uploader_name')" style="cursor:pointer">Hochgeladen von ${sortIcon('uploader_name')}</th>
-    <th></th>
-  </tr></thead><tbody>`;
-
-  [...folderGroups.map(g => renderGroup(g.folder, g.docs)),
-   ...(unfiled.length ? [renderGroup(null, unfiled)] : [])
-  ].forEach(s => html += s);
-
-  html += '</tbody></table>';
+  html += `</div>`;
   listEl.innerHTML = html;
 }
 
