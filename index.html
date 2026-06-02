@@ -2732,21 +2732,7 @@ document.getElementById('sort-select').addEventListener('change', (e) => {
   renderDocuments();
 });
 
-window.setSearchMode = function(mode) {
-  state.searchMode = mode;
-  ['rag', 'filename', 'content', 'all'].forEach(name => {
-    document.getElementById(`search-mode-${name}`)?.classList.toggle('active', mode === name);
-  });
-  const labels = {
-    rag: 'Smart RAG Suche in Dokumenten…',
-    filename: 'Nach Dateiname oder Titel suchen…',
-    content: 'Exakt im Textinhalt suchen…',
-    all: 'In Titel, Dateiname und Text suchen…',
-  };
-  const input = document.getElementById('doc-search');
-  if (input) input.placeholder = labels[mode] || labels.rag;
-  if (state.search) loadDocuments();
-};
+// setSearchMode wird weiter unten definiert (mit Pills-Unterstützung)
 
 async function loadDocuments() {
   setSyncing(true);
@@ -2884,31 +2870,7 @@ function makeDocCard(doc, index = 0) {
   return card;
 }
 
-function makeDocListRow(doc, index = 0) {
-  const row = document.createElement('div');
-  row.className = 'doc-list-row';
-  row.style.animationDelay = `${Math.min(index, 18) * 18}ms`;
-  const tags = Array.isArray(doc.tags) ? doc.tags : [];
-  const folderName = folderPathFor(doc.folder_id) || 'Root';
-  const date = doc.created_at ? new Date(doc.created_at).toLocaleDateString('de-DE') : '';
-  row.innerHTML = `
-    <div class="doc-list-row__main">
-      <div class="doc-list-row__title"><i class="fa-regular fa-file-lines" style="color:var(--brand);margin-right:.45rem"></i>${escHtml(doc.title || doc.filename || 'Dokument')}</div>
-      <div class="doc-list-row__sub">${tags.length ? tags.slice(0, 4).map(t => `#${escHtml(t)}`).join(' · ') : 'Keine Tags'}</div>
-    </div>
-    <div class="doc-list-row__cell">${folderPathHtml(doc.folder_id) || '<i class="fa-solid fa-inbox" style="margin-right:.35rem"></i>Root'}</div>
-    <div class="doc-list-row__cell">${escHtml(doc.uploader_name || 'Unbekannt')} · ${date}</div>
-    <div class="doc-card__actions">
-      ${doc.chunk_count != null ? `<span style="font-size:.72rem;color:var(--muted)">${doc.chunk_count} Chunks</span>` : ''}
-      <button class="btn-icon" title="Herunterladen" onclick="downloadDoc(event,'${doc.id}')"><i class="fa-solid fa-download"></i></button>
-      ${state.isAdmin ? `<button class="btn-icon danger" title="Löschen" onclick="openDeleteModal(event,'${doc.id}',${JSON.stringify(doc.title || doc.filename || 'Dokument')})"><i class="fa-solid fa-trash"></i></button>` : ''}
-    </div>`;
-  row.onclick = (event) => {
-    if (event.target.closest('button')) return;
-    window.openDocPreview?.(doc.id);
-  };
-  return row;
-}
+// makeDocListRow ist oben definiert (neuere Version mit drag+contextmenu)
 
 function renderColumnLayout(grid, docs) {
   const groups = groupDocsByFolder(docs);
@@ -3876,7 +3838,7 @@ window.addUploadTag = window.addUploadTag;
 window.removeUploadTag = window.removeUploadTag;
 window.selectFolder = window.selectFolder;
 window.selectFolderById = window.selectFolderById;
-window.setSearchMode = window.setSearchMode;
+
 window.renderDocuments = window.renderDocuments;
 window.downloadDoc = window.downloadDoc;
 window.openDeleteModal = window.openDeleteModal;
@@ -4608,20 +4570,15 @@ window.hideSearchDropdown = function() {
   _ddSelectedIdx = -1;
 };
 
-// Add keyboard-selected highlight style
-const _ddStyle = document.createElement('style');
-_ddStyle.textContent = '.search-dd-item.selected{background:var(--surface-2,#f1f5f9);}';
-document.head.appendChild(_ddStyle);
-
 window.showSearchDropdown = function() {
   const q = document.getElementById('doc-search')?.value.trim();
   if (q) buildSearchDropdown(q);
 };
 
-window.hideSearchDropdown = function() {
-  const dd = document.getElementById('search-dropdown');
-  if (dd) dd.style.display = 'none';
-};
+// Keyboard-selected highlight style
+const _ddStyle = document.createElement('style');
+_ddStyle.textContent = '.search-dd-item.selected{background:var(--surface-2,#f1f5f9);}';
+document.head.appendChild(_ddStyle);
 
 // Init pills on load
 document.addEventListener('DOMContentLoaded', () => {
