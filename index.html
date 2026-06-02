@@ -2719,11 +2719,15 @@ function renderFinderTree() {
 }
 
 function renderFinderFolderNode(container, folder, depth) {
-  const isOpen = state.openFolderIds?.has(folder.id);
+  const isOpen   = state.openFolderIds?.has(folder.id);
   const isActive = state.activeFolderId === folder.id;
-  const docsInFolder = state.documents.filter(d => d.folder_id === folder.id);
+
+  // Nutze allDocs-Cache für korrekte Zähler unabhängig vom aktiven Filter
+  const docsCache    = state.allDocs.length ? state.allDocs : state.documents;
+  const docsInFolder = docsCache.filter(d => d.folder_id === folder.id);
   const childFolders = state.folders.filter(f => f.parent_id === folder.id);
-  const hasChildren = docsInFolder.length > 0 || childFolders.length > 0;
+  const hasChildren  = docsInFolder.length > 0 || childFolders.length > 0;
+  const totalCount   = docsInFolder.length + childFolders.length;
 
   const row = document.createElement('div');
   row.className = 'finder-folder-row';
@@ -2731,18 +2735,34 @@ function renderFinderFolderNode(container, folder, depth) {
   const btn = document.createElement('button');
   btn.className = `finder-folder-btn${isActive ? ' active' : ''}`;
   btn.style.paddingLeft = (.5 + depth * .8) + 'rem';
+
+  // Chevron als separates Element mit eigenem Click-Handler
   btn.innerHTML = `
-    <i class="finder-chevron fa-solid fa-chevron-right${isOpen ? ' open' : ''}" style="${hasChildren ? '' : 'opacity:0;pointer-events:none'}"></i>
-    <i class="finder-folder-icon fa-solid fa-folder" style="color:${escHtml(folder.color || '#206efb')}"></i>
+    <i class="finder-chevron fa-solid fa-chevron-right${isOpen ? ' open' : ''}"
+       style="${hasChildren ? 'cursor:pointer' : 'opacity:0;pointer-events:none'}"
+       data-chevron="1"></i>
+    <i class="finder-folder-icon fa-solid fa-folder${isActive ? '-open' : ''}" style="color:${escHtml(folder.color || '#206efb')}"></i>
     <span class="finder-folder-name">${escHtml(folder.name)}</span>
-    <span class="finder-folder-count">${docsInFolder.length || ''}</span>`;
+    <span class="finder-folder-count">${totalCount || ''}</span>`;
 
   btn.onclick = (e) => {
     if (!state.openFolderIds) state.openFolderIds = new Set();
-    if (isOpen) state.openFolderIds.delete(folder.id);
-    else state.openFolderIds.add(folder.id);
+    const chevronClicked = e.target.dataset.chevron === '1';
+
+    if (chevronClicked) {
+      // Nur aufklappen/zuklappen, NICHT navigieren
+      if (isOpen) state.openFolderIds.delete(folder.id);
+      else state.openFolderIds.add(folder.id);
+      renderFinderTree(); // nur Tree neu rendern
+      return;
+    }
+
+    // Ordner-Name/Icon geklickt → navigieren + aufklappen
+    if (!isOpen) state.openFolderIds.add(folder.id);
+    // Wenn schon aktiv: nicht zuklappen, nur offen lassen
     navigateTo(folder.id, folder.name);
   };
+
   btn.addEventListener('contextmenu', e => showCtxMenu(e, 'folder', folder));
   btn.addEventListener('dragover', e => { e.preventDefault(); btn.classList.add('drag-over'); });
   btn.addEventListener('dragleave', () => btn.classList.remove('drag-over'));
@@ -2750,16 +2770,15 @@ function renderFinderFolderNode(container, folder, depth) {
 
   row.appendChild(btn);
 
-  // Children (subfolders + docs) — aufklappbar
-  if (hasChildren) {
+  // Aufgeklappte Kinder (Unterordner + Docs)
+  if (hasChildren && isOpen) {
     const children = document.createElement('div');
-    children.className = `finder-folder-children${isOpen ? ' open' : ''}`;
+    children.className = 'finder-folder-children open';
 
-    // Sub-Ordner zuerst
     childFolders.forEach(cf => renderFinderFolderNode(children, cf, depth + 1));
 
-    // Dann Dokumente
     docsInFolder.forEach(doc => {
+      const isDocActive = false; // Einzelne Docs werden im Hauptbereich hervorgehoben
       const docRow = document.createElement('div');
       docRow.className = 'finder-doc-row';
       docRow.draggable = true;
@@ -2773,7 +2792,13 @@ function renderFinderFolderNode(container, folder, depth) {
     });
 
     row.appendChild(children);
+  } else if (hasChildren && !isOpen) {
+    // Leerer Platzhalter damit das Layout stabil bleibt
+    const placeholder = document.createElement('div');
+    placeholder.className = 'finder-folder-children';
+    row.appendChild(placeholder);
   }
+
   container.appendChild(row);
 }
 
