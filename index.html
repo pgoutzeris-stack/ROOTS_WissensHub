@@ -1703,6 +1703,16 @@
     #btn-nav-back:not([disabled]):hover,
     #btn-nav-fwd:not([disabled]):hover { background:var(--surface-2,#f1f5f9); color:var(--ink); }
 
+    /* ── Folder Picker ──────────────────────────────────────────────── */
+    .folder-picker { position:relative; }
+    .folder-picker-btn { display:flex; align-items:center; gap:.55rem; width:100%; height:40px; padding:0 .85rem; background:var(--bg); border:1px solid var(--line); border-radius:8px; cursor:pointer; font-family:inherit; font-size:.84rem; color:var(--ink); transition:border-color .15s; text-align:left; }
+    .folder-picker-btn:hover, .folder-picker-btn:focus { border-color:var(--brand); outline:none; }
+    .folder-picker-dropdown { position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--bg); border:1px solid var(--line); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,.14); z-index:500; max-height:220px; overflow-y:auto; }
+    .fp-item { display:flex; align-items:center; gap:.5rem; padding:.42rem .75rem; cursor:pointer; font-size:.82rem; color:var(--ink); transition:background .1s; }
+    .fp-item:hover { background:var(--surface-2,#f1f5f9); }
+    .fp-item.selected { background:var(--brand-10,#eff6ff); color:var(--brand); font-weight:600; }
+    .fp-item-count { margin-left:auto; font-size:.68rem; color:var(--muted); }
+
     /* Breadcrumb */
     #breadcrumb-path { display:flex; align-items:center; gap:0; font-size:.8rem; }
     .bc-item { color:var(--muted); cursor:pointer; padding:.15rem .3rem; border-radius:5px; transition:all .12s; display:flex; align-items:center; gap:.3rem; white-space:nowrap; }
@@ -2014,7 +2024,7 @@
           </div>
           <button class="btn-ghost" onclick="openNewFolderModal()" style="white-space:nowrap;flex-shrink:0">
             <i class="fa-solid fa-folder-plus"></i> Ordner</button>
-          <button class="btn-primary" onclick="switchView('upload')" style="white-space:nowrap;flex-shrink:0">
+          <button class="btn-primary" onclick="openQuickUpload()" style="white-space:nowrap;flex-shrink:0">
             <i class="fa-solid fa-cloud-arrow-up"></i> Hochladen</button>
         </div>
         <!-- Breadcrumb Pfad-Leiste -->
@@ -2085,11 +2095,18 @@
             <div class="upload-card">
               <div class="upload-card__title">Optionen</div>
               <div class="form-field">
-                <label class="form-label">Ziel-Ordner</label>
-                <select class="form-select" id="upload-folder">
-                  <option value="">Kein Ordner (Root)</option>
-                </select>
-                <div id="upload-folder-hint" style="font-size:.75rem;color:var(--muted);margin-top:.3rem"></div>
+                <label class="form-label"><i class="fa-solid fa-folder" style="margin-right:.35rem;color:var(--brand)"></i>Zielordner</label>
+                <div id="tab-folder-picker" class="folder-picker">
+                  <button type="button" class="folder-picker-btn" onclick="toggleFolderPicker('tab')">
+                    <i class="fa-solid fa-folder-open" id="tab-picker-icon" style="color:#5e9cf5"></i>
+                    <span id="tab-picker-label">Alle Dokumente (Root)</span>
+                    <i class="fa-solid fa-chevron-down" style="font-size:.65rem;color:var(--muted);margin-left:auto"></i>
+                  </button>
+                  <div id="tab-folder-dropdown" class="folder-picker-dropdown" style="display:none"></div>
+                </div>
+                <input type="hidden" id="tab-upload-folder-id" value="" />
+                <input type="hidden" id="upload-folder" value="" /><!-- legacy compat -->
+                <div id="upload-folder-hint" style="font-size:.75rem;color:var(--brand);margin-top:.35rem;font-weight:500"></div>
               </div>
               <div class="form-field" style="position:relative">
                 <label class="form-label">Tags (Komma-getrennt oder Enter)</label>
@@ -2634,16 +2651,15 @@ window.switchView = function(view) {
   });
   if (view === 'documents') loadDocuments();
   if (view === 'upload') {
-    // Aktiven Ordner im Upload-Dropdown vorauswählen
-    const uploadSel = document.getElementById('upload-folder');
-    if (uploadSel && state.activeFolderId) uploadSel.value = state.activeFolderId;
-    // Ordner-Label in Upload-Header anzeigen
+    // Tab-Picker auf aktuellen Ordner setzen
     const activeFolder = state.folders.find(f => f.id === state.activeFolderId);
+    const fId    = state.activeFolderId || '';
+    const fName  = activeFolder ? activeFolder.name : 'Alle Dokumente (Root)';
+    const fColor = activeFolder?.color || '#5e9cf5';
+    selectFolderPicker('tab', fId, fName, fColor);
     const uploadHint = document.getElementById('upload-folder-hint');
     if (uploadHint) {
-      uploadHint.textContent = activeFolder
-        ? `Zielordner: ${activeFolder.name}`
-        : 'Kein Ordner ausgewählt — wird in der allgemeinen Ablage gespeichert';
+      uploadHint.textContent = activeFolder ? `Aktiver Ordner: ${activeFolder.name}` : '';
     }
   }
   if (view === 'chat') { document.getElementById('chat-input')?.focus(); loadChatSessions(); }
@@ -3915,7 +3931,16 @@ window.handleUploadAll = async function() {
   setSyncing(false);
   if (successCount) {
     toast(`${successCount} Datei${successCount !== 1 ? 'en' : ''} erfolgreich hochgeladen.`, 'ok');
-    await Promise.all([loadDocuments(), loadTags(), loadFolders()]);
+    const targetFolder = document.getElementById('upload-folder')?.value || null;
+    await Promise.all([loadFolders(), loadTags()]);
+    // Nach Upload: direkt zu den hochgeladenen Dokumenten navigieren
+    switchView('documents');
+    if (targetFolder) {
+      const f = state.folders.find(f => f.id === targetFolder);
+      navigateTo(targetFolder, f?.name || 'Ordner');
+    } else {
+      navigateTo('', 'Alle Dokumente');
+    }
   }
   if (errorCount) toast(`${errorCount} Datei${errorCount !== 1 ? 'en' : ''} fehlgeschlagen.`, 'err');
 };
@@ -5544,6 +5569,214 @@ window.onDropToFolder = async function(event, folderId) {
   } catch { toast('Fehler beim Verschieben', 'err'); }
 };
 
+// ─── Folder Picker (custom dropdown) ────────────────────────────────────────
+function buildFolderPickerItems(prefix = 'modal') {
+  const dropdown = document.getElementById(`${prefix}-folder-dropdown`);
+  if (!dropdown) return;
+  const docsCache = state.allDocs.length ? state.allDocs : state.documents;
+  const currentId = document.getElementById(`${prefix}-upload-folder-id`)?.value || '';
+
+  function renderItems(folders, parentId, depth) {
+    return folders
+      .filter(f => (f.parent_id || '') === (parentId || ''))
+      .map(f => {
+        const count = docsCache.filter(d => d.folder_id === f.id).length;
+        const indent = depth * 1.2;
+        const isSelected = f.id === currentId;
+        return `<div class="fp-item${isSelected?' selected':''}" style="padding-left:${.75+indent}rem"
+          onmousedown="selectFolderPicker('${prefix}','${f.id}','${escHtml(f.name)}','${escHtml(f.color||'#206efb')}')">
+          <i class="fa-solid fa-folder" style="color:${escHtml(f.color||'#206efb')};font-size:.78rem;flex-shrink:0"></i>
+          <span>${escHtml(f.name)}</span>
+          ${count ? `<span class="fp-item-count">${count} Datei${count!==1?'en':''}</span>` : ''}
+        </div>
+        ${renderItems(folders, f.id, depth+1)}`;
+      }).join('');
+  }
+
+  const rootSelected = !currentId;
+  dropdown.innerHTML = `
+    <div class="fp-item${rootSelected?' selected':''}" onmousedown="selectFolderPicker('${prefix}','','Alle Dokumente (Root)','#5e9cf5')">
+      <i class="fa-solid fa-folder-open" style="color:#5e9cf5;font-size:.78rem"></i>
+      <span>Alle Dokumente (Root)</span>
+      <span class="fp-item-count">${(state.totalDocuments||0)} total</span>
+    </div>
+    ${renderItems(state.folders, null, 0)}`;
+}
+
+window.toggleFolderPicker = function(prefix = 'modal') {
+  const dd = document.getElementById(`${prefix}-folder-dropdown`);
+  if (!dd) return;
+  const isOpen = dd.style.display !== 'none';
+  if (isOpen) { dd.style.display = 'none'; return; }
+  buildFolderPickerItems(prefix);
+  dd.style.display = 'block';
+};
+
+window.selectFolderPicker = function(prefix, folderId, name, color) {
+  const hiddenId = document.getElementById(`${prefix}-upload-folder-id`);
+  if (hiddenId) hiddenId.value = folderId;
+  // Legacy compat for upload tab
+  const legacy = document.getElementById('upload-folder');
+  if (legacy && prefix === 'tab') legacy.value = folderId;
+  const lbl = document.getElementById(`${prefix}-picker-label`);
+  if (lbl) lbl.textContent = name;
+  const icon = document.getElementById(`${prefix}-picker-icon`);
+  if (icon) { icon.style.color = color; icon.className = `fa-solid ${folderId ? 'fa-folder' : 'fa-folder-open'}`; }
+  const dd = document.getElementById(`${prefix}-folder-dropdown`);
+  if (dd) dd.style.display = 'none';
+};
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#tab-folder-picker')) {
+    const dd = document.getElementById('tab-folder-dropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#modal-folder-picker')) {
+    const dd = document.getElementById('modal-folder-dropdown');
+    if (dd) dd.style.display = 'none';
+  }
+});
+
+// ─── Quick Upload Modal ─────────────────────────────────────────────────────
+let _modalFiles = [];
+let _modalTags  = [];
+
+window.openQuickUpload = function() {
+  _modalFiles = [];
+  _modalTags  = [];
+  renderModalFileList();
+  // Pre-select current folder
+  const currentFolder = state.folders.find(f => f.id === state.activeFolderId);
+  const folderId = state.activeFolderId || '';
+  const folderName = currentFolder ? currentFolder.name : 'Alle Dokumente (Root)';
+  const folderColor = currentFolder?.color || '#5e9cf5';
+  selectFolderPicker('modal', folderId, folderName, folderColor);
+  document.getElementById('modal-quick-upload').classList.add('open');
+  document.getElementById('modal-tag-input').value = '';
+};
+
+window.closeQuickUpload = function() {
+  document.getElementById('modal-quick-upload').classList.remove('open');
+  _modalFiles = [];
+  _modalTags  = [];
+};
+
+document.getElementById('modal-quick-upload')?.addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeQuickUpload();
+});
+
+// Dropzone & File Input for modal
+function initModalDropzone() {
+  const dz = document.getElementById('modal-dropzone');
+  const fi = document.getElementById('modal-file-input');
+  if (!dz || !fi) return;
+  dz.addEventListener('click', () => fi.click());
+  fi.addEventListener('change', e => addModalFiles(e.target.files));
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); addModalFiles(e.dataTransfer.files); });
+}
+
+function addModalFiles(fileList) {
+  const existing = new Set(_modalFiles.map(f => f.file.name));
+  Array.from(fileList).filter(f => f.name.endsWith('.md') && !existing.has(f.name))
+    .forEach(f => _modalFiles.push({ file: f, status: 'pending', progress: 0 }));
+  renderModalFileList();
+  document.getElementById('modal-btn-upload').disabled = _modalFiles.length === 0;
+}
+
+function renderModalFileList() {
+  const wrap = document.getElementById('modal-file-list');
+  const list = document.getElementById('modal-file-list-inner');
+  const badge = document.getElementById('modal-file-count');
+  if (!wrap || !list) return;
+  wrap.style.display = _modalFiles.length ? 'block' : 'none';
+  if (badge) badge.textContent = `${_modalFiles.length} Datei${_modalFiles.length!==1?'en':''}`;
+  list.innerHTML = _modalFiles.map((uf, i) => `
+    <div class="file-item">
+      <div class="file-item__info">
+        <span class="file-item__name">${escHtml(uf.file.name)}</span>
+        <span class="file-item__size">${formatBytes(uf.file.size)}</span>
+      </div>
+      <div class="file-progress-bar" style="width:${uf.progress}%"></div>
+    </div>`).join('');
+}
+
+// Tag input for modal
+document.addEventListener('DOMContentLoaded', () => {
+  const inp = document.getElementById('modal-tag-input');
+  if (inp) inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      const v = inp.value.trim().replace(/,$/, '');
+      if (v && !_modalTags.includes(v)) { _modalTags.push(v); inp.value = ''; }
+    }
+  });
+  initModalDropzone();
+});
+
+window.handleQuickUpload = async function() {
+  if (!_modalFiles.length) return;
+  const folderId = document.getElementById('modal-upload-folder-id')?.value || null;
+  const tags = [..._modalTags];
+  let successCount = 0, errorCount = 0;
+
+  document.getElementById('modal-btn-upload').disabled = true;
+  setSyncing(true);
+
+  for (let i = 0; i < _modalFiles.length; i++) {
+    const uf = _modalFiles[i];
+    uf.status = 'uploading'; uf.progress = 20;
+    renderModalFileList();
+    try {
+      // Duplikat-Check
+      let dupAction = 'upload', existingId = null;
+      try {
+        const dr = await fetch(`${WISSENSHUB_API_URL}?action=check_duplicate&filename=${encodeURIComponent(uf.file.name)}`, { headers: await authHeaders() });
+        if (dr.ok) { const dd = await dr.json(); if (dd.exists) { dupAction = await showDuplicateDialog(uf.file.name, dd); existingId = dd.id; } }
+      } catch {}
+      if (dupAction === 'skip') { uf.status = 'skipped'; renderModalFileList(); continue; }
+
+      const content = await uf.file.text();
+      const title = dupAction === 'copy' ? uf.file.name.replace(/\.md$/i, '') + ' (Kopie)' : uf.file.name.replace(/\.md$/i, '');
+      const res = await fetch(WISSENSHUB_API_URL, {
+        method: 'POST',
+        headers: { ...await authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'upload', title, replace_id: dupAction === 'replace' ? existingId : undefined,
+          filename: uf.file.name, content, file_size_bytes: uf.file.size,
+          folder_id: folderId || null, tags,
+          uploader_name: window.RootsUser?._p?.full_name || window.RootsUser?._p?.name || '',
+          uploaded_by: window.RootsUser?._uid || null,
+        })
+      });
+      let rd = {}; try { rd = await res.json(); } catch {}
+      if (!res.ok) throw new Error(rd.error || `HTTP ${res.status}`);
+      uf.status = 'done'; uf.progress = 100; successCount++;
+      if (rd.id) fetch(WISSENSHUB_API_URL, { method:'POST', headers:{...await authHeaders(),'Content-Type':'application/json'}, body: JSON.stringify({action:'embed',document_id:rd.id}) }).catch(()=>{});
+    } catch (err) {
+      uf.status = 'error'; uf.progress = 0; errorCount++;
+      console.error('Upload error:', err);
+    }
+    renderModalFileList();
+  }
+
+  setSyncing(false);
+  if (successCount) {
+    toast(`${successCount} Datei${successCount!==1?'en':''} hochgeladen`, 'ok');
+    closeQuickUpload();
+    await Promise.all([loadFolders(), loadTags()]);
+    // Direkt zu den hochgeladenen Dokumenten navigieren
+    const f = folderId ? state.folders.find(f => f.id === folderId) : null;
+    navigateTo(folderId || '', f?.name || 'Alle Dokumente');
+  }
+  if (errorCount) toast(`${errorCount} Fehler beim Hochladen`, 'err');
+  document.getElementById('modal-btn-upload').disabled = false;
+};
+
 </script>
 
 <!-- Bridge: Custom ping suppresses "no_supabase_client" flash during module init -->
@@ -5563,6 +5796,66 @@ window.RootsSyncStatusConfig = {
 };
 </script>
 <script defer src="https://pgoutzeris-stack.github.io/ROOTS_Intranet/roots-user-bridge.js?v=20260601-final"></script>
+
+<!-- Upload Modal (Quick Upload aus Dokumente-Ansicht) -->
+<div class="modal-overlay" id="modal-quick-upload">
+  <div class="modal-box" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <span class="modal-title"><i class="fa-solid fa-cloud-arrow-up" style="color:var(--brand);margin-right:.5rem"></i>Dateien hochladen</span>
+      <button class="btn-close-modal" onclick="closeQuickUpload()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div style="padding:1rem 1.5rem;flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:1rem">
+
+      <!-- Dropzone -->
+      <div class="dropzone" id="modal-dropzone" style="min-height:120px">
+        <input type="file" id="modal-file-input" multiple accept=".md,text/markdown" />
+        <div class="dropzone__icon"><i class="fa-solid fa-file-arrow-up"></i></div>
+        <div class="dropzone__title">Dateien ablegen oder klicken</div>
+        <div class="dropzone__sub">.md Dateien · max. 50 Dateien</div>
+      </div>
+
+      <!-- File List -->
+      <div id="modal-file-list" style="display:none">
+        <div class="upload-card">
+          <div class="upload-card__title" style="display:flex;align-items:center;justify-content:space-between">
+            <span>Ausgewählte Dateien</span>
+            <span id="modal-file-count" class="status-badge pending"></span>
+          </div>
+          <div class="file-list" id="modal-file-list-inner"></div>
+        </div>
+      </div>
+
+      <!-- Zielordner — custom folder picker -->
+      <div class="form-field">
+        <label class="form-label"><i class="fa-solid fa-folder" style="margin-right:.35rem;color:var(--brand)"></i>Zielordner</label>
+        <div id="modal-folder-picker" class="folder-picker">
+          <button type="button" class="folder-picker-btn" onclick="toggleFolderPicker('modal')">
+            <i class="fa-solid fa-folder-open" id="modal-picker-icon" style="color:#5e9cf5"></i>
+            <span id="modal-picker-label">Alle Dokumente (Root)</span>
+            <i class="fa-solid fa-chevron-down" style="font-size:.65rem;color:var(--muted);margin-left:auto"></i>
+          </button>
+          <div id="modal-folder-dropdown" class="folder-picker-dropdown" style="display:none"></div>
+        </div>
+        <input type="hidden" id="modal-upload-folder-id" value="" />
+      </div>
+
+      <!-- Tags -->
+      <div class="form-field" style="position:relative">
+        <label class="form-label"><i class="fa-solid fa-tags" style="margin-right:.35rem;color:var(--brand)"></i>Tags</label>
+        <div class="tag-input-wrap" id="modal-tag-input-wrap">
+          <input class="tag-input-field" id="modal-tag-input" type="text" placeholder="Tag hinzufügen (Enter)" autocomplete="off" />
+        </div>
+      </div>
+
+    </div>
+    <div style="padding:.75rem 1.5rem;border-top:1px solid var(--line);display:flex;gap:.5rem;justify-content:flex-end;flex-shrink:0">
+      <button class="btn-ghost" onclick="closeQuickUpload()">Abbrechen</button>
+      <button class="btn-primary" id="modal-btn-upload" onclick="handleQuickUpload()" disabled>
+        <i class="fa-solid fa-cloud-arrow-up"></i> Hochladen
+      </button>
+    </div>
+  </div>
+</div>
 
 <!-- Context Menu -->
 <div id="ctx-menu" style="display:none;position:fixed;background:var(--bg);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:9999;min-width:180px;padding:.35rem 0;font-size:.82rem">
