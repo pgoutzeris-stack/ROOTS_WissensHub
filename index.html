@@ -5644,7 +5644,7 @@ function _attachGraphEvents(canvas) {
     _animZoom(_gAnim.zoom*(e.deltaY<0?1.2:1/1.2),cx,cy);
     // Level 3 erreicht → Inhalt laden
     if(_gAnim.zoom>=Z_CARDS*_gv.baseZoom) _loadDocContent();
-  };
+  }, {passive:false});
 
   canvas.onmousedown=e=>{
     const hit=hitTest(e.clientX,e.clientY);
