@@ -825,25 +825,41 @@
     .graph-level-indicator { display:flex;gap:5px;align-items:center;margin-left:6px;padding-left:10px;border-left:1px solid rgba(15,23,42,.1); }
     .graph-level-dot { width:7px;height:7px;border-radius:50%;background:rgba(15,23,42,.15);transition:all .3s; }
     .graph-level-dot.active { background:#206efb;box-shadow:0 0 8px rgba(32,110,251,.5); }
-    /* Hover Context Panel — hell */
-    .graph-ctx-panel { position:absolute;right:14px;top:60px;width:220px;background:rgba(255,255,255,.95);backdrop-filter:blur(20px);border:1px solid rgba(15,23,42,.1);border-radius:14px;padding:14px;z-index:30;box-shadow:0 8px 32px rgba(15,23,42,.15);font-size:.8rem;color:#0f172a;transition:opacity .2s; }
-    .gcp-header { display:flex;gap:10px;align-items:flex-start;margin-bottom:10px; }
-    .gcp-icon { width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0; }
-    .gcp-title { font-weight:700;font-size:.83rem;color:#0f172a;line-height:1.3; }
-    .gcp-sub { font-size:.71rem;color:#64748b;margin-top:2px; }
-    .gcp-meta { display:flex;flex-direction:column;gap:4px;margin-bottom:10px;font-size:.73rem;color:#64748b; }
-    .gcp-meta span { display:flex;align-items:center;gap:5px; }
-    .gcp-meta i { width:12px;color:#94a3b8; }
-    .gcp-section-label { font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#94a3b8;margin-bottom:5px; }
-    .gcp-similar { margin-bottom:10px; }
-    .gcp-similar-item { display:flex;align-items:center;gap:6px;padding:3px 0;font-size:.73rem;color:#64748b;cursor:pointer; }
-    .gcp-similar-item:hover { color:#206efb; }
-    .gcp-sim-bar { height:3px;border-radius:2px;background:rgba(32,110,251,.35);flex-shrink:0; }
-    .gcp-actions { display:flex;gap:6px; }
-    .gcp-btn-primary { flex:1;padding:6px;border:none;border-radius:8px;background:#206efb;color:#fff;font-size:.75rem;font-family:inherit;cursor:pointer;font-weight:600; }
-    .gcp-btn-primary:hover { background:#1d4ed8; }
-    .gcp-btn-ghost { flex:1;padding:6px;border:1px solid rgba(15,23,42,.12);border-radius:8px;background:transparent;color:#64748b;font-size:.75rem;font-family:inherit;cursor:pointer; }
-    .gcp-btn-ghost:hover { border-color:#206efb;color:#206efb; }
+    /* Graph Context Panel — konsistent mit App-Design */
+    .graph-ctx-panel {
+      position:absolute; right:14px; top:62px;
+      width:240px; max-width:calc(100% - 28px);
+      background:var(--bg,#fff); border:1px solid var(--line,#e2e8f0);
+      border-radius:14px; padding:0; z-index:30;
+      box-shadow:0 8px 32px rgba(15,23,42,.14), 0 2px 8px rgba(15,23,42,.07);
+      font-size:.82rem; color:var(--ink,#0f172a);
+      overflow:hidden; /* verhindert Overflow */
+    }
+    .gcp-header {
+      display:flex; gap:10px; align-items:center;
+      padding:12px 14px 10px; border-bottom:1px solid var(--line,#e2e8f0);
+      background:var(--surface-2,#f8fafc);
+    }
+    .gcp-icon {
+      width:34px; height:34px; border-radius:9px; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center; font-size:.9rem;
+    }
+    .gcp-title { font-weight:700; font-size:.84rem; color:var(--ink,#0f172a); line-height:1.3; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+    .gcp-sub { font-size:.7rem; color:var(--muted,#64748b); margin-top:2px; }
+    .gcp-meta { display:flex; flex-direction:column; gap:4px; padding:10px 14px 0; font-size:.73rem; color:var(--muted,#64748b); }
+    .gcp-meta span { display:flex; align-items:center; gap:6px; }
+    .gcp-meta i { width:13px; text-align:center; color:#94a3b8; }
+    .gcp-section-label { font-size:.64rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; margin-bottom:5px; }
+    .gcp-similar { padding:8px 14px 0; }
+    .gcp-similar-item { display:flex; align-items:center; gap:6px; padding:4px 0; font-size:.72rem; color:var(--muted,#64748b); cursor:pointer; border-bottom:1px solid var(--line,#e2e8f0); }
+    .gcp-similar-item:last-child { border-bottom:none; }
+    .gcp-similar-item:hover { color:var(--brand,#206efb); }
+    .gcp-sim-bar { height:3px; border-radius:2px; background:rgba(32,110,251,.3); flex-shrink:0; }
+    .gcp-actions { display:flex; gap:6px; padding:10px 14px 12px; }
+    .gcp-btn-primary { flex:1; padding:7px; border:none; border-radius:8px; background:var(--brand,#206efb); color:#fff; font-size:.76rem; font-family:inherit; cursor:pointer; font-weight:600; transition:filter .15s; }
+    .gcp-btn-primary:hover { filter:brightness(.92); }
+    .gcp-btn-ghost { flex:1; padding:7px; border:1px solid var(--line,#e2e8f0); border-radius:8px; background:transparent; color:var(--muted,#64748b); font-size:.76rem; font-family:inherit; cursor:pointer; transition:all .15s; }
+    .gcp-btn-ghost:hover { border-color:var(--brand,#206efb); color:var(--brand,#206efb); }
     /* Minimap */
     .graph-minimap-wrap { position:absolute;bottom:14px;right:14px;width:140px;height:90px;border-radius:8px;overflow:hidden;border:1px solid rgba(15,23,42,.1);background:rgba(255,255,255,.85);z-index:20;box-shadow:0 2px 12px rgba(15,23,42,.1); }
     #graph-minimap { display:block;width:100%;height:100%; }
@@ -2126,18 +2142,26 @@
 
             <!-- Hover Context Panel -->
             <div id="graph-context-panel" class="graph-ctx-panel" style="display:none">
+              <!-- Header (kein blauer Balken) -->
               <div id="gcp-header" class="gcp-header">
                 <div id="gcp-icon" class="gcp-icon"></div>
-                <div>
+                <div style="min-width:0;flex:1">
                   <div id="gcp-title" class="gcp-title"></div>
                   <div id="gcp-sub" class="gcp-sub"></div>
                 </div>
+                <button id="gcp-close" onclick="document.getElementById('graph-context-panel').style.display='none'"
+                  style="background:none;border:none;cursor:pointer;color:var(--muted,#94a3b8);padding:0;font-size:.8rem;flex-shrink:0;line-height:1">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
               </div>
-              <div id="gcp-meta" class="gcp-meta"></div>
+              <!-- Meta-Infos -->
+              <div id="gcp-meta" class="gcp-meta" style="padding-bottom:8px"></div>
+              <!-- Ähnliche -->
               <div id="gcp-similar" class="gcp-similar" style="display:none">
-                <div class="gcp-section-label">Ähnliche Dokumente</div>
+                <div class="gcp-section-label" style="padding:0 14px">Ähnliche Dokumente</div>
                 <div id="gcp-similar-list"></div>
               </div>
+              <!-- Aktionen -->
               <div id="gcp-actions" class="gcp-actions">
                 <button class="gcp-btn-primary" id="gcp-open">Öffnen</button>
                 <button class="gcp-btn-ghost" id="gcp-nav">Navigieren</button>
@@ -5108,7 +5132,23 @@ function _buildHierarchicalLayout() {
        folderId:doc.folder_id||null});
     nodes.push(n); byId.set(n.id, n);
     const fn = folderKey && byId.has(folderKey) ? byId.get(folderKey) : null;
-    if (fn) edges.push({a:fn, b:n, kind:'contains', w:1.4, revealAt:Z_CHILD});
+    if (fn) {
+      edges.push({a:fn, b:n, kind:'contains', w:1.4, revealAt:Z_CHILD});
+    } else {
+      // Kein Ordner → "Ohne Ordner"-Hub erstellen (einmalig)
+      if (!byId.has('__orphan__')) {
+        // Platzierung: rechts unten vom Zentrum
+        const oAngle = Math.PI * 0.25;
+        const oR = Math.min(W,H)*0.22;
+        const ox = cx + Math.cos(oAngle)*oR, oy = cy + Math.sin(oAngle)*oR;
+        const orphan = _makeNode('__orphan__','folder','Ohne Ordner','#94a3b8',22,
+          ox,oy,cx,cy,0,{folderId:null});
+        nodes.push(orphan); byId.set('__orphan__', orphan);
+      }
+      const orphanNode = byId.get('__orphan__');
+      n.color = '#94a3b8'; // Grau für Docs ohne Ordner
+      edges.push({a:orphanNode, b:n, kind:'contains', w:1.0, revealAt:Z_CHILD});
+    }
   });
 
   // ── Ähnlichkeits-Edges (nur auf Ebene 3 sichtbar) ──
@@ -5193,14 +5233,21 @@ function _springTick() {
 function _draw(ctx) {
   const {zoom:z, panX, panY, width:W, height:H, nodes, edges, hover} = _gv;
   ctx.clearRect(0,0,W,H);
-  // Futuristischer Hintergrund: weißes Papier mit feinem Dot-Grid
-  ctx.fillStyle='#fafbfc'; ctx.fillRect(0,0,W,H);
-  // Dot-Grid (im Canvas-Koordinatensystem, nicht mit zoom/pan)
-  const dotSpacing = 28, dotR = 0.85;
-  ctx.fillStyle = 'rgba(32,110,251,.09)';
-  for(let gx=0;gx<W;gx+=dotSpacing) for(let gy=0;gy<H;gy+=dotSpacing){
-    ctx.beginPath(); ctx.arc(gx,gy,dotR,0,Math.PI*2); ctx.fill();
+  // Hintergrund (gecacht für Performance)
+  if (!_gv._bgCanvas || _gv._bgW!==W || _gv._bgH!==H) {
+    const bc = document.createElement('canvas');
+    bc.width=W; bc.height=H;
+    const bc2 = bc.getContext('2d');
+    bc2.fillStyle='#fafbfc'; bc2.fillRect(0,0,W,H);
+    const dpr = window.devicePixelRatio||1;
+    const dotSpacing=28, dotR=0.85;
+    bc2.fillStyle='rgba(32,110,251,.08)';
+    for(let gx=0;gx<W;gx+=dotSpacing) for(let gy=0;gy<H;gy+=dotSpacing){
+      bc2.beginPath(); bc2.arc(gx,gy,dotR,0,Math.PI*2); bc2.fill();
+    }
+    _gv._bgCanvas=bc; _gv._bgW=W; _gv._bgH=H;
   }
+  ctx.drawImage(_gv._bgCanvas, 0, 0);
 
   ctx.save();
   ctx.translate(W/2+panX, H/2+panY);
@@ -5277,7 +5324,7 @@ function _draw(ctx) {
     // Label (nur wenn genug Zoom oder Hover)
     const showLabel = n.type==='folder' || (z>0.7 && n.revealP>0.7) || isHover;
     if (showLabel) {
-      const maxC = n.type==='folder'?16:13;
+      const maxC = n.type==='folder'?15:12;
       const lbl = n.label.length>maxC ? n.label.slice(0,maxC-1)+'…' : n.label;
       const fs = n.type==='folder' ? 12 : 10;
       ctx.font=`${n.type==='folder'?'700 ':''}${fs}px Circular Std,system-ui`;
@@ -5537,9 +5584,15 @@ function _showContextPanel(node, screenX, screenY) {
   if(isFolder){ob.textContent='Öffnen';ob.onclick=()=>{setDocView('cards');navigateTo(node.folderId,node.label);};nb.textContent='Schließen';nb.onclick=()=>_hideContextPanel();}
   else{ob.textContent='Vorschau';ob.onclick=()=>openDocPreview(node.docId,node.label);nb.textContent='Zum Ordner';nb.onclick=()=>{setDocView('cards');navigateTo(node.folderId||'','');};}
   panel.style.display='block';
-  const px=(screenX||0)>(_gv.width*.6)?14:null;
-  panel.style.right=px!==null?px+'px':'auto';
-  panel.style.left=px===null?'14px':'auto';
+  // Smart positioning: rechts wenn Platz, sonst links; nie außerhalb
+  const pw=244; // Panel-Breite + Rand
+  const putRight=(screenX||0)>_gv.width*0.5;
+  panel.style.right=putRight?'14px':'auto';
+  panel.style.left=putRight?'auto':'14px';
+  // Max-Höhe begrenzen damit Panel nicht übersteht
+  const wrapH=document.getElementById('doc-graph-wrap')?.clientHeight||600;
+  panel.style.maxHeight=Math.min(420, wrapH-80)+'px';
+  panel.style.overflowY='auto';
   // Panel selbst schließt bei hover-leave nicht sofort
   panel.onmouseenter=()=>clearTimeout(_gv.hideTimer);
   panel.onmouseleave=()=>_hideContextPanelDelayed();
