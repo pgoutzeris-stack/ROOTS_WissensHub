@@ -1991,6 +1991,7 @@
                 <select class="form-select" id="upload-folder">
                   <option value="">Kein Ordner (Root)</option>
                 </select>
+                <div id="upload-folder-hint" style="font-size:.75rem;color:var(--muted);margin-top:.3rem"></div>
               </div>
               <div class="form-field" style="position:relative">
                 <label class="form-label">Tags (Komma-getrennt oder Enter)</label>
@@ -2342,6 +2343,7 @@ const state = {
   folders: [],
   tags: [],
   activeFolderId: '',
+  totalDocuments: null,
   activeTagFilters: [],
   docView: 'cards',
   graphMode: 'mindmap',
@@ -2518,6 +2520,19 @@ window.switchView = function(view) {
     document.getElementById(`nav-${v}`)?.classList.toggle('active', v === view);
   });
   if (view === 'documents') loadDocuments();
+  if (view === 'upload') {
+    // Aktiven Ordner im Upload-Dropdown vorauswählen
+    const uploadSel = document.getElementById('upload-folder');
+    if (uploadSel && state.activeFolderId) uploadSel.value = state.activeFolderId;
+    // Ordner-Label in Upload-Header anzeigen
+    const activeFolder = state.folders.find(f => f.id === state.activeFolderId);
+    const uploadHint = document.getElementById('upload-folder-hint');
+    if (uploadHint) {
+      uploadHint.textContent = activeFolder
+        ? `Zielordner: ${activeFolder.name}`
+        : 'Kein Ordner ausgewählt — wird in der allgemeinen Ablage gespeichert';
+    }
+  }
   if (view === 'chat') { document.getElementById('chat-input')?.focus(); loadChatSessions(); }
 };
 
@@ -2760,8 +2775,13 @@ async function loadDocuments() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const { documents, total } = await res.json();
     state.documents = documents || [];
-    document.getElementById('folder-count-all').textContent = total ?? state.documents.length;
-    document.getElementById('chat-doc-count').textContent = `${total ?? state.documents.length} Dokument${(total ?? state.documents.length) !== 1 ? 'e' : ''} indexiert`;
+    // Gesamtzahl nur aktualisieren wenn kein Ordner-Filter aktiv
+    if (!state.activeFolderId && !state.search && !state.activeTagFilters.length) {
+      state.totalDocuments = total ?? state.documents.length;
+    }
+    const displayTotal = state.totalDocuments ?? total ?? state.documents.length;
+    document.getElementById('folder-count-all').textContent = displayTotal;
+    document.getElementById('chat-doc-count').textContent = `${displayTotal} Dokument${displayTotal !== 1 ? 'e' : ''} indexiert`;
     renderDocuments();
     if (state.docView === 'graph') initKnowledgeGraph();
   } catch (err) {
