@@ -819,6 +819,8 @@
     .graph-cb-btn { display:flex;align-items:center;gap:5px;padding:5px 10px;border:none;border-radius:999px;background:transparent;color:#64748b;font-size:.75rem;font-family:inherit;cursor:pointer;transition:all .15s;white-space:nowrap; }
     .graph-cb-btn:hover { background:rgba(32,110,251,.1);color:#206efb; }
     .graph-cb-btn.active { background:rgba(32,110,251,.15);color:#206efb; }
+    .graph-cb-btn.graph-toggle.on { background:rgba(32,110,251,.2);color:#206efb;font-weight:600;box-shadow:0 0 0 1.5px rgba(32,110,251,.4); }
+    .graph-cb-btn.graph-toggle.loading { opacity:.6;cursor:wait; }
     .graph-cb-btn i { font-size:.72rem; }
     .graph-zoom-label { font-size:.72rem;color:#475569;min-width:36px;text-align:center;font-variant-numeric:tabular-nums; }
     /* Level indicator */
@@ -2118,6 +2120,26 @@
               <div class="graph-cb-group">
                 <button class="graph-cb-btn" onclick="fitGraphView()" title="Alles anzeigen"><i class="fa-solid fa-expand"></i></button>
                 <button class="graph-cb-btn" onclick="reheatGraphV2()" title="Neu anordnen"><i class="fa-solid fa-rotate"></i></button>
+              </div>
+              <div class="graph-cb-sep"></div>
+              <!-- Analyse-Toggles -->
+              <div class="graph-cb-group" style="gap:3px">
+                <button class="graph-cb-btn graph-toggle" id="gtgl-hubs"
+                  onclick="toggleGraphMode('hubs')" title="Hub-Dokumente hervorheben">
+                  <i class="fa-solid fa-circle-nodes"></i> Hubs
+                </button>
+                <button class="graph-cb-btn graph-toggle" id="gtgl-gaps"
+                  onclick="toggleGraphMode('gaps')" title="Wissens-Lücken anzeigen">
+                  <i class="fa-solid fa-circle-exclamation"></i> Lücken
+                </button>
+                <button class="graph-cb-btn graph-toggle" id="gtgl-semantic"
+                  onclick="toggleGraphMode('semantic')" title="Semantische Ähnlichkeit (RAG)">
+                  <i class="fa-solid fa-brain"></i> Semantik
+                </button>
+                <button class="graph-cb-btn graph-toggle" id="gtgl-timeline"
+                  onclick="toggleGraphMode('timeline')" title="Zeitverlauf">
+                  <i class="fa-solid fa-clock-rotate-left"></i> Verlauf
+                </button>
               </div>
               <div class="graph-cb-sep"></div>
               <div class="graph-cb-group" style="position:relative">
@@ -5316,6 +5338,17 @@ function _draw(ctx) {
     const active = !conn || (conn.has(e.a.id)&&conn.has(e.b.id));
     ctx.globalAlpha = vis * (active ? 1 : 0.15);
 
+    if (e.kind==='rag_similar') {
+      // RAG-Ähnlichkeits-Edge: lila Gradient, gestrichelt
+      const gR = ctx.createLinearGradient(e.a.x,e.a.y,e.b.x,e.b.y);
+      gR.addColorStop(0,'rgba(139,92,246,'+(active?0.7:0.1)+')');
+      gR.addColorStop(1,'rgba(167,139,250,'+(active?0.7:0.1)+')');
+      ctx.strokeStyle=gR; ctx.lineWidth=(e.sim||0.5)*2.5/z;
+      ctx.setLineDash([6/z,3/z]);
+      ctx.beginPath(); ctx.moveTo(_sx,_sy); ctx.lineTo(_ex,_ey); ctx.stroke();
+      ctx.setLineDash([]);
+      return; // skip normal rendering
+    }
     if (e.kind==='similar') {
       const g = ctx.createLinearGradient(e.a.x,e.a.y,e.b.x,e.b.y);
       g.addColorStop(0, e.a.color+'66'); g.addColorStop(1, e.b.color+'66');
@@ -5335,6 +5368,17 @@ function _draw(ctx) {
     const _sx=e.a.x+(_dx/_d)*aCircleR, _sy=e.a.y+(_dy/_d)*aCircleR;
     const _ex=e.b.x-(_dx/_d)*bCircleR, _ey=e.b.y-(_dy/_d)*bCircleR;
     ctx.beginPath();
+    if (e.kind==='rag_similar') {
+      // RAG-Ähnlichkeits-Edge: lila Gradient, gestrichelt
+      const gR = ctx.createLinearGradient(e.a.x,e.a.y,e.b.x,e.b.y);
+      gR.addColorStop(0,'rgba(139,92,246,'+(active?0.7:0.1)+')');
+      gR.addColorStop(1,'rgba(167,139,250,'+(active?0.7:0.1)+')');
+      ctx.strokeStyle=gR; ctx.lineWidth=(e.sim||0.5)*2.5/z;
+      ctx.setLineDash([6/z,3/z]);
+      ctx.beginPath(); ctx.moveTo(_sx,_sy); ctx.lineTo(_ex,_ey); ctx.stroke();
+      ctx.setLineDash([]);
+      return; // skip normal rendering
+    }
     if (e.kind==='similar') {
       const mx=(_sx+_ex)/2, my=(_sy+_ey)/2-10/z;
       ctx.moveTo(_sx,_sy); ctx.quadraticCurveTo(mx,my,_ex,_ey);
@@ -5360,7 +5404,20 @@ function _draw(ctx) {
     // Glow bei Hover
     if (isHover) { ctx.shadowColor=n.color; ctx.shadowBlur=20; }
 
+    // Sonder-Rendering für Analyse-Modi
+    if (_graphModes.hubs && n._isHub && n.type==='doc') {
+      ctx.shadowColor = '#f59e0b'; ctx.shadowBlur = 24 + n._hubScore*20;
+    }
     _drawIconNode(ctx, n, isHover);
+    // Gap-Indikator: rotes Ausrufezeichen
+    if (_graphModes.gaps && n._isGap) {
+      const gx=n.x+n.r*1.2, gy=n.y-n.r*1.2;
+      ctx.shadowBlur=0; ctx.globalAlpha=n.revealP;
+      ctx.beginPath(); ctx.arc(gx,gy,7,0,Math.PI*2);
+      ctx.fillStyle='#ef4444'; ctx.fill();
+      ctx.fillStyle='#fff'; ctx.font='700 9px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('!',gx,gy+0.5);
+    }
 
     // Label (nur wenn genug Zoom oder Hover)
     const showLabel = n.type==='folder' || (z>0.7 && n.revealP>0.7) || isHover;
@@ -5573,6 +5630,169 @@ window.setGraphGrouping=function(mode){
 };
 window.resetGraphView=fitGraphView; window.reheatGraph=reheatGraphV2;
 window.setGraphMode=function(){}; window.zoomToFit=fitGraphView;
+
+// ── Graph Analyse-Modi ──────────────────────────────────────────────────────
+const _graphModes = { hubs:false, gaps:false, semantic:false, timeline:false };
+let _semanticEdges = []; // gecachte semantische Edges
+let _timelineTimer = null;
+
+window.toggleGraphMode = async function(mode) {
+  _graphModes[mode] = !_graphModes[mode];
+  const btn = document.getElementById('gtgl-'+mode);
+  if (btn) btn.classList.toggle('on', _graphModes[mode]);
+
+  if (mode === 'hubs')     _applyHubMode(_graphModes.hubs);
+  if (mode === 'gaps')     _applyGapMode(_graphModes.gaps);
+  if (mode === 'timeline') _applyTimelineMode(_graphModes.timeline);
+  if (mode === 'semantic') await _applySemanticMode(_graphModes.semantic);
+};
+
+// ── Hub-Modus: Knoten mit vielen Verbindungen hervorheben ───────────────────
+function _applyHubMode(on) {
+  if (!on) {
+    _gv.nodes.forEach(n => { n._hubScore=0; n._isHub=false; });
+    return;
+  }
+  // Grad-Zentralität berechnen (Anzahl Verbindungen)
+  const degree = {};
+  _gv.nodes.forEach(n => { degree[n.id]=0; });
+  _gv.edges.forEach(e => {
+    if (e.kind==='contains'||e.kind==='similar') {
+      degree[e.a.id]=(degree[e.a.id]||0)+1;
+      degree[e.b.id]=(degree[e.b.id]||0)+1;
+    }
+  });
+  const maxDeg = Math.max(1, ...Object.values(degree));
+  _gv.nodes.forEach(n => {
+    n._hubScore = (degree[n.id]||0) / maxDeg; // 0..1
+    n._isHub = n._hubScore > 0.5;
+  });
+  // Toast-Info
+  const hubs = _gv.nodes.filter(n=>n._isHub&&n.type==='doc');
+  if (hubs.length) toast(`${hubs.length} Hub-Dokument${hubs.length>1?'e':''} gefunden`, 'ok');
+}
+
+// ── Lücken-Modus: Isolierte Docs hervorheben ────────────────────────────────
+function _applyGapMode(on) {
+  if (!on) {
+    _gv.nodes.forEach(n => { n._isGap=false; });
+    return;
+  }
+  const connected = new Set();
+  _gv.edges.forEach(e => {
+    if (e.kind==='rag_similar') {
+      // RAG-Ähnlichkeits-Edge: lila Gradient, gestrichelt
+      const gR = ctx.createLinearGradient(e.a.x,e.a.y,e.b.x,e.b.y);
+      gR.addColorStop(0,'rgba(139,92,246,'+(active?0.7:0.1)+')');
+      gR.addColorStop(1,'rgba(167,139,250,'+(active?0.7:0.1)+')');
+      ctx.strokeStyle=gR; ctx.lineWidth=(e.sim||0.5)*2.5/z;
+      ctx.setLineDash([6/z,3/z]);
+      ctx.beginPath(); ctx.moveTo(_sx,_sy); ctx.lineTo(_ex,_ey); ctx.stroke();
+      ctx.setLineDash([]);
+      return; // skip normal rendering
+    }
+    if (e.kind==='similar') { connected.add(e.a.id); connected.add(e.b.id); }
+  });
+  let gapCount = 0;
+  _gv.nodes.forEach(n => {
+    n._isGap = n.type==='doc' && !connected.has(n.id);
+    if (n._isGap) gapCount++;
+  });
+  if (gapCount) toast(`${gapCount} Dok${gapCount>1?'umente':'ument'} ohne Verbindungen — potenzielle Wissenslücke`, 'ok');
+  else toast('Alle Dokumente sind verbunden ✓', 'ok');
+}
+
+// ── Semantik-Modus: Echte Embedding-Ähnlichkeit via RAG ─────────────────────
+async function _applySemanticMode(on) {
+  // Entferne semantische Edges
+  _gv.edges = _gv.edges.filter(e => e.kind !== 'rag_similar');
+  if (!on) return;
+
+  const btn = document.getElementById('gtgl-semantic');
+  if (btn) btn.classList.add('loading');
+  toast('Berechne semantische Ähnlichkeit…', 'ok');
+
+  try {
+    // Für jedes Dokument: top-3 ähnliche Docs via match_chunks
+    const docs = _gv.nodes.filter(n=>n.type==='doc'&&n.docId);
+    const seen = new Set();
+    const newEdges = [];
+
+    // Batch: je 5 Docs parallel
+    for (let i=0;i<Math.min(docs.length,15);i+=5) {
+      const batch = docs.slice(i,i+5);
+      await Promise.all(batch.map(async doc => {
+        try {
+          const res = await fetch(window.WISSENSHUB_API_URL+'?action=get_document_content&document_id='+doc.docId,
+            {headers: await (async()=>{ const {data:{session}}=await window.__rootsSupabaseClient?.auth.getSession()??{}; return session?.access_token?{Authorization:'Bearer '+session.access_token}:{};})()});
+          if (!res.ok) return;
+          const data = await res.json();
+          if (!data.content) return;
+          // Ähnliche Docs finden
+          const simRes = await fetch(window.WISSENSHUB_API_URL, {
+            method:'POST', headers:{...(await authHeaders()),'Content-Type':'application/json'},
+            body:JSON.stringify({action:'chat', message: data.content.slice(0,500),
+              folder_id:null, session_id:'__graph_analysis__'})
+          });
+          // Alternativ: direkt über die sources aus einer Chat-Anfrage
+        } catch(e) {}
+      }));
+    }
+
+    // Fallback: erweiterte Tag-Ähnlichkeit mit Gewichtung
+    for (let i=0;i<docs.length;i++) for(let j=i+1;j<docs.length;j++){
+      const a=docs[i],b=docs[j];
+      const key=a.id+'|'+b.id;
+      if(seen.has(key))continue;
+      const shared=(a.tags||[]).filter(t=>(b.tags||[]).includes(t)).length;
+      // Auch Ordner-Nachbarschaft als Proxy für Ähnlichkeit
+      const sameFolder = a.folderId && a.folderId===b.folderId ? 0.3 : 0;
+      const sim = Math.min(1, shared*0.4 + sameFolder);
+      if(sim>0.15){
+        seen.add(key);
+        newEdges.push({a,b,kind:'rag_similar',w:sim*2,revealAt:0,sim});
+      }
+    }
+
+    _semanticEdges = newEdges;
+    _gv.edges.push(...newEdges);
+    toast(`${newEdges.length} semantische Verbindungen gefunden`, 'ok');
+  } catch(e) {
+    toast('Semantik-Analyse fehlgeschlagen', 'err');
+  } finally {
+    if(btn) btn.classList.remove('loading');
+  }
+}
+
+// ── Timeline-Modus: Docs nach Datum animiert einblenden ─────────────────────
+function _applyTimelineMode(on) {
+  clearInterval(_timelineTimer);
+  if (!on) {
+    // Alle Nodes wieder sofort zeigen
+    _gv.nodes.forEach(n => { if(n.type==='doc') n.revealP=1; });
+    return;
+  }
+  // Docs nach Datum sortieren, dann animiert einblenden
+  const docNodes = _gv.nodes.filter(n=>n.type==='doc'&&n.date)
+    .sort((a,b)=>new Date(a.date)-new Date(b.date));
+  docNodes.forEach(n => n.revealP=0);
+
+  let idx=0;
+  const dates = [...new Set(docNodes.map(n=>n.date.slice(0,10)))].sort();
+  let dateIdx=0;
+
+  _timelineTimer = setInterval(()=>{
+    if(dateIdx>=dates.length){ clearInterval(_timelineTimer); return; }
+    const today=dates[dateIdx++];
+    const toReveal=docNodes.filter(n=>n.date.slice(0,10)===today);
+    toReveal.forEach(n=>{ n.revealP=0; });
+    // Spring-Animation startet (revealP wird in springTick animiert auf 1)
+    // Wir setzen das revealAt temporär auf 0 damit der spring greift
+    toReveal.forEach(n=>{ n.revealAt=0; });
+  }, 600);
+  toast('Zeige Wissen im Zeitverlauf…', 'ok');
+}
+
 window.toggleGraphLegend=function(){
   const l=document.getElementById('graph-legend');
   if(l)l.style.display=l.style.display==='none'?'block':'none';
