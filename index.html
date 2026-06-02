@@ -1741,6 +1741,22 @@
     .doc-card[draggable="true"]:active { cursor:grabbing; opacity:.7; }
     .doc-card.drag-over { outline:2px dashed var(--brand); }
 
+    /* ── Tag Picker (single-tag) ─────────────────────────────────────── */
+    .tag-picker { display:flex; flex-direction:column; gap:.6rem; }
+    .tag-picker-selected { display:flex; align-items:center; gap:.4rem; flex-wrap:wrap; min-height:32px; }
+    .tag-picker-chip-selected { display:inline-flex; align-items:center; gap:.35rem; padding:.3rem .7rem; border-radius:999px; background:var(--brand); color:#fff; font-size:.8rem; font-weight:500; }
+    .tag-picker-chip-selected button { background:none; border:none; cursor:pointer; color:rgba(255,255,255,.8); padding:0; line-height:1; font-size:.7rem; display:flex; align-items:center; }
+    .tag-picker-chip-selected button:hover { color:#fff; }
+    .tag-picker-existing { display:flex; flex-wrap:wrap; gap:.35rem; }
+    .tag-picker-chip { display:inline-flex; align-items:center; gap:.3rem; padding:.28rem .65rem; border-radius:999px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-size:.78rem; cursor:pointer; transition:all .15s; font-family:inherit; }
+    .tag-picker-chip:hover { border-color:var(--brand); color:var(--brand); background:var(--brand-10,#eff6ff); }
+    .tag-picker-chip.selected { background:var(--brand); color:#fff; border-color:var(--brand); }
+    .tag-picker-new { display:flex; align-items:center; gap:.4rem; }
+    .tag-picker-new input { flex:1; height:34px; padding:0 .65rem; border:1px dashed var(--line); border-radius:8px; font-family:inherit; font-size:.8rem; color:var(--ink); background:var(--bg); outline:none; transition:border-color .15s; }
+    .tag-picker-new input:focus { border-color:var(--brand); border-style:solid; }
+    .tag-picker-new button { height:34px; padding:0 .75rem; border:none; border-radius:8px; background:var(--brand); color:#fff; font-family:inherit; font-size:.78rem; cursor:pointer; white-space:nowrap; }
+    .tag-picker-new button:hover { opacity:.9; }
+
     /* Tag in folder tree */
     .folder-tags { display:flex; flex-wrap:wrap; gap:2px; padding:.15rem .5rem .3rem 2.2rem; }
     .folder-tag-mini { font-size:.65rem; padding:.1rem .4rem; border-radius:999px; background:var(--surface-2); color:var(--muted); border:1px solid var(--line); }
@@ -2108,12 +2124,9 @@
                 <input type="hidden" id="upload-folder" value="" /><!-- legacy compat -->
                 <div id="upload-folder-hint" style="font-size:.75rem;color:var(--brand);margin-top:.35rem;font-weight:500"></div>
               </div>
-              <div class="form-field" style="position:relative">
-                <label class="form-label">Tags (Komma-getrennt oder Enter)</label>
-                <div class="tag-input-wrap" id="tag-input-wrap">
-                  <input class="tag-input-field" id="tag-input-field" type="text" placeholder="Tag hinzufügen…" autocomplete="off" />
-                </div>
-                <div class="tag-autocomplete" id="tag-autocomplete" style="display:none"></div>
+              <div class="form-field">
+                <label class="form-label"><i class="fa-solid fa-tag" style="margin-right:.35rem;color:var(--brand)"></i>Tag <span style="color:var(--muted);font-weight:400">(max. 1)</span></label>
+                <div id="tab-tag-picker" class="tag-picker"></div>
               </div>
               <div style="display:flex;gap:.75rem;justify-content:flex-end;margin-top:.25rem">
                 <button class="btn-ghost" id="btn-clear-upload" onclick="clearUpload()">
@@ -2988,6 +3001,7 @@ async function loadTags() {
     const { tags } = await res.json();
     state.tags = tags || [];
     renderTagCloud(state.tags);
+    initTagPickers(); // Tag-Chips nach Laden aktualisieren
   } catch (err) {
     console.error('loadTags:', err);
     state.tags = [];
@@ -3850,10 +3864,10 @@ window.removeFile = function(idx) {
 window.clearUpload = function() {
   state.uploadFiles = [];
   state.uploadTags = [];
+  _tagPickerState['tab-tag-picker'] = null;
   renderFileList();
-  renderUploadTagPills();
+  renderTagPicker('tab-tag-picker');
   document.getElementById('btn-upload-all').disabled = true;
-  document.getElementById('tag-input-field').value = '';
 };
 
 window.handleUploadAll = async function() {
@@ -3863,7 +3877,7 @@ window.handleUploadAll = async function() {
     const confirmed = confirm('Kein Ordner ausgewählt. In die allgemeine Ablage hochladen?');
     if (!confirmed) return;
   }
-  const tags = [...state.uploadTags];
+  const tags = getTagPickerValue('tab-tag-picker');
   let successCount = 0;
   let errorCount = 0;
 
@@ -3966,57 +3980,99 @@ window.handleUploadAll = async function() {
   if (errorCount) toast(`${errorCount} Datei${errorCount !== 1 ? 'en' : ''} fehlgeschlagen.`, 'err');
 };
 
-// ─── Tag input for upload ─────────────────────────────────────────────────────
-const tagInputField = document.getElementById('tag-input-field');
-const tagAutocomplete = document.getElementById('tag-autocomplete');
+// ─── Tag Picker (single-tag, wiederverwendbar) ───────────────────────────────
+// Jeder Picker hat eine ID und einen State-Key (oder Callback)
+const _tagPickerState = {}; // { [pickerId]: selectedTag|null }
 
-tagInputField.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' || e.key === ',') {
-    e.preventDefault();
-    addUploadTag(tagInputField.value.trim().replace(/,$/, ''));
-  } else if (e.key === 'Backspace' && !tagInputField.value && state.uploadTags.length) {
-    state.uploadTags.pop();
-    renderUploadTagPills();
+function renderTagPicker(pickerId, onSelect) {
+  const container = document.getElementById(pickerId);
+  if (!container) return;
+
+  const selected = _tagPickerState[pickerId] || null;
+  const existing = (state.tags || []).map(t => t.tag || t).filter(Boolean);
+
+  let html = '';
+
+  if (selected) {
+    // Gewählter Tag als Pill
+    html += `<div class="tag-picker-selected">
+      <span class="tag-picker-chip-selected">
+        <i class="fa-solid fa-tag" style="font-size:.7rem"></i>${escHtml(selected)}
+        <button onclick="clearTagPicker('${pickerId}')" title="Tag entfernen"><i class="fa-solid fa-xmark"></i></button>
+      </span>
+    </div>`;
+  } else {
+    // Bestehende Tags als wählbare Chips
+    if (existing.length) {
+      html += `<div class="tag-picker-existing">
+        ${existing.map(t => `<button class="tag-picker-chip" onmousedown="pickTag('${pickerId}','${escHtml(t)}')">${escHtml(t)}</button>`).join('')}
+      </div>`;
+    }
+    // Neuer Tag per Eingabe
+    html += `<div class="tag-picker-new">
+      <input type="text" id="${pickerId}-input" placeholder="Neuer Tag…" autocomplete="off"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();addNewTag('${pickerId}');}"
+        oninput="filterTagPicker('${pickerId}',this.value)" />
+      <button type="button" onclick="addNewTag('${pickerId}')">
+        <i class="fa-solid fa-plus"></i> Erstellen
+      </button>
+    </div>`;
   }
-});
 
-tagInputField.addEventListener('input', () => {
-  const val = tagInputField.value.trim().toLowerCase();
-  if (!val) { tagAutocomplete.style.display = 'none'; return; }
-  const matches = state.tags.filter(t => t.tag.toLowerCase().includes(val) && !state.uploadTags.includes(t.tag));
-  if (!matches.length) { tagAutocomplete.style.display = 'none'; return; }
-  tagAutocomplete.innerHTML = matches.slice(0, 8).map(t => `<div class="tag-autocomplete-item" onclick="addUploadTag('${escHtml(t.tag)}')">${escHtml(t.tag)}</div>`).join('');
-  tagAutocomplete.style.display = 'block';
-});
-
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('#tag-input-wrap')) tagAutocomplete.style.display = 'none';
-});
-
-window.addUploadTag = function(tag) {
-  const cleaned = tag.trim();
-  if (!cleaned || state.uploadTags.includes(cleaned)) { tagInputField.value = ''; tagAutocomplete.style.display = 'none'; return; }
-  state.uploadTags.push(cleaned);
-  tagInputField.value = '';
-  tagAutocomplete.style.display = 'none';
-  renderUploadTagPills();
-};
-
-function renderUploadTagPills() {
-  const wrap = document.getElementById('tag-input-wrap');
-  wrap.querySelectorAll('.tag-pill-removable').forEach(el => el.remove());
-  state.uploadTags.forEach((tag, idx) => {
-    const span = document.createElement('span');
-    span.className = 'tag-pill-removable';
-    span.innerHTML = `${escHtml(tag)}<button type="button" onclick="removeUploadTag(${idx})" aria-label="Tag entfernen"><i class="fa-solid fa-xmark"></i></button>`;
-    wrap.insertBefore(span, tagInputField);
-  });
+  container.innerHTML = html;
 }
 
-window.removeUploadTag = function(idx) {
-  state.uploadTags.splice(idx, 1);
-  renderUploadTagPills();
+window.pickTag = function(pickerId, tag) {
+  _tagPickerState[pickerId] = tag;
+  // State synchronisieren
+  syncTagPickerToState(pickerId, [tag]);
+  renderTagPicker(pickerId);
 };
+
+window.clearTagPicker = function(pickerId) {
+  _tagPickerState[pickerId] = null;
+  syncTagPickerToState(pickerId, []);
+  renderTagPicker(pickerId);
+};
+
+window.addNewTag = function(pickerId) {
+  const inp = document.getElementById(`${pickerId}-input`);
+  const val = inp?.value.trim();
+  if (!val) return;
+  _tagPickerState[pickerId] = val;
+  syncTagPickerToState(pickerId, [val]);
+  renderTagPicker(pickerId);
+};
+
+window.filterTagPicker = function(pickerId, q) {
+  const container = document.getElementById(pickerId);
+  if (!container) return;
+  const chips = container.querySelectorAll('.tag-picker-chip');
+  const ql = q.toLowerCase();
+  chips.forEach(chip => {
+    chip.style.display = chip.textContent.toLowerCase().includes(ql) ? '' : 'none';
+  });
+};
+
+function syncTagPickerToState(pickerId, tags) {
+  if (pickerId === 'tab-tag-picker') state.uploadTags = tags;
+  if (pickerId === 'modal-tag-picker') _modalTags = tags;
+}
+
+function getTagPickerValue(pickerId) {
+  return _tagPickerState[pickerId] ? [_tagPickerState[pickerId]] : [];
+}
+
+// Beide Picker nach Tag-Laden initialisieren
+function initTagPickers() {
+  renderTagPicker('tab-tag-picker');
+  renderTagPicker('modal-tag-picker');
+}
+
+// Legacy shims (für handleUploadAll)
+window.addUploadTag = function(tag) { pickTag('tab-tag-picker', tag); };
+window.removeUploadTag = function() { clearTagPicker('tab-tag-picker'); };
+function renderUploadTagPills() {} // no-op, Tag Picker ersetzt das
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 const chatInput = document.getElementById('chat-input');
@@ -5427,57 +5483,32 @@ window.confirmRename = async function() {
 
 // Tags bearbeiten
 let _editTagsDocId = null;
-let _editTagsCurrent = [];
 
 function ctxEditTags() {
   hideCtxMenu();
   _editTagsDocId = _ctxTarget.id;
-  _editTagsCurrent = Array.isArray(_ctxTarget.tags) ? [..._ctxTarget.tags] : [];
-  renderEditTagsPills();
+  const currentTag = Array.isArray(_ctxTarget.tags) && _ctxTarget.tags.length ? _ctxTarget.tags[0] : null;
+  _tagPickerState['edit-tag-picker'] = currentTag;
   document.getElementById('modal-edit-tags').classList.add('open');
-  document.getElementById('edit-tags-input').value = '';
-  setTimeout(() => document.getElementById('edit-tags-input').focus(), 100);
+  renderTagPicker('edit-tag-picker');
 }
 
-function renderEditTagsPills() {
-  const wrap = document.getElementById('edit-tags-pills');
-  wrap.innerHTML = _editTagsCurrent.map((t, i) =>
-    `<span style="display:inline-flex;align-items:center;gap:3px;background:var(--brand-10,#eff6ff);color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:.15rem .5rem;font-size:.75rem">
-      ${escHtml(t)}
-      <button onclick="_editTagsCurrent.splice(${i},1);renderEditTagsPills()" style="background:none;border:none;cursor:pointer;color:var(--brand);font-size:.7rem;padding:0;line-height:1"><i class="fa-solid fa-xmark"></i></button>
-    </span>`
-  ).join('');
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  const inp = document.getElementById('edit-tags-input');
-  if (inp) {
-    inp.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ',') {
-        e.preventDefault();
-        const v = inp.value.trim().replace(/,$/, '');
-        if (v && !_editTagsCurrent.includes(v)) { _editTagsCurrent.push(v); renderEditTagsPills(); }
-        inp.value = '';
-      }
-    });
-  }
-});
-
-window.closeEditTagsModal = function() { document.getElementById('modal-edit-tags').classList.remove('open'); };
+window.closeEditTagsModal = function() {
+  document.getElementById('modal-edit-tags').classList.remove('open');
+  _tagPickerState['edit-tag-picker'] = null;
+};
 
 window.confirmEditTags = async function() {
   closeEditTagsModal();
-  // Add pending input
-  const inp = document.getElementById('edit-tags-input');
-  if (inp?.value.trim()) { _editTagsCurrent.push(inp.value.trim()); inp.value = ''; }
+  const tags = getTagPickerValue('edit-tag-picker');
   try {
     const res = await fetch(WISSENSHUB_API_URL, {
       method: 'POST',
       headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update_document_tags', document_id: _editTagsDocId, tags: _editTagsCurrent })
+      body: JSON.stringify({ action: 'update_document_tags', document_id: _editTagsDocId, tags })
     });
     if (!res.ok) throw new Error('Fehler');
-    toast('Tags gespeichert', 'ok');
+    toast('Tag gespeichert', 'ok');
     await Promise.all([loadDocuments(), loadTags()]);
   } catch { toast('Fehler beim Speichern', 'err'); }
 };
@@ -5668,7 +5699,9 @@ let _modalTags  = [];
 window.openQuickUpload = function() {
   _modalFiles = [];
   _modalTags  = [];
+  _tagPickerState['modal-tag-picker'] = null;
   renderModalFileList();
+  renderTagPicker('modal-tag-picker');
   // Pre-select current folder
   const currentFolder = state.folders.find(f => f.id === state.activeFolderId);
   const folderId = state.activeFolderId || '';
@@ -5676,13 +5709,13 @@ window.openQuickUpload = function() {
   const folderColor = currentFolder?.color || '#5e9cf5';
   selectFolderPicker('modal', folderId, folderName, folderColor);
   document.getElementById('modal-quick-upload').classList.add('open');
-  document.getElementById('modal-tag-input').value = '';
 };
 
 window.closeQuickUpload = function() {
   document.getElementById('modal-quick-upload').classList.remove('open');
   _modalFiles = [];
   _modalTags  = [];
+  _tagPickerState['modal-tag-picker'] = null;
 };
 
 document.getElementById('modal-quick-upload')?.addEventListener('click', e => {
@@ -5742,7 +5775,7 @@ document.addEventListener('DOMContentLoaded', () => {
 window.handleQuickUpload = async function() {
   if (!_modalFiles.length) return;
   const folderId = document.getElementById('modal-upload-folder-id')?.value || null;
-  const tags = [..._modalTags];
+  const tags = getTagPickerValue('modal-tag-picker');
   let successCount = 0, errorCount = 0;
 
   document.getElementById('modal-btn-upload').disabled = true;
@@ -5860,12 +5893,10 @@ window.RootsSyncStatusConfig = {
         <input type="hidden" id="modal-upload-folder-id" value="" />
       </div>
 
-      <!-- Tags -->
-      <div class="form-field" style="position:relative">
-        <label class="form-label"><i class="fa-solid fa-tags" style="margin-right:.35rem;color:var(--brand)"></i>Tags</label>
-        <div class="tag-input-wrap" id="modal-tag-input-wrap">
-          <input class="tag-input-field" id="modal-tag-input" type="text" placeholder="Tag hinzufügen (Enter)" autocomplete="off" />
-        </div>
+      <!-- Tag (max. 1) -->
+      <div class="form-field">
+        <label class="form-label"><i class="fa-solid fa-tag" style="margin-right:.35rem;color:var(--brand)"></i>Tag <span style="color:var(--muted);font-weight:400">(max. 1)</span></label>
+        <div id="modal-tag-picker" class="tag-picker"></div>
       </div>
 
     </div>
@@ -5901,12 +5932,12 @@ window.RootsSyncStatusConfig = {
 <!-- Tag Edit Modal -->
 <div class="modal-overlay" id="modal-edit-tags">
   <div class="modal-box" style="max-width:420px">
-    <div class="modal-header"><span class="modal-title">Tags bearbeiten</span>
+    <div class="modal-header">
+      <span class="modal-title">Tag bearbeiten <span style="font-size:.75rem;color:var(--muted);font-weight:400">(max. 1)</span></span>
       <button class="btn-close-modal" onclick="closeEditTagsModal()"><i class="fa-solid fa-xmark"></i></button>
     </div>
     <div style="padding:1rem 1.5rem 1.5rem">
-      <div id="edit-tags-pills" style="display:flex;flex-wrap:wrap;gap:4px;min-height:36px;border:1px solid var(--line);border-radius:8px;padding:.4rem;margin-bottom:.75rem;cursor:text" onclick="document.getElementById('edit-tags-input').focus()"></div>
-      <input type="text" id="edit-tags-input" class="form-input" placeholder="Tag hinzufügen (Enter)" style="width:100%" />
+      <div id="edit-tag-picker" class="tag-picker" style="margin-bottom:.75rem"></div>
       <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end">
         <button class="btn-ghost" onclick="closeEditTagsModal()">Abbrechen</button>
         <button class="btn-primary" onclick="confirmEditTags()">Speichern</button>
