@@ -4964,910 +4964,682 @@ window.selectModel = selectModel;
 window.toggleKeyVisibility = toggleKeyVisibility;
 window.saveAiSettings = saveAiSettings;
 
-// ─── Wissensgraph v2.0 ─────────────────────────────────────────────────────────
+// ─── Wissensgraph v4 — Hierarchisches Radial-Layout + Progressive Enthüllung ──
+//
+// Konzept: 3 klare Zoom-Ebenen, progressiv enthüllt durch Scrollen
+//   Ebene 1 (< 150%): Nur Root-Ordner — großer Überblick
+//   Ebene 2 (150–350%): Unterordner + Dokument-Punkte wachsen heraus
+//   Ebene 3 (> 350%): Dokument-Kacheln mit Inhalt
+//
+// Layout: deterministisch radial — keine chaotische Physics-Simulation
+// Animation: Spring-Physik von Eltern- zur Zielposition
 
-// ── Konstanten ────────────────────────────────────────────────────────────────
-const G_L1 = 0.18;   // Galaxy → Cluster (docs sichtbar ab 18%)
-const G_L2 = 0.55;   // Cluster → Post-its
-const G_L3 = 1.4;    // Post-its → Volltext
+// ── Zoom-Schwellen ─────────────────────────────────────────────────────────────
+const Z_ROOT    = 0;    // Root-Ordner immer sichtbar
+const Z_CHILD   = 1.4;  // Unterordner + Docs ab 140% (relativ zum fit-zoom)
+const Z_CARDS   = 3.0;  // Doc-Kacheln ab 300%
+const Z_SIMILAR = 3.5;  // Ähnlichkeits-Linien ab 350%
 
-// ── Zustand ────────────────────────────────────────────────────────────────────
+// ── State ──────────────────────────────────────────────────────────────────────
 let _gv = {
-  zoom: 0.5, panX: 0, panY: 0,
-  nodes: [], edges: [],
-  hover: null, selected: null,
-  dragging: false, dragNode: null,
-  lastMX: 0, lastMY: 0,
-  particles: [],
-  energy: 200,
-  running: false,
-  animId: null,
-  grouping: 'folder',
-  level: 2,
-  transitioning: false,
-  width: 800, height: 600,
+  zoom:1, panX:0, panY:0, baseZoom:1,
+  nodes:[], edges:[], byId:new Map(),
+  hover:null, hoverTimer:null, hideTimer:null,
+  dragging:false, dragNode:null, lastMX:0, lastMY:0,
+  running:false, animId:null,
+  width:800, height:600,
+  loopT:0, loopFrame:0,
+  resizeObs:null,
 };
-
-// ── GSAP-Animationsziel (für smooth zoom/pan) ─────────────────────────────────
-const _gAnim = { zoom: 0.5, panX: 0, panY: 0 };
+const _gAnim = { zoom:1, panX:0, panY:0 };
 let _gTween = null;
-
-function _gSync() {
-  _gv.zoom = _gAnim.zoom;
-  _gv.panX = _gAnim.panX;
-  _gv.panY = _gAnim.panY;
-}
+function _gSync(){ _gv.zoom=_gAnim.zoom; _gv.panX=_gAnim.panX; _gv.panY=_gAnim.panY; }
 
 // ── Initialisierung ────────────────────────────────────────────────────────────
 function initKnowledgeGraph() {
   stopGraph();
-  const canvas   = document.getElementById('graph-canvas');
-  const pCanvas  = document.getElementById('graph-particles');
-  const wrap     = document.getElementById('doc-graph-wrap');
+  const canvas = document.getElementById('graph-canvas');
+  const wrap   = document.getElementById('doc-graph-wrap');
   if (!canvas || !wrap) return;
 
   _gv.width  = Math.max(400, wrap.clientWidth  || 800);
   _gv.height = Math.max(300, wrap.clientHeight || 600);
 
-  // FIX: setTransform statt scale() → kein kumulativer DPR-Fehler bei Re-Init
   const dpr = window.devicePixelRatio || 1;
-  canvas.width  = _gv.width  * dpr;
-  canvas.height = _gv.height * dpr;
-  canvas.style.width  = _gv.width  + 'px';
-  canvas.style.height = _gv.height + 'px';
-  canvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+  ['graph-canvas','graph-particles'].forEach(id => {
+    const c = document.getElementById(id); if (!c) return;
+    c.width = _gv.width*dpr; c.height = _gv.height*dpr;
+    c.style.width = _gv.width+'px'; c.style.height = _gv.height+'px';
+    c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+  });
 
-  if (pCanvas) {
-    pCanvas.width  = _gv.width  * dpr;
-    pCanvas.height = _gv.height * dpr;
-    pCanvas.style.width  = _gv.width  + 'px';
-    pCanvas.style.height = _gv.height + 'px';
-    pCanvas.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-
-  const docs = state.documents || [];
-  if (!docs.length && !state.folders.length) {
+  if (!(state.documents||[]).length && !(state.folders||[]).length) {
     const ctx = canvas.getContext('2d');
-    _drawEmpty(ctx);
+    ctx.fillStyle='#f8fafc'; ctx.fillRect(0,0,_gv.width,_gv.height);
+    ctx.fillStyle='#94a3b8'; ctx.font='14px system-ui'; ctx.textAlign='center';
+    ctx.fillText('Keine Inhalte', _gv.width/2, _gv.height/2);
     return;
   }
 
-  // Startposition setzen
-  _gAnim.zoom = 0.8; _gAnim.panX = 0; _gAnim.panY = 0;
-  _gSync();
+  _buildHierarchicalLayout();
+  _attachGraphEvents(canvas);
+  _setupResize(wrap);
 
-  _buildGraph();
-  _initParticles();
-  _attachGraphEventsV2(canvas, wrap);
-
-  // FIX: Loop ZUERST starten, dann nach Physics-Settle fitten
-  _setupGraphResize(wrap); // Fix 7
+  // Fit auf Root-Ebene
+  _fitToRoots(true);
   _gv.running = true;
-  _loop();
-
-  // Nach ~1.5s (Physics settled) automatisch fitten
-  setTimeout(() => { if (_gv.running) fitGraphView(); }, 1500);
-  setTimeout(() => _showScrollHint(), 2800);
+  _graphLoop();
+  setTimeout(() => {
+    const h = document.getElementById('graph-scroll-hint');
+    if (h) { h.style.opacity='1'; setTimeout(()=>h.style.opacity='0',3500); }
+  }, 1000);
 }
 
-// ── Graphaufbau ────────────────────────────────────────────────────────────────
-function _buildGraph() {
-  const { width: W, height: H } = _gv;
+// ── Hierarchisches Radial-Layout ───────────────────────────────────────────────
+function _buildHierarchicalLayout() {
+  const W = _gv.width, H = _gv.height;
+  const cx = W/2, cy = H/2;
+  const COLORS = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b'];
+  const folders = state.folders || [];
   const docs = state.documents || [];
-  const colors = ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#64748b'];
-  const nodes = [], edges = [];
-  const byId = new Map();
+  const nodes=[], edges=[], byId=new Map();
 
-  const addNode = (n) => {
-    if (byId.has(n.id)) return byId.get(n.id);
-    const angle = nodes.length / Math.max(1, docs.length + state.folders.length) * Math.PI * 2;
-    const r = Math.min(W, H) * .3;
-    const created = { ...n,
-      x: W/2 + Math.cos(angle)*r + (Math.random()-.5)*40,
-      y: H/2 + Math.sin(angle)*r + (Math.random()-.5)*40,
-      vx:0, vy:0,
-    };
-    nodes.push(created);
-    byId.set(n.id, created);
-    return created;
-  };
+  const R0 = Math.min(W,H)*0.22; // Root-Ordner Kreis-Radius
 
-  if (_gv.grouping === 'folder') {
-    // Root-Ordner
-    state.folders.filter(f => !f.parent_id).forEach((f, i) => {
-      addNode({ id:'f:'+f.id, label:f.name, type:'folder', r:22, color:f.color||colors[i%colors.length], folderId:f.id });
-    });
-    // Unterordner
-    state.folders.filter(f => f.parent_id).forEach((f, i) => {
-      const n = addNode({ id:'f:'+f.id, label:f.name, type:'subfolder', r:16, color:f.color||colors[i%colors.length], folderId:f.id });
-      const parent = byId.get('f:'+f.parent_id);
-      if (parent) edges.push({ a:parent, b:n, kind:'folder', w:2 });
-    });
-    // Dokumente
-    docs.forEach((doc, i) => {
-      const tags = Array.isArray(doc.tags) ? doc.tags : [];
-      const r = Math.max(8, Math.min(18, 8 + Math.sqrt(doc.chunk_count||1)*1.5));
-      const folder = state.folders.find(f => f.id === doc.folder_id);
-      const color = folder?.color || colors[i%colors.length];
-      const n = addNode({ id:'d:'+doc.id, label:doc.title||doc.filename||'Dok', type:'doc', r, color,
-        docId:doc.id, tags, chunks:doc.chunk_count||0,
-        uploader:doc.uploader_name||'', date:doc.created_at||'',
-        size:doc.file_size_bytes||0, content: null, folderId: doc.folder_id||null });
-      const fNode = byId.get('f:'+doc.folder_id);
-      if (fNode) {
-        edges.push({ a:fNode, b:n, kind:'contains', w:1.5 });
-      } else {
-        // Fix 4: Docs ohne Ordner → virtueller Root-Hub
-        if (!byId.has('__orphan__')) {
-          const orphan = addNode({ id:'__orphan__', label:'Ohne Ordner', type:'subfolder',
-            r:14, color:'#94a3b8', folderId:null });
-        }
-        edges.push({ a:byId.get('__orphan__'), b:n, kind:'contains', w:0.8 });
-      }
-    });
-  } else {
-    // Tag-Gruppierung
-    const allTags = [...new Set(docs.flatMap(d => Array.isArray(d.tags)?d.tags:[]))];
-    allTags.forEach((tag, i) => {
-      addNode({ id:'t:'+tag, label:'#'+tag, type:'tag', r:18, color:colors[i%colors.length], tagName:tag });
-    });
-    docs.forEach((doc, i) => {
-      const tags = Array.isArray(doc.tags)?doc.tags:[];
-      const n = addNode({ id:'d:'+doc.id, label:doc.title||'Dok', type:'doc', r:10, color:'#94a3b8',
-        docId:doc.id, tags, chunks:doc.chunk_count||0, folderId:doc.folder_id });
-      tags.forEach(tag => {
-        const tNode = byId.get('t:'+tag);
-        if (tNode) edges.push({ a:tNode, b:n, kind:'tag', w:1.2 });
-      });
-    });
-    // Ungrouped
-    docs.filter(d => !(Array.isArray(d.tags)&&d.tags.length)).forEach(doc => {
-      const n = byId.get('d:'+doc.id);
-      if (n && !edges.find(e => e.b===n||e.a===n)) n.color = '#374151';
-    });
-  }
-
-  // Tag-Ähnlichkeitsedges zwischen Docs (simulierte Semantik)
-  const docNodes = nodes.filter(n => n.type === 'doc');
-  for (let i = 0; i < docNodes.length; i++) {
-    for (let j = i+1; j < docNodes.length; j++) {
-      const shared = docNodes[i].tags.filter(t => docNodes[j].tags.includes(t)).length;
-      if (shared > 0) edges.push({ a:docNodes[i], b:docNodes[j], kind:'similar', w:shared*0.8 });
-    }
-  }
-
-  _gv.nodes = nodes;
-  _gv.edges = edges;
-  _gv.energy = 220;
-}
-
-// ── Partikel ───────────────────────────────────────────────────────────────────
-function _initParticles() {
-  _gv.particles = Array.from({length: 120}, (_, i) => ({
-    x: Math.random() * _gv.width,
-    y: Math.random() * _gv.height,
-    r: Math.random() * 1.2 + 0.3,
-    vx: (Math.random() - .5) * 0.15,
-    vy: (Math.random() - .5) * 0.15,
-    a: Math.random() * 0.5 + 0.1,
-    phase: Math.random() * Math.PI * 2,
-  }));
-}
-
-function _drawParticles(ctx, t) {
-  const { width: W, height: H } = _gv;
-  ctx.clearRect(0, 0, W, H);
-  _gv.particles.forEach(p => {
-    p.x += p.vx; p.y += p.vy;
-    if (p.x < 0) p.x = W; if (p.x > W) p.x = 0;
-    if (p.y < 0) p.y = H; if (p.y > H) p.y = 0;
-    const alpha = p.a * (0.5 + 0.5 * Math.sin(t * 0.001 + p.phase));
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
-    ctx.fillStyle = `rgba(203,213,225,${alpha * 0.8})`;
-    ctx.fill();
+  // ── Level 0: Root-Ordner ──
+  const roots = folders.filter(f=>!f.parent_id);
+  roots.forEach((f,i) => {
+    const angle = (i/Math.max(1,roots.length))*Math.PI*2 - Math.PI/2;
+    const tx = cx + Math.cos(angle)*R0;
+    const ty = cy + Math.sin(angle)*R0;
+    const n = _makeNode('f:'+f.id, 'folder', f.name, f.color||COLORS[i%COLORS.length], 24,
+      tx,ty, cx,cy, Z_ROOT, {folderId:f.id, angle});
+    nodes.push(n); byId.set(n.id, n);
   });
+
+  // ── Level 1: Unterordner & Dokumente in Root-Ordnern ──
+  const R_CHILD = Math.min(W,H)*0.145; // Abstand vom Eltern-Ordner
+
+  folders.filter(f=>f.parent_id).forEach((f,i) => {
+    const parent = byId.get('f:'+f.parent_id); if (!parent) return;
+    const siblings = folders.filter(sf=>sf.parent_id===f.parent_id);
+    const idx = siblings.indexOf(f);
+    const spread = Math.PI * Math.min(1.6, 0.4 + siblings.length*0.25);
+    const baseA = Math.atan2(parent.ty-cy, parent.tx-cx);
+    const angle = baseA + (idx/(Math.max(1,siblings.length-1))-0.5)*spread;
+    const tx = parent.tx + Math.cos(angle)*R_CHILD;
+    const ty = parent.ty + Math.sin(angle)*R_CHILD;
+    const n = _makeNode('f:'+f.id, 'subfolder', f.name, f.color||parent.color, 16,
+      tx,ty, parent.tx,parent.ty, Z_CHILD, {folderId:f.id});
+    nodes.push(n); byId.set(n.id, n);
+    edges.push({a:parent, b:n, kind:'folder', w:2.5, revealAt:Z_CHILD});
+  });
+
+  // ── Level 1: Dokumente ──
+  const R_DOC = Math.min(W,H)*0.1;
+  docs.forEach((doc,i) => {
+    const folderKey = doc.folder_id ? 'f:'+doc.folder_id : null;
+    const parentNode = folderKey && byId.has(folderKey) ? byId.get(folderKey)
+      : { tx:cx, ty:cy, color:'#94a3b8' };
+    const siblings = docs.filter(d=>d.folder_id===doc.folder_id);
+    const idx = siblings.indexOf(doc);
+    const count = siblings.length;
+    const baseA = folderKey && byId.has(folderKey)
+      ? Math.atan2(byId.get(folderKey).ty-cy, byId.get(folderKey).tx-cx)
+      : (i/docs.length)*Math.PI*2;
+    const spread = Math.min(Math.PI*1.8, Math.PI*0.4 + count*0.22);
+    const ring = Math.floor(idx / 10);
+    const idxInRing = idx % 10;
+    const countInRing = Math.min(10, count - ring*10);
+    const angle = baseA + (idxInRing/(Math.max(1,countInRing-1))-0.5)*spread;
+    const radius = R_DOC*(1 + ring*0.7);
+    const tx = parentNode.tx + Math.cos(angle)*radius;
+    const ty = parentNode.ty + Math.sin(angle)*radius;
+    const tags = Array.isArray(doc.tags)?doc.tags:[];
+    const r = Math.max(6, Math.min(13, 6+Math.sqrt(doc.chunk_count||1)));
+    const n = _makeNode('d:'+doc.id, 'doc', doc.title||'Dok', parentNode.color, r,
+      tx,ty, parentNode.tx,parentNode.ty, Z_CHILD,
+      {docId:doc.id, tags, chunks:doc.chunk_count||0, uploader:doc.uploader_name||'',
+       date:doc.created_at||'', size:doc.file_size_bytes||0, content:null,
+       folderId:doc.folder_id||null});
+    nodes.push(n); byId.set(n.id, n);
+    const fn = folderKey && byId.has(folderKey) ? byId.get(folderKey) : null;
+    if (fn) edges.push({a:fn, b:n, kind:'contains', w:1.4, revealAt:Z_CHILD});
+  });
+
+  // ── Ähnlichkeits-Edges (nur auf Ebene 3 sichtbar) ──
+  const docNodes = nodes.filter(n=>n.type==='doc');
+  for (let i=0;i<docNodes.length;i++) for(let j=i+1;j<docNodes.length;j++){
+    const shared = docNodes[i].tags.filter(t=>docNodes[j].tags.includes(t)).length;
+    if (shared>0) edges.push({a:docNodes[i], b:docNodes[j], kind:'similar', w:shared*0.7, revealAt:Z_SIMILAR});
+  }
+
+  _gv.nodes=nodes; _gv.edges=edges; _gv.byId=byId;
 }
 
-// ── Hauptloop ──────────────────────────────────────────────────────────────────
-let _loopT = 0;     // counter für Partikel-Animation
-let _loopFrame = 0; // Fix 3: Frame-Counter für throttling
-function _loop() {
+function _makeNode(id,type,label,color,r,tx,ty,px,py,revealAt,extra={}) {
+  return { id,type,label,color,r,
+    tx,ty,          // Zielposition
+    x:px, y:py,     // Startposition = Eltern (animiert zur Zielposition)
+    vx:0,vy:0,
+    parentX:px, parentY:py,
+    revealAt, revealP:0,  // 0=versteckt, 1=vollständig enthüllt
+    ...extra };
+}
+
+// ── Hauptloop ─────────────────────────────────────────────────────────────────
+function _graphLoop() {
   if (!_gv.running) return;
-  _loopT = (_loopT + 1) % 100000; // Fix 5: wrap counter
-  _loopFrame++;
+  _gv.loopT = (_gv.loopT+1)%100000;
+  _gv.loopFrame++;
   _gSync();
-  const canvas  = document.getElementById('graph-canvas');
-  const pCanvas = document.getElementById('graph-particles');
-  if (!canvas) { _gv.running = false; return; }
 
-  const ctx  = canvas.getContext('2d');
-  const pctx = pCanvas?.getContext('2d');
+  const canvas = document.getElementById('graph-canvas');
+  if (!canvas){ _gv.running=false; return; }
+  const ctx = canvas.getContext('2d');
 
-  const physicsActive = _gv.energy > 0.5;
-  const hovering      = !!_gv.hover;
-  const dragging      = _gv.dragging || !!_gv.dragNode;
-
-  // Fix 3: Wenn settled → nur alle 6 Frames zeichnen (≈10fps), spart CPU
-  if (!physicsActive && !hovering && !dragging && _loopFrame % 6 !== 0) {
-    _gv.animId = requestAnimationFrame(_loop);
-    return;
+  // Partikel (gedämpft)
+  if (_gv.loopFrame%2===0) {
+    const pc = document.getElementById('graph-particles');
+    if (pc) _drawParticles(pc.getContext('2d'), _gv.loopT);
   }
 
-  if (pctx && (physicsActive || _loopFrame % 3 === 0)) _drawParticles(pctx, _loopT);
-
-  if (physicsActive) {
-    _tick();
-    _gv.energy *= .986;
-  }
-
+  // Spring-Animation: Knoten bewegen sich zu Zielposition
+  _springTick();
   _draw(ctx);
-  if (_loopFrame % 3 === 0) { _updateMinimap(); _updateLevelIndicator(); }
+  _updateMinimap();
+  _updateLevelIndicator();
 
-  _gv.animId = requestAnimationFrame(_loop);
+  _gv.animId = requestAnimationFrame(_graphLoop);
 }
 
-// ── Physik ─────────────────────────────────────────────────────────────────────
-function _tick() {
-  const { nodes, edges, width: W, height: H } = _gv;
-  const energy = Math.min(1, _gv.energy / 200); // 0..1 normiert
+// ── Spring-Animation (ersetzt Physics-Chaos) ──────────────────────────────────
+function _springTick() {
+  const z = _gv.zoom;
+  _gv.nodes.forEach(n => {
+    // Enthüllung berechnen
+    const shouldReveal = z >= n.revealAt;
+    const targetP = shouldReveal ? 1 : 0;
+    n.revealP += (targetP - n.revealP) * 0.12; // smooth ease
+    if (n.revealP < 0.001) n.revealP = 0;
+    if (n.revealP > 0.999) n.revealP = 1;
 
-  // Repulsion: schwächer als vorher, damit Nodes nicht zu weit fliegen
-  const repel = 2800;
-  for (let i = 0; i < nodes.length; i++) {
-    for (let j = i+1; j < nodes.length; j++) {
-      const a = nodes[i], b = nodes[j];
-      const dx = b.x-a.x, dy = b.y-a.y;
-      const d2 = Math.max(1, dx*dx + dy*dy);
-      const d  = Math.sqrt(d2);
-      const minD = (a.r + b.r) * 2.5;
-      if (d < minD * 4) { // Nur nahe Nodes
-        const f = repel / d2;
-        a.vx -= f*dx/d; a.vy -= f*dy/d;
-        b.vx += f*dx/d; b.vy += f*dy/d;
-      }
+    // Spring zu Zielposition (smooth-step interpolation)
+    const ease = n.revealP*n.revealP*(3-2*n.revealP);
+    const startX = n.parentX, startY = n.parentY;
+    n.x = startX + (n.tx - startX)*ease;
+    n.y = startY + (n.ty - startY)*ease;
+  });
+
+  // Leichte Abstoßung um Überlappungen zu vermeiden (nur wenn enthüllt)
+  const revealed = _gv.nodes.filter(n=>n.revealP>0.5);
+  for (let i=0;i<revealed.length;i++) for(let j=i+1;j<revealed.length;j++){
+    const a=revealed[i], b=revealed[j];
+    const dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy+1;
+    const minD=(a.r+b.r)*2.2;
+    if (d2 < minD*minD) {
+      const d=Math.sqrt(d2), push=(minD-d)*0.04;
+      a.tx -= dx/d*push; a.ty -= dy/d*push;
+      b.tx += dx/d*push; b.ty += dy/d*push;
     }
   }
-
-  // Attraktion über Edges
-  edges.forEach(e => {
-    const dx = e.b.x-e.a.x, dy = e.b.y-e.a.y;
-    const d = Math.sqrt(dx*dx+dy*dy)||1;
-    // Zielabstand je nach Edge-Typ
-    const tgt = e.kind==='folder' ? 150 : e.kind==='contains' ? 120 : e.kind==='similar' ? 160 : 110;
-    const f = (d - tgt) * 0.012 * e.w;
-    e.a.vx += f*dx/d; e.a.vy += f*dy/d;
-    e.b.vx -= f*dx/d; e.b.vy -= f*dy/d;
-  });
-
-  // Gravitation zum Zentrum — stärker damit alles sichtbar bleibt
-  nodes.forEach(n => {
-    const cs = n.type==='folder' ? 0.06 : n.type==='subfolder' ? 0.04 : n.type==='tag' ? 0.035 : 0.015;
-    n.vx += (W/2 - n.x) * cs;
-    n.vy += (H/2 - n.y) * cs;
-    // Dämpfung
-    n.vx *= 0.78; n.vy *= 0.78;
-    n.x += n.vx;  n.y += n.vy;
-    // Hard bounds — Nodes bleiben im Canvas
-    const margin = n.r + 20;
-    n.x = Math.max(margin, Math.min(W - margin, n.x));
-    n.y = Math.max(margin, Math.min(H - margin, n.y));
-  });
 }
 
 // ── Rendering ─────────────────────────────────────────────────────────────────
 function _draw(ctx) {
-  const { zoom: z, panX, panY, width: W, height: H, nodes, edges, hover } = _gv;
-
-  // Background
-  ctx.clearRect(0, 0, W, H);
-  // Einfacher weißer Hintergrund
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillRect(0, 0, W, H);
+  const {zoom:z, panX, panY, width:W, height:H, nodes, edges, hover} = _gv;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#f8fafc'; ctx.fillRect(0,0,W,H);
 
   ctx.save();
-  ctx.translate(W/2 + panX, H/2 + panY);
-  ctx.scale(z, z);
-  ctx.translate(-W/2, -H/2);
+  ctx.translate(W/2+panX, H/2+panY);
+  ctx.scale(z,z);
+  ctx.translate(-W/2,-H/2);
 
-  const level = _getLevel(z);
-  const showDocs    = z >= G_L1;       // Dokumente ab 18%
-  const showLabels  = z >= 0.25;       // Labels ab 25%
-  const showTags    = z >= G_L2;       // Tag-Verbindungen ab 55%
-  const showPostIt  = z >= G_L3;       // Post-it-Karten ab 140%
+  const showCards = z >= Z_CARDS;
 
-  // Connected nodes for hover glow
-  const connected = hover ? new Set([hover.id]) : null;
-  if (hover) edges.forEach(e => {
-    if (e.a.id===hover.id||e.b.id===hover.id) { connected.add(e.a.id); connected.add(e.b.id); }
+  // Hover-Verbindungen hervorheben
+  const conn = hover ? new Set([hover.id]) : null;
+  if (hover) _gv.edges.forEach(e=>{
+    if(e.a.id===hover.id||e.b.id===hover.id){conn.add(e.a.id);conn.add(e.b.id);}
   });
 
-  // Edges — deutlich sichtbarer auf dunklem Hintergrund
+  // ── Edges ──
   edges.forEach(e => {
-    if (!showDocs && e.kind !== 'folder') return;
-    if (e.kind==='tag' && !showTags) return;
-    const active = !connected || (connected.has(e.a.id)&&connected.has(e.b.id));
+    const vis = Math.min(e.a.revealP, e.b.revealP);
+    if (vis < 0.05) return;
+    if (e.revealAt && z < e.revealAt*0.7) return;
+    const active = !conn || (conn.has(e.a.id)&&conn.has(e.b.id));
+    ctx.globalAlpha = vis * (active ? 1 : 0.15);
 
-    // Alpha je nach Edge-Typ und Hover-Zustand
-    const alphaBase = e.kind==='folder' ? 0.65 : e.kind==='contains' ? 0.45 : e.kind==='similar' ? 0.35 : 0.45;
-    const alpha = active ? alphaBase : 0.06;
-
-    if (e.kind === 'similar' && active) {
-      const grad = ctx.createLinearGradient(e.a.x, e.a.y, e.b.x, e.b.y);
-      grad.addColorStop(0, e.a.color + '88');
-      grad.addColorStop(1, e.b.color + '88');
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = Math.max(1, e.w * 1.2);
-    } else if (e.kind === 'folder') {
-      ctx.strokeStyle = `rgba(100,116,139,${alpha * 0.7})`; // Fix 2: dunkleres Grau auf hellem BG
-      ctx.lineWidth = 2;
-    } else if (e.kind === 'contains') {
-      ctx.strokeStyle = `rgba(32,110,251,${alpha * 0.9})`; // Fix 2: brand-Blau
-      ctx.lineWidth = 1.5;
+    if (e.kind==='similar') {
+      const g = ctx.createLinearGradient(e.a.x,e.a.y,e.b.x,e.b.y);
+      g.addColorStop(0, e.a.color+'66'); g.addColorStop(1, e.b.color+'66');
+      ctx.strokeStyle=g; ctx.lineWidth=1.2/z;
+      ctx.setLineDash([5/z,4/z]);
+    } else if (e.kind==='folder') {
+      ctx.strokeStyle=`rgba(100,116,139,${active?0.55:0.18})`; ctx.lineWidth=2/z;
+      ctx.setLineDash([]);
     } else {
-      ctx.strokeStyle = `rgba(100,116,139,${alpha * 0.5})`;
-      ctx.lineWidth = 1;
+      ctx.strokeStyle=`rgba(32,110,251,${active?0.45:0.1})`; ctx.lineWidth=1.5/z;
+      ctx.setLineDash([]);
     }
     ctx.beginPath();
-    // Gerade Linien für folder/contains, geschwungen für similar
-    if (e.kind === 'similar') {
-      const mx=(e.a.x+e.b.x)/2, my=(e.a.y+e.b.y)/2 - 15;
-      ctx.moveTo(e.a.x, e.a.y);
-      ctx.quadraticCurveTo(mx, my, e.b.x, e.b.y);
+    if (e.kind==='similar') {
+      const mx=(e.a.x+e.b.x)/2, my=(e.a.y+e.b.y)/2-12/z;
+      ctx.moveTo(e.a.x,e.a.y); ctx.quadraticCurveTo(mx,my,e.b.x,e.b.y);
     } else {
-      ctx.moveTo(e.a.x, e.a.y);
-      ctx.lineTo(e.b.x, e.b.y);
+      ctx.moveTo(e.a.x,e.a.y); ctx.lineTo(e.b.x,e.b.y);
     }
     ctx.stroke();
   });
+  ctx.setLineDash([]); ctx.globalAlpha=1;
 
-  // Nodes
+  // ── Nodes ──
   nodes.forEach(n => {
-    if (!showDocs && n.type==='doc') return;
-    if (n.type==='tag' && !showTags) return;
+    if (n.revealP < 0.02) return;
+    const isHover = hover?.id===n.id;
+    const active = !conn || conn.has(n.id);
+    ctx.globalAlpha = n.revealP * (active ? 1 : 0.15);
 
-    const isHover = hover?.id === n.id;
-    const active  = !connected || connected.has(n.id);
-    ctx.globalAlpha = active ? 1 : 0.12;
-
-    // Post-it mode
-    if (n.type==='doc' && showPostIt) {
-      _drawPostIt(ctx, n, isHover, z);
-      ctx.globalAlpha = 1;
-      return;
+    if (n.type==='doc' && showCards && active && n.revealP>0.8) {
+      _drawDocCard(ctx, n, isHover, z);
+      ctx.globalAlpha=1; return;
     }
 
-    // Glow
-    ctx.shadowColor = n.color + '88';
-    ctx.shadowBlur  = isHover ? 30 : (n.type==='folder'?16:10);
+    // Glow bei Hover
+    if (isHover) { ctx.shadowColor=n.color; ctx.shadowBlur=20; }
 
-    // Kreis
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
-    if (n.type === 'folder' || n.type === 'subfolder') {
-      // Glassmorphism-ähnlich für Ordner
-      const grd = ctx.createRadialGradient(n.x-n.r*.3, n.y-n.r*.3, 0, n.x, n.y, n.r);
-      grd.addColorStop(0, n.color + 'dd');
-      grd.addColorStop(1, n.color + '88');
-      ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI*2);
+    if (n.type==='folder' || n.type==='subfolder') {
+      const g=ctx.createRadialGradient(n.x-n.r*.3,n.y-n.r*.3,0,n.x,n.y,n.r);
+      g.addColorStop(0,_lighten(n.color,20)); g.addColorStop(1,n.color);
+      ctx.fillStyle=g;
     } else {
-      ctx.fillStyle = n.color + (active?'cc':'66');
+      ctx.fillStyle='#ffffff';
     }
     ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = isHover ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.7)'; // Fix 2c
-    ctx.lineWidth = isHover ? 2.5 : 1.5;
+    ctx.shadowBlur=0;
+    ctx.strokeStyle=n.type==='doc' ? n.color : 'rgba(255,255,255,.85)';
+    ctx.lineWidth=(isHover?2.5:1.8)/1;
     ctx.stroke();
 
-    // Label
-    if (showLabels) {
-      const maxC = n.type==='folder'?14:12;
-      const label = n.label.length>maxC ? n.label.slice(0,maxC-1)+'…' : n.label;
-      ctx.font = `${n.type==='folder'?'700 ':''}${n.type==='folder'?11:9.5}px Circular Std, system-ui`;
-      const tw = ctx.measureText(label).width;
-      ctx.fillStyle = 'rgba(248,250,252,.88)'; // Fix 2b: heller BG für Labels
-      const py = n.y + n.r + 4;
-      ctx.fillRect(n.x-tw/2-3, py, tw+6, 13);
-      ctx.fillStyle = n.type==='folder' ? '#0f172a' : '#475569'; // Fix 2b: dunkler Text
-      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-      ctx.fillText(label, n.x, py+1);
+    // Label (nur wenn genug Zoom oder Hover)
+    const showLabel = n.type==='folder' || (z>0.7 && n.revealP>0.7) || isHover;
+    if (showLabel) {
+      const maxC = n.type==='folder'?16:13;
+      const lbl = n.label.length>maxC ? n.label.slice(0,maxC-1)+'…' : n.label;
+      const fs = n.type==='folder' ? 12 : 10;
+      ctx.font=`${n.type==='folder'?'700 ':''}${fs}px Circular Std,system-ui`;
+      const tw=ctx.measureText(lbl).width;
+      const py=n.y+n.r+5;
+      ctx.fillStyle='rgba(248,250,252,.92)';
+      ctx.fillRect(n.x-tw/2-4,py,tw+8,fs+5);
+      ctx.fillStyle=n.type==='folder'?'#0f172a':'#475569';
+      ctx.textAlign='center'; ctx.textBaseline='top';
+      ctx.fillText(lbl, n.x, py+1);
     }
-
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha=1;
   });
-
-  ctx.restore();
-  ctx.shadowBlur = 0;
+  ctx.restore(); ctx.shadowBlur=0;
 }
 
-function _drawPostIt(ctx, n, isHover, z) {
-  const showContent = z >= G_L3 * 1.3;
-  const pw = showContent ? 170 : 130, ph = showContent ? 110 : 64;
-  const rx = n.x - pw/2, ry = n.y - ph/2;
-
-  // Shadow/Glow
-  ctx.shadowColor = n.color + '55';
-  ctx.shadowBlur = isHover ? 24 : 12;
-
-  // Glassmorphism card — hell (FIX 1)
-  ctx.fillStyle = isHover ? 'rgba(255,255,255,.98)' : 'rgba(255,255,255,.92)';
-  ctx.strokeStyle = isHover ? n.color : 'rgba(15,23,42,.12)';
-  ctx.lineWidth = isHover ? 1.5 : 1;
-  ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(rx, ry, pw, ph, 8);
-  else ctx.rect(rx, ry, pw, ph);
-  ctx.fill(); ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // Farb-Akzentlinie oben
-  ctx.fillStyle = n.color;
-  ctx.beginPath();
-  const barH = 3;
-  if (ctx.roundRect) ctx.roundRect(rx, ry, pw, barH, {upperLeft:8, upperRight:8, lowerLeft:0, lowerRight:0});
-  else ctx.rect(rx, ry, pw, barH);
-  ctx.fill();
-
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-
-  if (showContent && n.content) {
-    // Volltext
-    ctx.font = '700 9.5px Circular Std,system-ui'; ctx.fillStyle = '#0f172a'; // Fix 2d
-    const t = n.label.length>20?n.label.slice(0,19)+'…':n.label;
-    ctx.fillText(t, n.x, ry+8);
-    ctx.font = '8.5px Circular Std,system-ui'; ctx.fillStyle = '#475569'; // Fix 2d
-    const words = n.content.split(' '), maxW = pw-14;
-    let line='', ly=ry+22;
+function _drawDocCard(ctx, n, isHover, z) {
+  const pw=155, ph=n.content?95:58;
+  const rx=n.x-pw/2, ry=n.y-ph/2;
+  ctx.shadowColor='rgba(15,23,42,.15)'; ctx.shadowBlur=isHover?20:8;
+  ctx.fillStyle=isHover?'#ffffff':'rgba(255,255,255,.95)';
+  _rr(ctx,rx,ry,pw,ph,8); ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle=isHover?n.color:'rgba(15,23,42,.1)';
+  ctx.lineWidth=isHover?1.5:1; _rr(ctx,rx,ry,pw,ph,8); ctx.stroke();
+  ctx.fillStyle=n.color; _rr(ctx,rx,ry,pw,3,{tl:8,tr:8,bl:0,br:0}); ctx.fill();
+  ctx.textAlign='center'; ctx.textBaseline='top';
+  ctx.font='700 10px Circular Std,system-ui'; ctx.fillStyle='#0f172a';
+  const t=n.label.length>20?n.label.slice(0,19)+'…':n.label;
+  ctx.fillText(t, n.x, ry+9);
+  if (n.tags?.length) {
+    ctx.font='8.5px Circular Std,system-ui'; ctx.fillStyle=n.color;
+    ctx.fillText('#'+n.tags[0], n.x, ry+24);
+  }
+  if (n.content) {
+    ctx.font='8px Circular Std,system-ui'; ctx.fillStyle='#64748b';
+    const words=n.content.split(/\s+/), maxW=pw-16; let line='',ly=ry+36;
     for (const w of words) {
-      const test = line?line+' '+w:w;
-      if (ctx.measureText(test).width > maxW && line) {
-        ctx.fillText(line, n.x, ly); line=w; ly+=11;
-        if (ly > ry+ph-16) { ctx.fillText(line+'…', n.x, ly); break; }
-      } else line=test;
+      const test=line?line+' '+w:w;
+      if (ctx.measureText(test).width>maxW&&line){ ctx.fillText(line,n.x,ly); line=w; ly+=10;
+        if(ly>ry+ph-14){ctx.fillText(line+'…',n.x,ly);line='';break;} } else line=test;
     }
-    if (ly <= ry+ph-16) ctx.fillText(line, n.x, ly);
-  } else {
-    // Titel + Tags
-    ctx.font = '700 10px Circular Std,system-ui'; ctx.fillStyle = '#0f172a'; // Fix 2d
-    const t = n.label.length>18?n.label.slice(0,17)+'…':n.label;
-    ctx.fillText(t, n.x, ry+9);
-    if (n.tags?.length) {
-      ctx.font = '9px Circular Std,system-ui'; ctx.fillStyle = n.color+'cc';
-      ctx.fillText('#'+n.tags.slice(0,2).join(' #'), n.x, ry+26);
-    }
-    if (n.chunks) {
-      ctx.font = '8px Circular Std,system-ui'; ctx.fillStyle = '#475569';
-      ctx.fillText(n.chunks+' Chunks', n.x, ry+ph-14);
-    }
+    if(line&&ly<=ry+ph-14) ctx.fillText(line,n.x,ly);
   }
+  ctx.globalAlpha=1; ctx.textAlign='left'; ctx.textBaseline='alphabetic';
 }
 
-function _drawEmpty(ctx) {
-  const { width: W, height: H } = _gv;
-  ctx.fillStyle = '#f8fafc'; ctx.fillRect(0,0,W,H);
-  ctx.fillStyle = '#94a3b8'; ctx.font = '14px system-ui';
-  ctx.textAlign = 'center'; ctx.fillText('Keine Dokumente für den Graphen', W/2, H/2);
+// ── Hilfs-Utilities ────────────────────────────────────────────────────────────
+function _rr(ctx,x,y,w,h,r) {
+  const rr=typeof r==='number'?{tl:r,tr:r,bl:r,br:r}:r;
+  ctx.beginPath();
+  ctx.moveTo(x+rr.tl,y); ctx.lineTo(x+w-rr.tr,y);
+  ctx.arcTo(x+w,y,x+w,y+rr.tr,rr.tr); ctx.lineTo(x+w,y+h-rr.br);
+  ctx.arcTo(x+w,y+h,x+w-rr.br,y+h,rr.br); ctx.lineTo(x+rr.bl,y+h);
+  ctx.arcTo(x,y+h,x,y+h-rr.bl,rr.bl); ctx.lineTo(x,y+rr.tl);
+  ctx.arcTo(x,y,x+rr.tl,y,rr.tl); ctx.closePath();
+}
+function _lighten(hex,p) {
+  const n=parseInt(hex.slice(1),16);
+  const r=Math.min(255,((n>>16)&255)+p*2.55|0), g=Math.min(255,((n>>8)&255)+p*2.55|0), b=Math.min(255,(n&255)+p*2.55|0);
+  return `rgb(${r},${g},${b})`;
 }
 
-// ── Zoom/Pan ───────────────────────────────────────────────────────────────────
-function _getLevel(z) {
-  if (z < G_L1) return 1;
-  if (z < G_L2) return 2;
-  if (z < G_L3) return 3;
-  return 4;
+// ── Partikel (subtil) ─────────────────────────────────────────────────────────
+function _initParticles() {
+  if (!_gv.particles) _gv.particles = Array.from({length:60},()=>({
+    x:Math.random()*_gv.width, y:Math.random()*_gv.height,
+    r:Math.random()*1+0.3, vx:(Math.random()-.5)*0.1, vy:(Math.random()-.5)*0.1,
+    a:Math.random()*0.35+0.05, ph:Math.random()*Math.PI*2,
+  }));
+}
+function _drawParticles(ctx,t) {
+  const {width:W,height:H} = _gv;
+  ctx.clearRect(0,0,W,H);
+  (_gv.particles||[]).forEach(p=>{
+    p.x+=p.vx; p.y+=p.vy;
+    if(p.x<0)p.x=W; if(p.x>W)p.x=0; if(p.y<0)p.y=H; if(p.y>H)p.y=0;
+    const a=p.a*(0.5+0.5*Math.sin(t*0.0008+p.ph));
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(148,163,184,${a*0.6})`; ctx.fill();
+  });
 }
 
-function _animZoom(targetZoom, cx, cy) {
-  const { width: W, height: H } = _gv;
-  if (cx === undefined) cx = W/2; if (cy === undefined) cy = H/2;
-
-  // Korrektur damit Mauszeigerposition fixiert bleibt
-  const wCx = (cx - W/2 - _gAnim.panX) / _gAnim.zoom + W/2;
-  const wCy = (cy - H/2 - _gAnim.panY) / _gAnim.zoom + H/2;
-  const newPanX = cx - W/2 - (wCx - W/2) * targetZoom;
-  const newPanY = cy - H/2 - (wCy - H/2) * targetZoom;
-  const newZ = Math.max(0.12, Math.min(5, targetZoom));
-
-  const prevLevel = _getLevel(_gAnim.zoom);
-  const newLevel  = _getLevel(newZ);
-  const levelChange = prevLevel !== newLevel;
-
-  if (typeof gsap !== 'undefined') {
-    if (_gTween) _gTween.kill();
-    _gTween = gsap.to(_gAnim, {
-      zoom: newZ, panX: newPanX, panY: newPanY,
-      duration: levelChange ? 0.7 : 0.35,
-      ease: levelChange ? 'power3.inOut' : 'power2.out',
-      onUpdate: () => {
-        _updateZoomLabel();
-        if (levelChange) _updateLevelIndicator();
-      },
-      onComplete: () => {
-        if (levelChange && newLevel === 4) _loadDocContent();
-      }
-    });
-  } else {
-    _gAnim.zoom = newZ; _gAnim.panX = newPanX; _gAnim.panY = newPanY;
-  }
+// ── Zoom / Pan ────────────────────────────────────────────────────────────────
+function _animZoom(targetZ, cx, cy) {
+  const {width:W,height:H}=_gv;
+  if(cx===undefined)cx=W/2; if(cy===undefined)cy=H/2;
+  const wCx=(cx-W/2-_gAnim.panX)/_gAnim.zoom+W/2;
+  const wCy=(cy-H/2-_gAnim.panY)/_gAnim.zoom+H/2;
+  const nz=Math.max(_gv.baseZoom*0.5,Math.min(_gv.baseZoom*8,targetZ));
+  const nPx=cx-W/2-(wCx-W/2)*nz, nPy=cy-H/2-(wCy-H/2)*nz;
+  if (typeof gsap!=='undefined') {
+    if(_gTween)_gTween.kill();
+    _gTween=gsap.to(_gAnim,{zoom:nz,panX:nPx,panY:nPy,duration:0.5,ease:'power2.out',onUpdate:_updateZoomLabel});
+  } else { _gAnim.zoom=nz;_gAnim.panX=nPx;_gAnim.panY=nPy; }
   _updateZoomLabel();
 }
 
-function _updateZoomLabel() {
-  const el = document.getElementById('graph-zoom-label');
-  if (el) el.textContent = Math.round(_gAnim.zoom * 100) + '%';
-}
-
-function _updateLevelIndicator() {
-  const level = _getLevel(_gAnim.zoom);
-  [1,2,3,4].forEach(l => {
-    document.getElementById(`glvl-${l}`)?.classList.toggle('active', l === level);
-  });
-}
-
-// Content für Post-it laden (wenn Level 4)
-function _loadDocContent() {
-  _gv.nodes.filter(n => n.type==='doc' && !n.content).forEach(n => {
-    const doc = state.documents.find(d => d.id === n.docId);
-    if (doc?.content) n.content = doc.content.slice(0, 400);
-  });
-}
-
-// ── Controls ────────────────────────────────────────────────────────────────────
-window.navGraph = function(dir) {
-  const factor = dir > 0 ? 1.4 : 1/1.4;
-  _animZoom(_gAnim.zoom * factor);
-};
-
-window.fitGraphView = function() {
-  const { nodes, width: W, height: H } = _gv;
-  if (!nodes.length) return;
+function _fitToRoots(setBase) {
+  const roots=_gv.nodes.filter(n=>n.type==='folder');
+  if(!roots.length)return;
+  const {width:W,height:H}=_gv;
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-  nodes.forEach(n => { minX=Math.min(minX,n.x-n.r); maxX=Math.max(maxX,n.x+n.r); minY=Math.min(minY,n.y-n.r); maxY=Math.max(maxY,n.y+n.r); });
-  const bw=maxX-minX+80, bh=maxY-minY+80;
-  const z = Math.min(1.2, Math.min(W/bw, H/bh));
-  const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
-  if (typeof gsap !== 'undefined') {
-    if (_gTween) _gTween.kill();
-    _gTween = gsap.to(_gAnim, {
-      zoom:z, panX:(W/2-cx)*z, panY:(H/2-cy)*z,
-      duration:0.9, ease:'power3.inOut',
-      onUpdate: _updateZoomLabel
-    });
-  } else {
-    _gAnim.zoom=z; _gAnim.panX=(W/2-cx)*z; _gAnim.panY=(H/2-cy)*z;
+  roots.forEach(n=>{minX=Math.min(minX,n.tx-60);maxX=Math.max(maxX,n.tx+60);minY=Math.min(minY,n.ty-60);maxY=Math.max(maxY,n.ty+60);});
+  const bw=maxX-minX,bh=maxY-minY;
+  const z=Math.min(W/Math.max(bw,100),H/Math.max(bh,100))*0.78;
+  const cx=(minX+maxX)/2,cy=(minY+maxY)/2;
+  if(setBase){_gv.baseZoom=z;_gAnim.zoom=z;_gAnim.panX=(W/2-cx)*z;_gAnim.panY=(H/2-cy)*z;_gSync();}
+  else {
+    if(typeof gsap!=='undefined'){if(_gTween)_gTween.kill();_gTween=gsap.to(_gAnim,{zoom:z,panX:(W/2-cx)*z,panY:(H/2-cy)*z,duration:0.9,ease:'power3.inOut',onUpdate:_updateZoomLabel});}
+    else{_gAnim.zoom=z;_gAnim.panX=(W/2-cx)*z;_gAnim.panY=(H/2-cy)*z;}
   }
   _updateZoomLabel();
-};
+}
 
-window.reheatGraphV2 = function() {
-  const { nodes, width:W, height:H } = _gv;
-  nodes.forEach((n, i) => {
-    const a = i/nodes.length*Math.PI*2, r=Math.min(W,H)*.3;
-    n.x = W/2 + Math.cos(a)*r; n.y = H/2 + Math.sin(a)*r;
-    n.vx=0; n.vy=0;
+function _updateZoomLabel(){
+  const el=document.getElementById('graph-zoom-label');
+  if(el)el.textContent=Math.round((_gAnim.zoom/Math.max(_gv.baseZoom,0.01))*100)+'%';
+}
+function _updateLevelIndicator(){
+  const z=_gAnim.zoom, bz=_gv.baseZoom||1;
+  const rel=z/bz;
+  const lvl=rel<Z_CHILD?1:rel<Z_CARDS?2:3;
+  [1,2,3,4].forEach(l=>document.getElementById('glvl-'+l)?.classList.toggle('active',l===lvl));
+}
+function _loadDocContent(){
+  _gv.nodes.filter(n=>n.type==='doc'&&!n.content).forEach(n=>{
+    const doc=state.documents.find(d=>d.id===n.docId);
+    if(doc?.content)n.content=doc.content.slice(0,500);
   });
-  _gv.energy = 200;
+}
+
+// ── Controls ─────────────────────────────────────────────────────────────────
+window.navGraph=function(dir){_animZoom(_gAnim.zoom*(dir>0?1.6:1/1.6));};
+window.fitGraphView=function(){_fitToRoots(false);};
+window.reheatGraphV2=function(){_buildHierarchicalLayout();_fitToRoots(true);};
+window.setGraphGrouping=function(mode){
+  document.getElementById('gbtn-folder')?.classList.toggle('active',mode==='folder');
+  document.getElementById('gbtn-tag')?.classList.toggle('active',mode!=='folder');
+  _buildHierarchicalLayout(); _fitToRoots(false);
+};
+window.resetGraphView=fitGraphView; window.reheatGraph=reheatGraphV2;
+window.setGraphMode=function(){}; window.zoomToFit=fitGraphView;
+window.toggleGraphLegend=function(){
+  const l=document.getElementById('graph-legend');
+  if(l)l.style.display=l.style.display==='none'?'block':'none';
 };
 
-window.setGraphGrouping = function(mode) {
-  _gv.grouping = mode;
-  document.getElementById('gbtn-folder')?.classList.toggle('active', mode==='folder');
-  document.getElementById('gbtn-tag')?.classList.toggle('active', mode==='tag');
-  _buildGraph();
-  _gv.energy = 220;
-  reheatGraphV2();
-  fitGraphView();
-};
+// ── Hover Context Panel (300ms Delay) ─────────────────────────────────────────
+function _showContextPanelDelayed(node, sx, sy) {
+  clearTimeout(_gv.hoverTimer);
+  clearTimeout(_gv.hideTimer);
+  _gv.hoverTimer = setTimeout(()=>_showContextPanel(node,sx,sy), 280);
+}
+function _hideContextPanelDelayed() {
+  clearTimeout(_gv.hoverTimer);
+  _gv.hideTimer = setTimeout(()=>{
+    const p=document.getElementById('graph-context-panel');
+    if(p&&!p.matches(':hover'))p.style.display='none';
+  }, 350);
+}
 
-// Fix 8: Legende toggle
-window.toggleGraphLegend = function() {
-  const l = document.getElementById('graph-legend');
-  if (l) l.style.display = l.style.display === 'none' ? 'block' : 'none';
-};
-document.addEventListener('click', e => {
-  if (!e.target.closest('#graph-legend') && !e.target.closest("[onclick='toggleGraphLegend()']")) {
-    const l = document.getElementById('graph-legend');
-    if (l) l.style.display = 'none';
-  }
-});
-
-// Legacy compat
-window.resetGraphView = fitGraphView;
-window.reheatGraph = reheatGraphV2;
-window.setGraphMode = function() {};
-window.zoomToFit = fitGraphView;
-
-// ── Hover Context Panel ────────────────────────────────────────────────────────
 function _showContextPanel(node, screenX, screenY) {
-  const panel = document.getElementById('graph-context-panel');
-  if (!panel) return;
-  const wrap  = document.getElementById('doc-graph-wrap');
-  const wRect = wrap?.getBoundingClientRect();
-
-  // Inhalt
-  const icon = document.getElementById('gcp-icon');
-  const isFolder = node.type==='folder'||node.type==='subfolder';
-  icon.style.background = node.color + '33';
-  icon.innerHTML = `<i class="fa-solid ${isFolder?'fa-folder':'fa-file-lines'}" style="color:${node.color}"></i>`;
-
-  document.getElementById('gcp-title').textContent = node.label;
-
-  let sub = '';
-  if (!isFolder) {
-    const folder = state.folders.find(f => f.id === node.folderId);
-    sub = [folder?.name, node.tags?.[0]].filter(Boolean).join(' · ');
-  } else {
-    const docs = state.documents.filter(d => d.folder_id === node.folderId);
-    sub = docs.length + ' Dokumente';
-  }
-  document.getElementById('gcp-sub').textContent = sub;
-
-  // Meta
-  const metaEl = document.getElementById('gcp-meta');
-  if (!isFolder) {
-    const size = node.size ? formatBytes(node.size) : '';
-    const date = node.date ? new Date(node.date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}) : '';
-    metaEl.innerHTML = [
-      node.chunks ? `<span><i class="fa-solid fa-layer-group"></i>${node.chunks} Chunks</span>` : '',
-      size ? `<span><i class="fa-solid fa-weight-hanging"></i>${size}</span>` : '',
-      date ? `<span><i class="fa-regular fa-calendar"></i>${date}</span>` : '',
-      node.uploader ? `<span><i class="fa-regular fa-user"></i>${node.uploader}</span>` : '',
+  const panel=document.getElementById('graph-context-panel'); if(!panel)return;
+  const isFolder=node.type==='folder'||node.type==='subfolder';
+  const icon=document.getElementById('gcp-icon');
+  icon.style.background=node.color+'22';
+  icon.innerHTML=`<i class="fa-solid ${isFolder?'fa-folder':'fa-file-lines'}" style="color:${node.color}"></i>`;
+  document.getElementById('gcp-title').textContent=node.label;
+  const sub=isFolder
+    ? (state.documents||[]).filter(d=>d.folder_id===node.folderId).length+' Dokumente'
+    : [state.folders.find(f=>f.id===node.folderId)?.name, node.tags?.[0]?'#'+node.tags[0]:''].filter(Boolean).join(' · ');
+  document.getElementById('gcp-sub').textContent=sub;
+  const meta=document.getElementById('gcp-meta');
+  if(!isFolder){
+    const sz=node.size?formatBytes(node.size):'';
+    const dt=node.date?new Date(node.date).toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit',year:'2-digit'}):'';
+    meta.innerHTML=[
+      node.chunks?`<span><i class="fa-solid fa-layer-group"></i>${node.chunks} Chunks</span>`:'',
+      sz?`<span><i class="fa-solid fa-weight-hanging"></i>${sz}</span>`:'',
+      dt?`<span><i class="fa-regular fa-calendar"></i>${dt}</span>`:'',
+      node.uploader?`<span><i class="fa-regular fa-user"></i>${escHtml(node.uploader)}</span>`:'',
     ].filter(Boolean).join('');
-  } else { metaEl.innerHTML = ''; }
-
+  }else meta.innerHTML='';
   // Ähnliche Docs
-  const simEl = document.getElementById('gcp-similar');
-  const simList = document.getElementById('gcp-similar-list');
-  if (!isFolder && node.tags?.length) {
-    const similar = _gv.nodes.filter(n => n.type==='doc' && n.id!==node.id &&
-      n.tags?.some(t => node.tags.includes(t))).slice(0,3);
-    if (similar.length) {
-      simEl.style.display = 'block';
-      simList.innerHTML = similar.map(s => {
-        const shared = s.tags.filter(t => node.tags.includes(t)).length;
-        const pct = Math.min(100, shared*30+40);
-        return `<div class="gcp-similar-item" onclick="openDocPreview('${s.docId}','${escHtml(s.label)}')">
-          <div class="gcp-sim-bar" style="width:${pct}%"></div>
-          <span>${escHtml(s.label.length>22?s.label.slice(0,21)+'…':s.label)}</span>
-          <span style="margin-left:auto;font-size:.68rem;color:#475569">${pct}%</span>
-        </div>`;
-      }).join('');
-    } else simEl.style.display = 'none';
-  } else simEl.style.display = 'none';
-
-  // Actions
-  const openBtn = document.getElementById('gcp-open');
-  const navBtn  = document.getElementById('gcp-nav');
-  if (isFolder) {
-    openBtn.textContent = 'Öffnen'; openBtn.onclick = () => navigateTo(node.folderId, node.label);
-    navBtn.textContent = 'Überspringen'; navBtn.onclick = () => _hideContextPanel();
-  } else {
-    openBtn.textContent = 'Vorschau'; openBtn.onclick = () => openDocPreview(node.docId, node.label);
-    navBtn.textContent  = 'Navigieren'; navBtn.onclick = () => { navigateTo(node.folderId||'', ''); };
+  const simEl=document.getElementById('gcp-similar');
+  if(simEl){
+    if(!isFolder&&node.tags?.length){
+      const sim=_gv.nodes.filter(n=>n.type==='doc'&&n.id!==node.id&&n.tags?.some(t=>node.tags.includes(t))).slice(0,3);
+      if(sim.length){
+        simEl.style.display='block';
+        document.getElementById('gcp-similar-list').innerHTML=sim.map(s=>{
+          const pct=Math.min(100,s.tags.filter(t=>node.tags.includes(t)).length*30+40);
+          return `<div class="gcp-similar-item" onclick="openDocPreview('${s.docId}','${escHtml(s.label)}')"><div class="gcp-sim-bar" style="width:${pct}%"></div><span>${escHtml(s.label.length>22?s.label.slice(0,21)+'…':s.label)}</span><span style="margin-left:auto;font-size:.68rem;color:#475569">${pct}%</span></div>`;
+        }).join('');
+      } else simEl.style.display='none';
+    } else simEl.style.display='none';
   }
-
-  panel.style.display = 'block';
-  // Position: rechts oder links je nach Platz
-  const px = (screenX||0) > (_gv.width*.6) ? 14 : null;
-  panel.style.right = px !== null ? px+'px' : 'auto';
-  panel.style.left  = px === null ? '14px'  : 'auto';
+  const ob=document.getElementById('gcp-open'),nb=document.getElementById('gcp-nav');
+  if(isFolder){ob.textContent='Öffnen';ob.onclick=()=>{setDocView('cards');navigateTo(node.folderId,node.label);};nb.textContent='Schließen';nb.onclick=()=>_hideContextPanel();}
+  else{ob.textContent='Vorschau';ob.onclick=()=>openDocPreview(node.docId,node.label);nb.textContent='Zum Ordner';nb.onclick=()=>{setDocView('cards');navigateTo(node.folderId||'','');};}
+  panel.style.display='block';
+  const px=(screenX||0)>(_gv.width*.6)?14:null;
+  panel.style.right=px!==null?px+'px':'auto';
+  panel.style.left=px===null?'14px':'auto';
+  // Panel selbst schließt bei hover-leave nicht sofort
+  panel.onmouseenter=()=>clearTimeout(_gv.hideTimer);
+  panel.onmouseleave=()=>_hideContextPanelDelayed();
 }
+function _hideContextPanel(){clearTimeout(_gv.hoverTimer);clearTimeout(_gv.hideTimer);const p=document.getElementById('graph-context-panel');if(p)p.style.display='none';}
 
-function _hideContextPanel() {
-  const p = document.getElementById('graph-context-panel');
-  if (p) p.style.display = 'none';
-}
-
-// ── Minimap ─────────────────────────────────────────────────────────────────────
-function _updateMinimap() {
-  const mm = document.getElementById('graph-minimap');
-  if (!mm) return;
-  const mW = 140, mH = 90;
-  const ctx = mm.getContext('2d');
-  const { nodes, width:W, height:H, zoom:z, panX, panY } = _gv;
-
-  ctx.clearRect(0, 0, mW, mH);
-  ctx.fillStyle = '#f1f5f9'; ctx.fillRect(0, 0, mW, mH);
-
-  if (!nodes.length) return;
+// ── Minimap ───────────────────────────────────────────────────────────────────
+function _updateMinimap(){
+  const mm=document.getElementById('graph-minimap'); if(!mm)return;
+  const mW=140,mH=90,ctx=mm.getContext('2d');
+  ctx.clearRect(0,0,mW,mH); ctx.fillStyle='#f1f5f9'; ctx.fillRect(0,0,mW,mH);
+  const {nodes,width:W,height:H,zoom:z,panX,panY}=_gv;
+  const vis=nodes.filter(n=>n.revealP>0.3);
+  if(!vis.length)return;
   let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
-  nodes.forEach(n => { minX=Math.min(minX,n.x); maxX=Math.max(maxX,n.x); minY=Math.min(minY,n.y); maxY=Math.max(maxY,n.y); });
-  const bw=maxX-minX+60, bh=maxY-minY+60;
-  const scale = Math.min(mW/bw, mH/bh);
-  const ox = (mW - bw*scale)/2 - (minX-30)*scale;
-  const oy = (mH - bh*scale)/2 - (minY-30)*scale;
-
-  nodes.forEach(n => {
-    const mx = n.x*scale+ox, my = n.y*scale+oy;
-    ctx.beginPath(); ctx.arc(mx, my, Math.max(1.5, n.r*scale*.6), 0, Math.PI*2);
-    ctx.fillStyle = n.type==='doc' ? n.color+'99' : n.color;
-    ctx.fill();
+  vis.forEach(n=>{minX=Math.min(minX,n.tx);maxX=Math.max(maxX,n.tx);minY=Math.min(minY,n.ty);maxY=Math.max(maxY,n.ty);});
+  const bw=maxX-minX+60,bh=maxY-minY+60;
+  const scale=Math.min(mW/bw,mH/bh);
+  const ox=(mW-bw*scale)/2-(minX-30)*scale,oy=(mH-bh*scale)/2-(minY-30)*scale;
+  vis.forEach(n=>{
+    ctx.beginPath();ctx.arc(n.tx*scale+ox,n.ty*scale+oy,Math.max(1.5,n.r*scale*.7),0,Math.PI*2);
+    ctx.fillStyle=n.color+(n.type==='doc'?'99':'');ctx.fill();
   });
-
-  // Viewport-Rechteck
-  const vpEl = document.getElementById('graph-minimap-viewport');
-  if (vpEl) {
-    const vx = ((W/2 - W/2*z - panX) * scale + ox);
-    const vy = ((H/2 - H/2*z - panY) * scale + oy);
-    const vw = W * scale / z * (mW/W) * z;
-    const vh = H * scale / z * (mH/H) * z;
-    // Vereinfacht: viewport als Anteil der minimap
-    const vpW = (W/z) * scale;
-    const vpH = (H/z) * scale;
-    const vpLeft = (W/2-panX/z-W/(2*z))*scale+ox;
-    const vpTop  = (H/2-panY/z-H/(2*z))*scale+oy;
-    vpEl.style.left   = Math.max(0,vpLeft) + 'px';
-    vpEl.style.top    = Math.max(0,vpTop)  + 'px';
-    vpEl.style.width  = Math.min(mW, vpW)  + 'px';
-    vpEl.style.height = Math.min(mH, vpH)  + 'px';
+  const vpEl=document.getElementById('graph-minimap-viewport');
+  if(vpEl){
+    const vpW=(W/z)*scale, vpH=(H/z)*scale;
+    const vpL=(W/2-panX/z-W/(2*z))*scale+ox, vpT=(H/2-panY/z-H/(2*z))*scale+oy;
+    vpEl.style.left=Math.max(0,vpL)+'px';vpEl.style.top=Math.max(0,vpT)+'px';
+    vpEl.style.width=Math.min(mW,vpW)+'px';vpEl.style.height=Math.min(mH,vpH)+'px';
   }
 }
 
-// ── Events ─────────────────────────────────────────────────────────────────────
-function _attachGraphEventsV2(canvas, wrap) {
-  // Altes Event-Setup entfernen
-  canvas.onmousedown = canvas.onmousemove = canvas.onmouseup =
-  canvas.onwheel = canvas.onclick = canvas.ondblclick = null;
-
-  const toWorld = (ex, ey) => {
-    const rect = canvas.getBoundingClientRect();
-    const sx = (ex-rect.left) * (_gv.width / rect.width);
-    const sy = (ey-rect.top)  * (_gv.height/ rect.height);
-    return {
-      x: (sx - _gv.width/2 - _gv.panX) / _gv.zoom + _gv.width/2,
-      y: (sy - _gv.height/2- _gv.panY) / _gv.zoom + _gv.height/2,
-    };
+// ── Events ────────────────────────────────────────────────────────────────────
+function _attachGraphEvents(canvas) {
+  const toWorld=(ex,ey)=>{
+    const rect=canvas.getBoundingClientRect();
+    const sx=(ex-rect.left)*(_gv.width/rect.width), sy=(ey-rect.top)*(_gv.height/rect.height);
+    return {x:(sx-_gv.width/2-_gv.panX)/_gv.zoom+_gv.width/2, y:(sy-_gv.height/2-_gv.panY)/_gv.zoom+_gv.height/2};
   };
-  const hitTest = (ex, ey) => {
-    const w = toWorld(ex, ey);
-    return _gv.nodes.find(n => {
-      const dx=n.x-w.x, dy=n.y-w.y;
-      const hr = _gv.zoom >= G_L3 ? 85/_gv.zoom : n.r + 10/_gv.zoom;
-      return dx*dx+dy*dy < hr*hr;
-    }) || null;
+  const hitTest=(ex,ey)=>{
+    const w=toWorld(ex,ey);
+    return _gv.nodes.find(n=>{
+      if(n.revealP<0.3)return false;
+      const dx=n.x-w.x,dy=n.y-w.y;
+      const hr=_gv.zoom>=Z_CARDS*_gv.baseZoom&&n.type==='doc'?80/_gv.zoom:n.r+8/_gv.zoom;
+      return dx*dx+dy*dy<hr*hr;
+    })||null;
   };
 
-  // Mausrad → Zoom um Cursor
-  canvas.addEventListener('wheel', e => {
+  canvas.onwheel=e=>{
     e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const cx = (e.clientX-rect.left) * (_gv.width/rect.width);
-    const cy = (e.clientY-rect.top)  * (_gv.height/rect.height);
-    const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
-    _animZoom(_gAnim.zoom * factor, cx, cy);
-  }, { passive: false });
+    const rect=canvas.getBoundingClientRect();
+    const cx=(e.clientX-rect.left)*(_gv.width/rect.width);
+    const cy=(e.clientY-rect.top)*(_gv.height/rect.height);
+    _animZoom(_gAnim.zoom*(e.deltaY<0?1.2:1/1.2),cx,cy);
+    // Level 3 erreicht → Inhalt laden
+    if(_gAnim.zoom>=Z_CARDS*_gv.baseZoom) _loadDocContent();
+  };
 
-  // Drag/Pan
-  canvas.addEventListener('mousedown', e => {
-    const hit = hitTest(e.clientX, e.clientY);
-    if (hit) {
-      _gv.dragNode = hit; _gv.dragging = false;
-    } else {
-      _gv.dragNode = null; _gv.dragging = true;
+  canvas.onmousedown=e=>{
+    const hit=hitTest(e.clientX,e.clientY);
+    if(hit){_gv.dragNode=hit;_gv._dragged=false;}
+    else{_gv.dragging=true;_gv._dragged=false;}
+    _gv.lastMX=e.clientX;_gv.lastMY=e.clientY;
+  };
+  canvas.onmousemove=e=>{
+    const dx=e.clientX-_gv.lastMX, dy=e.clientY-_gv.lastMY;
+    _gv.lastMX=e.clientX; _gv.lastMY=e.clientY;
+    if(_gv.dragging){
+      if(Math.abs(dx)+Math.abs(dy)>2)_gv._dragged=true;
+      _gAnim.panX+=dx;_gAnim.panY+=dy;
+      if(_gTween){_gTween.kill();_gTween=null;}
+    } else if(_gv.dragNode){
+      if(Math.abs(dx)+Math.abs(dy)>2)_gv._dragged=true;
+      const sc=_gv.width/canvas.getBoundingClientRect().width;
+      _gv.dragNode.tx+=dx*sc/_gv.zoom; _gv.dragNode.ty+=dy*sc/_gv.zoom;
     }
-    _gv.lastMX = e.clientX; _gv.lastMY = e.clientY;
-  });
-  canvas.addEventListener('mousemove', e => {
-    const dx = e.clientX - _gv.lastMX;
-    const dy = e.clientY - _gv.lastMY;
-    _gv.lastMX = e.clientX; _gv.lastMY = e.clientY;
+    const hit=hitTest(e.clientX,e.clientY);
+    if(hit!==_gv.hover){
+      _gv.hover=hit;
+      canvas.style.cursor=hit?'pointer':'grab';
+      if(hit)_showContextPanelDelayed(hit,e.clientX,e.clientY);
+      else _hideContextPanelDelayed();
+    }
+  };
+  canvas.onmouseup=e=>{
+    const wasDragged=_gv._dragged;
+    _gv.dragging=false;_gv.dragNode=null;_gv._dragged=false;
+    if(!wasDragged){
+      const hit=hitTest(e.clientX,e.clientY);
+      if(hit) _handleNodeClick(hit,e);
+    }
+  };
+  canvas.onmouseleave=()=>{_gv.dragging=false;_gv.dragNode=null;_gv.hover=null;_hideContextPanelDelayed();canvas.style.cursor='grab';};
+  canvas.ondblclick=e=>{
+    const hit=hitTest(e.clientX,e.clientY); if(!hit)return;
+    if(hit.type==='folder'||hit.type==='subfolder'){setDocView('cards');navigateTo(hit.folderId,hit.label);}
+    else if(hit.type==='doc') openDocPreview(hit.docId,hit.label);
+  };
 
-    if (_gv.dragging) {
-      _gAnim.panX += dx; _gAnim.panY += dy;
-      if (_gTween) { _gTween.kill(); _gTween = null; }
-    } else if (_gv.dragNode) {
-      const scale = _gv.width / canvas.getBoundingClientRect().width;
-      _gv.dragNode.x += dx * scale / _gv.zoom;
-      _gv.dragNode.y += dy * scale / _gv.zoom;
-      _gv.dragNode.vx = 0; _gv.dragNode.vy = 0;
+  // Touch Pinch-Zoom
+  let _td=0;
+  canvas.addEventListener('touchstart',e=>{if(e.touches.length===2)_td=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);},{passive:true});
+  canvas.addEventListener('touchmove',e=>{
+    if(e.touches.length===2){e.preventDefault();
+      const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+      const cx=(e.touches[0].clientX+e.touches[1].clientX)/2,cy=(e.touches[0].clientY+e.touches[1].clientY)/2;
+      const rect=canvas.getBoundingClientRect();
+      _animZoom(_gAnim.zoom*(d/(_td||d)),(cx-rect.left)*(_gv.width/rect.width),(cy-rect.top)*(_gv.height/rect.height));
+      _td=d;
     }
-
-    // Hover
-    const hit = hitTest(e.clientX, e.clientY);
-    const prev = _gv.hover;
-    _gv.hover = hit || null;
-    if (hit !== prev) {
-      canvas.style.cursor = hit ? 'pointer' : 'grab';
-      if (hit) _showContextPanel(hit, e.clientX, e.clientY);
-      else _hideContextPanel();
-    }
-  });
-  canvas.addEventListener('mouseup', () => { _gv.dragging = false; _gv.dragNode = null; });
-  canvas.addEventListener('mouseleave', () => { _gv.hover = null; _gv.dragging = false; _gv.dragNode = null; _hideContextPanel(); });
-
-  // Fix 6: Einfachklick auf Node → zoom to; Doppelklick → öffnen
-  let _lastClickTime = 0, _lastClickNode = null;
-  canvas.addEventListener('click', e => {
-    const hit = hitTest(e.clientX, e.clientY);
-    if (!hit) return;
-    const now = Date.now();
-    if (_lastClickNode?.id === hit.id && now - _lastClickTime < 400) {
-      // Doppelklick: navigieren/öffnen
-      if (hit.type==='folder'||hit.type==='subfolder') { setDocView('cards'); navigateTo(hit.folderId, hit.label); }
-      else if (hit.type==='doc') openDocPreview(hit.docId, hit.label);
-      else if (hit.type==='tag') {
-        // FIX 17: Tag-Filter setzen und zu Dokumente-Ansicht wechseln
-        state.activeTagFilters = [hit.tagName];
-        setDocView('cards');
-        switchView('documents');
-        renderActiveTagChips();
-        loadDocuments();
-      }
-    } else {
-      // Einzelklick: zu Node zoomen
-      const rect = canvas.getBoundingClientRect();
-      const sx = (e.clientX-rect.left)*(_gv.width/rect.width);
-      const sy = (e.clientY-rect.top)*(_gv.height/rect.height);
-      const targetZ = Math.min(2.0, _gAnim.zoom * 1.6);
-      _animZoom(targetZ, sx, sy);
-      _gv.energy = Math.max(_gv.energy, 30); // sanfte Bewegung
-    }
-    _lastClickTime = now; _lastClickNode = hit;
-  });
-
-  // Touch Support
-  let _lastTouchDist = 0;
-  canvas.addEventListener('touchstart', e => {
-    if (e.touches.length === 2) {
-      const t = e.touches;
-      _lastTouchDist = Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
-    }
-  }, { passive: true });
-  canvas.addEventListener('touchmove', e => {
-    if (e.touches.length === 2) {
-      e.preventDefault();
-      const t = e.touches;
-      const dist = Math.hypot(t[0].clientX-t[1].clientX, t[0].clientY-t[1].clientY);
-      const factor = dist / (_lastTouchDist || dist);
-      _lastTouchDist = dist;
-      const cx = (t[0].clientX+t[1].clientX)/2;
-      const cy = (t[0].clientY+t[1].clientY)/2;
-      const rect = canvas.getBoundingClientRect();
-      _animZoom(_gAnim.zoom * factor, (cx-rect.left)*(_gv.width/rect.width), (cy-rect.top)*(_gv.height/rect.height));
-    }
-  }, { passive: false });
-
-  canvas.style.cursor = 'grab';
+  },{passive:false});
+  canvas.style.cursor='grab';
 }
 
-// ── Scroll Hint ─────────────────────────────────────────────────────────────────
-function _showScrollHint() {
-  const el = document.getElementById('graph-scroll-hint');
-  if (!el) return;
-  el.style.opacity = '1';
-  setTimeout(() => { if (el) el.style.transition = 'opacity 1s'; el.style.opacity = '0'; }, 3000);
+function _handleNodeClick(node, e) {
+  const rect=document.getElementById('graph-canvas').getBoundingClientRect();
+  const sx=(e.clientX-rect.left)*(_gv.width/rect.width);
+  const sy=(e.clientY-rect.top)*(_gv.height/rect.height);
+  // Zoom to node
+  const z=_gAnim.zoom;
+  const bz=_gv.baseZoom;
+  if(node.type==='folder'||node.type==='subfolder'){
+    const target=Math.min(z*1.8, bz*Z_CHILD*1.5);
+    _animZoom(target, sx, sy);
+  } else if(node.type==='doc'){
+    const target=Math.min(z*1.5, bz*Z_CARDS*1.1);
+    _animZoom(target, sx, sy);
+    if(target>=bz*Z_CARDS) _loadDocContent();
+  }
+  // Tag-Knoten → filter
+  if(node.type==='tag'&&node.tagName){
+    state.activeTagFilters=[node.tagName];
+    setDocView('cards'); switchView('documents');
+    renderActiveTagChips(); loadDocuments();
+  }
 }
 
-// Fix 7: Window Resize Handler
-let _graphResizeObserver = null;
-function _setupGraphResize(wrap) {
-  if (_graphResizeObserver) _graphResizeObserver.disconnect();
-  if (typeof ResizeObserver !== 'undefined') {
-    _graphResizeObserver = new ResizeObserver(() => {
-      if (!_gv.running) return;
-      const newW = Math.max(400, wrap.clientWidth||800);
-      const newH = Math.max(300, wrap.clientHeight||600);
-      if (Math.abs(newW - _gv.width) > 20 || Math.abs(newH - _gv.height) > 20) {
-        _gv.width = newW; _gv.height = newH;
-        const dpr = window.devicePixelRatio||1;
-        const canvas = document.getElementById('graph-canvas');
-        if (canvas) { canvas.width=newW*dpr; canvas.height=newH*dpr; canvas.style.width=newW+'px'; canvas.style.height=newH+'px'; canvas.getContext('2d').setTransform(dpr,0,0,dpr,0,0); }
-        const pCanvas = document.getElementById('graph-particles');
-        if (pCanvas) { pCanvas.width=newW*dpr; pCanvas.height=newH*dpr; pCanvas.style.width=newW+'px'; pCanvas.style.height=newH+'px'; pCanvas.getContext('2d').setTransform(dpr,0,0,dpr,0,0); }
-        setTimeout(fitGraphView, 100);
+// ── Resize ────────────────────────────────────────────────────────────────────
+function _setupResize(wrap) {
+  if(_gv.resizeObs){_gv.resizeObs.disconnect();}
+  if(typeof ResizeObserver!=='undefined'){
+    _gv.resizeObs=new ResizeObserver(()=>{
+      if(!_gv.running)return;
+      const nW=Math.max(400,wrap.clientWidth||800),nH=Math.max(300,wrap.clientHeight||600);
+      if(Math.abs(nW-_gv.width)>30||Math.abs(nH-_gv.height)>30){
+        _gv.width=nW;_gv.height=nH;
+        const dpr=window.devicePixelRatio||1;
+        ['graph-canvas','graph-particles'].forEach(id=>{
+          const c=document.getElementById(id);if(!c)return;
+          c.width=nW*dpr;c.height=nH*dpr;c.style.width=nW+'px';c.style.height=nH+'px';
+          c.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+        });
+        setTimeout(()=>_fitToRoots(false),100);
       }
     });
-    _graphResizeObserver.observe(wrap);
+    _gv.resizeObs.observe(wrap);
   }
 }
 
-// ── Stop ────────────────────────────────────────────────────────────────────────
-function stopGraph() {
-  _gv.running = false;
-  if (_gv.animId) { cancelAnimationFrame(_gv.animId); _gv.animId = null; }
-  if (_gTween) { _gTween.kill(); _gTween = null; }
+function stopGraph(){
+  _gv.running=false;
+  if(_gv.animId){cancelAnimationFrame(_gv.animId);_gv.animId=null;}
+  if(_gTween){_gTween.kill();_gTween=null;}
+  clearTimeout(_gv.hoverTimer); clearTimeout(_gv.hideTimer);
   _hideContextPanel();
 }
-
 
 // ─── Search: Teams-Style Dropdown + Filter Pills ─────────────────────────────
 let _searchMode = 'all';
