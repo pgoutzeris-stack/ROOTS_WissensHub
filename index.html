@@ -4777,12 +4777,10 @@ window.setDocView = function(view) {
       graphEl.style.height = graphH + 'px';
     }
     if (typeof stopGraph === 'function') stopGraph();
-    // requestAnimationFrame: Layout neu berechnen lassen bevor Canvas-Init
+    // Einmaliger rAF damit das DOM die Höhe berechnet
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        try { initKnowledgeGraph(); }
-        catch(e) { console.error('[Graph] initKnowledgeGraph error:', e); }
-      });
+      try { initKnowledgeGraph(); }
+      catch(e) { console.error('[Graph] initKnowledgeGraph error:', e); }
     });
   } else if (view === 'list') {
     if (gridEl)  gridEl.style.display  = 'none';
@@ -5010,11 +5008,13 @@ window.saveAiSettings = saveAiSettings;
 // Animation: Spring-Physik von Eltern- zur Zielposition
 
 // ── Zoom-Schwellen ─────────────────────────────────────────────────────────────
-const Z_ROOT    = 0;    // Root-Ordner immer sichtbar
-const Z_SUBFOLDER = 0;  // Unterordner ebenfalls sofort sichtbar
-const Z_CHILD   = 1.6;  // Dokumente erst ab 160% zoom
-const Z_CARDS   = 3.2;  // Doc-Kacheln ab 320%
-const Z_SIMILAR = 3.8;  // Ähnlichkeits-Linien ab 380%
+// Zoom-Schwellen als RELATIVE Faktoren zum baseZoom
+// 0 = immer sichtbar, 1.5 = ab 150% der Übersicht, etc.
+const Z_ROOT     = 0;    // Root-Ordner immer sichtbar
+const Z_SUBFOLDER= 0;    // Unterordner ebenfalls sofort
+const Z_CHILD    = 1.5;  // Docs ab 150% der Übersicht
+const Z_CARDS    = 2.8;  // Doc-Kacheln ab 280%
+const Z_SIMILAR  = 3.5;  // Ähnlichkeits-Linien ab 350%
 
 // ── State ──────────────────────────────────────────────────────────────────────
 let _gv = {
@@ -5244,19 +5244,25 @@ function _graphLoop() {
 // ── Spring-Animation (ersetzt Physics-Chaos) ──────────────────────────────────
 function _springTick() {
   const z = _gv.zoom;
+  // Zoom relativ zum Übersichts-Zoom
+  const relZ = z / Math.max(0.001, _gv.baseZoom);
   _gv.nodes.forEach(n => {
-    // Enthüllung berechnen
-    const shouldReveal = z >= n.revealAt;
+    // Enthüllung: relativ zum baseZoom (0=immer, 1.5=ab 150% der Übersicht)
+    const shouldReveal = relZ >= n.revealAt || n.revealAt === 0;
     const targetP = shouldReveal ? 1 : 0;
     n.revealP += (targetP - n.revealP) * 0.12; // smooth ease
     if (n.revealP < 0.001) n.revealP = 0;
     if (n.revealP > 0.999) n.revealP = 1;
 
-    // Spring zu Zielposition (smooth-step interpolation)
+    // Spring zu Zielposition — skaliert mit Zoom für dynamisches Spacing
     const ease = n.revealP*n.revealP*(3-2*n.revealP);
     const startX = n.parentX, startY = n.parentY;
-    n.x = startX + (n.tx - startX)*ease;
-    n.y = startY + (n.ty - startY)*ease;
+    // Dynamisches Spacing: Nodes entfernen sich weiter beim Reinzoomen
+    const zoomSpread = n.type==='doc' ? Math.max(1, relZ*0.6) : 1.0;
+    const scaledTx = n.parentX + (n.tx - n.parentX)*zoomSpread;
+    const scaledTy = n.parentY + (n.ty - n.parentY)*zoomSpread;
+    n.x = startX + (scaledTx - startX)*ease;
+    n.y = startY + (scaledTy - startY)*ease;
   });
 
   // Leichte Abstoßung um Überlappungen zu vermeiden (nur wenn enthüllt)
@@ -5292,7 +5298,8 @@ function _draw(ctx) {
   ctx.scale(z,z);
   ctx.translate(-W/2,-H/2);
 
-  const showCards = z >= Z_CARDS;
+  const _relZ = z / Math.max(0.001, _gv.baseZoom);
+  const showCards = _relZ >= Z_CARDS;
 
   // Hover-Verbindungen hervorheben
   const conn = hover ? new Set([hover.id]) : null;
@@ -5304,7 +5311,8 @@ function _draw(ctx) {
   edges.forEach(e => {
     const vis = Math.min(e.a.revealP, e.b.revealP);
     if (vis < 0.05) return;
-    if (e.revealAt && z < e.revealAt*0.7) return;
+    const eRelZ = z / Math.max(0.001, _gv.baseZoom);
+    if (e.revealAt > 0 && eRelZ < e.revealAt*0.7) return;
     const active = !conn || (conn.has(e.a.id)&&conn.has(e.b.id));
     ctx.globalAlpha = vis * (active ? 1 : 0.15);
 
@@ -5320,12 +5328,18 @@ function _draw(ctx) {
       ctx.strokeStyle=`rgba(32,110,251,${active?0.55:0.1})`; ctx.lineWidth=1.2/z;
       ctx.setLineDash([]);
     }
+    // Endpunkte am Kreis-Rand (nicht im Mittelpunkt)
+    const _dx=e.b.x-e.a.x, _dy=e.b.y-e.a.y;
+    const _d=Math.sqrt(_dx*_dx+_dy*_dy)||1;
+    const aCircleR=(e.a.r||8)*1.45+1, bCircleR=(e.b.r||8)*1.45+1;
+    const _sx=e.a.x+(_dx/_d)*aCircleR, _sy=e.a.y+(_dy/_d)*aCircleR;
+    const _ex=e.b.x-(_dx/_d)*bCircleR, _ey=e.b.y-(_dy/_d)*bCircleR;
     ctx.beginPath();
     if (e.kind==='similar') {
-      const mx=(e.a.x+e.b.x)/2, my=(e.a.y+e.b.y)/2-12/z;
-      ctx.moveTo(e.a.x,e.a.y); ctx.quadraticCurveTo(mx,my,e.b.x,e.b.y);
+      const mx=(_sx+_ex)/2, my=(_sy+_ey)/2-10/z;
+      ctx.moveTo(_sx,_sy); ctx.quadraticCurveTo(mx,my,_ex,_ey);
     } else {
-      ctx.moveTo(e.a.x,e.a.y); ctx.lineTo(e.b.x,e.b.y);
+      ctx.moveTo(_sx,_sy); ctx.lineTo(_ex,_ey);
     }
     ctx.stroke();
   });
@@ -5508,7 +5522,7 @@ function _animZoom(targetZ, cx, cy) {
   const nPx=cx-W/2-(wCx-W/2)*nz, nPy=cy-H/2-(wCy-H/2)*nz;
   if (typeof gsap!=='undefined') {
     if(_gTween)_gTween.kill();
-    _gTween=gsap.to(_gAnim,{zoom:nz,panX:nPx,panY:nPy,duration:0.5,ease:'power2.out',onUpdate:_updateZoomLabel});
+    _gTween=gsap.to(_gAnim,{zoom:nz,panX:nPx,panY:nPy,duration:0.25,ease:'power2.out',onUpdate:_updateZoomLabel});
   } else { _gAnim.zoom=nz;_gAnim.panX=nPx;_gAnim.panY=nPy; }
   _updateZoomLabel();
 }
@@ -5525,7 +5539,7 @@ function _fitToRoots(setBase) {
   const cx=(minX+maxX)/2,cy=(minY+maxY)/2;
   if(setBase){_gv.baseZoom=z;_gAnim.zoom=z;_gAnim.panX=(W/2-cx)*z;_gAnim.panY=(H/2-cy)*z;_gSync();}
   else {
-    if(typeof gsap!=='undefined'){if(_gTween)_gTween.kill();_gTween=gsap.to(_gAnim,{zoom:z,panX:(W/2-cx)*z,panY:(H/2-cy)*z,duration:0.9,ease:'power3.inOut',onUpdate:_updateZoomLabel});}
+    if(typeof gsap!=='undefined'){if(_gTween)_gTween.kill();_gTween=gsap.to(_gAnim,{zoom:z,panX:(W/2-cx)*z,panY:(H/2-cy)*z,duration:0.5,ease:'power2.inOut',onUpdate:_updateZoomLabel});}
     else{_gAnim.zoom=z;_gAnim.panX=(W/2-cx)*z;_gAnim.panY=(H/2-cy)*z;}
   }
   _updateZoomLabel();
@@ -5549,7 +5563,7 @@ function _loadDocContent(){
 }
 
 // ── Controls ─────────────────────────────────────────────────────────────────
-window.navGraph=function(dir){_animZoom(_gAnim.zoom*(dir>0?1.6:1/1.6));};
+window.navGraph=function(dir){_animZoom(_gAnim.zoom*(dir>0?1.8:1/1.8));};  
 window.fitGraphView=function(){_fitToRoots(false);};
 window.reheatGraphV2=function(){_buildHierarchicalLayout();_fitToRoots(true);};
 window.setGraphGrouping=function(mode){
@@ -5682,7 +5696,7 @@ function _attachGraphEvents(canvas) {
     const rect=canvas.getBoundingClientRect();
     const cx=(e.clientX-rect.left)*(_gv.width/rect.width);
     const cy=(e.clientY-rect.top)*(_gv.height/rect.height);
-    _animZoom(_gAnim.zoom*(e.deltaY<0?1.2:1/1.2),cx,cy);
+    _animZoom(_gAnim.zoom*(e.deltaY<0?1.28:1/1.28),cx,cy);
     // Level 3 erreicht → Inhalt laden
     if(_gAnim.zoom>=Z_CARDS*_gv.baseZoom) _loadDocContent();
   }, {passive:false});
