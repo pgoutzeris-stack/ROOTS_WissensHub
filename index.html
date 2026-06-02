@@ -4767,12 +4767,23 @@ window.setDocView = function(view) {
     if (listEl)  listEl.style.display  = 'none';
     if (graphEl) {
       graphEl.style.display = 'block';
-      // Graph braucht explizite Höhe — dash-content overflow:auto verhindert height:100%
-      if (content) graphEl.style.height = (content.clientHeight - 40) + 'px';
-      else graphEl.style.minHeight = '500px';
+      // Höhe: dash-main minus Toolbar-Höhe (robust, kein content.clientHeight)
+      const dashMain = document.querySelector('.dash-main');
+      const toolbar  = document.querySelector('#view-documents .dash-toolbar');
+      const bread    = document.getElementById('breadcrumb-bar');
+      const mainH = dashMain ? dashMain.clientHeight : (window.innerHeight - 100);
+      const toolH = (toolbar ? toolbar.offsetHeight : 54) + (bread && bread.style.display!=='none' ? bread.offsetHeight : 0) + 8;
+      const graphH = Math.max(400, mainH - toolH);
+      graphEl.style.height = graphH + 'px';
     }
     if (typeof stopGraph === 'function') stopGraph();
-    initKnowledgeGraph();
+    // requestAnimationFrame: Layout neu berechnen lassen bevor Canvas-Init
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        try { initKnowledgeGraph(); }
+        catch(e) { console.error('[Graph] initKnowledgeGraph error:', e); }
+      });
+    });
   } else if (view === 'list') {
     if (gridEl)  gridEl.style.display  = 'none';
     if (listEl)  { listEl.style.display = 'flex'; listEl.style.flexDirection = 'column'; }
@@ -5025,10 +5036,13 @@ function initKnowledgeGraph() {
   stopGraph();
   const canvas = document.getElementById('graph-canvas');
   const wrap   = document.getElementById('doc-graph-wrap');
-  if (!canvas || !wrap) return;
+  if (!canvas) { console.error('[Graph] canvas not found'); return; }
+  if (!wrap)   { console.error('[Graph] wrap not found'); return; }
 
-  _gv.width  = Math.max(400, wrap.clientWidth  || 800);
-  _gv.height = Math.max(300, wrap.clientHeight || 600);
+  const wW = wrap.clientWidth, wH = wrap.clientHeight;
+  console.log('[Graph] init, wrap size:', wW, 'x', wH);
+  _gv.width  = Math.max(400, wW || 800);
+  _gv.height = Math.max(400, wH || 600);
 
   const dpr = window.devicePixelRatio || 1;
   ['graph-canvas','graph-particles'].forEach(id => {
@@ -5046,7 +5060,12 @@ function initKnowledgeGraph() {
     return;
   }
 
-  _buildHierarchicalLayout();
+  try {
+    _buildHierarchicalLayout();
+  } catch(e) {
+    console.error('[Graph] _buildHierarchicalLayout error:', e);
+    return;
+  }
   _attachGraphEvents(canvas);
   _setupResize(wrap);
 
@@ -5203,9 +5222,9 @@ function _graphLoop() {
   }
 
   // Spring-Animation: Knoten bewegen sich zu Zielposition
-  _springTick();
-  _draw(ctx);
-  _updateMinimap();
+  try { _springTick(); } catch(e) { console.error('[Graph] springTick:', e); }
+  try { _draw(ctx); } catch(e) { console.error('[Graph] draw:', e); _gv.running=false; return; }
+  try { _updateMinimap(); } catch(e) {}
   _updateLevelIndicator();
 
   _gv.animId = requestAnimationFrame(_graphLoop);
@@ -5247,12 +5266,14 @@ function _springTick() {
 function _draw(ctx) {
   const {zoom:z, panX, panY, width:W, height:H, nodes, edges, hover} = _gv;
   ctx.clearRect(0,0,W,H);
-  // Hintergrund: weißes Papier mit feinem Dot-Grid
+  // Hintergrund: weißes Papier
   ctx.fillStyle='#fafbfc'; ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='rgba(32,110,251,.07)';
-  const ds=32;
-  for(let gx=0;gx<W;gx+=ds) for(let gy=0;gy<H;gy+=ds){
-    ctx.beginPath(); ctx.arc(gx,gy,0.9,0,Math.PI*2); ctx.fill();
+  // Dot-Grid nur jeden 4. Frame
+  if (_gv.loopFrame % 4 === 0) {
+    ctx.fillStyle='rgba(32,110,251,.07)';
+    for(let gx=0;gx<W;gx+=32) for(let gy=0;gy<H;gy+=32){
+      ctx.beginPath(); ctx.arc(gx,gy,0.9,0,Math.PI*2); ctx.fill();
+    }
   }
 
   ctx.save();
@@ -5417,15 +5438,21 @@ function _drawIconNode(ctx, n, isHover) {
   ctx.fillStyle = '#ffffff'; ctx.fill();
   ctx.shadowBlur=0; ctx.shadowOffsetY=0;
 
-  // ── Icon (FA6 + Fallback) ───────────────────────────────────────────────
+  // ── Icon ───────────────────────────────────────────────────────────────
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillStyle = n.color;
-  // Versuche Font Awesome zuerst
-  ctx.font = `900 ${iconSize}px "Font Awesome 6 Free", "Font Awesome 6 Pro"`;
+  // FA6 Solid Unicode Icons
   const faIcon = isFolder ? '\uf07b' : '\uf15c';
-  ctx.fillText(faIcon, x, y + 0.5);
-  // Kleiner Test ob FA wirklich geladen: measure gibt 0 bei unbekanntem Glyph
-  // (Fallback bereits durch font-stack abgedeckt)
+  ctx.font = `900 ${Math.round(iconSize)}px "Font Awesome 6 Free"`;
+  const measured = ctx.measureText(faIcon).width;
+  if (measured > 2) {
+    // FA geladen → Icon zeichnen
+    ctx.fillText(faIcon, x, y + 0.5);
+  } else {
+    // FA nicht geladen → Fallback: Text-Symbol
+    ctx.font = `700 ${Math.round(iconSize*0.8)}px system-ui, sans-serif`;
+    ctx.fillText(isFolder ? '📁' : '📄', x, y + 0.5);
+  }
 
   // ── Knoten-Größen-Dot für Docs (Chunk-Indikator) ─────────────────────────
   if (!isFolder && n.chunks > 0) {
