@@ -1418,6 +1418,19 @@
     .modal-title { font-size: 1.1rem; font-weight: 700; }
     .modal-body { padding: 0 1.35rem 1.35rem; display: flex; flex-direction: column; gap: .75rem; }
     .modal-foot { padding: .85rem 1.35rem 1.35rem; display: flex; gap: .5rem; justify-content: flex-end; }
+    .modal-icon { width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.15rem;margin:0 auto .75rem; }
+    .modal-icon.danger  { background:#fef2f2; color:#dc2626; }
+    .modal-icon.warning { background:#fffbeb; color:#d97706; }
+    .modal-icon.info    { background:#eff6ff; color:#3b82f6; }
+    .wh-confirm-modal .modal-body { text-align:center; padding:0 1.35rem 1rem; }
+    .wh-confirm-modal .modal-body p { color:var(--muted); font-size:.875rem; line-height:1.5; margin:0; }
+    .wh-confirm-modal .modal-foot { justify-content:center; gap:.6rem; }
+    .wh-confirm-modal .btn-wh-cancel { padding:.7rem 1.35rem; border:1px solid var(--line); border-radius:10px; background:transparent; font-family:inherit; font-weight:600; font-size:.875rem; color:var(--ink); cursor:pointer; transition:all .15s; }
+    .wh-confirm-modal .btn-wh-cancel:hover { border-color:var(--brand); color:var(--brand); }
+    .wh-confirm-modal .btn-wh-ok { padding:.7rem 1.35rem; border:none; border-radius:10px; font-family:inherit; font-weight:600; font-size:.875rem; color:#fff; cursor:pointer; transition:opacity .15s; }
+    .wh-confirm-modal .btn-wh-ok:hover { opacity:.88; }
+    .wh-confirm-modal .btn-wh-ok.danger { background:#dc2626; }
+    .wh-confirm-modal .btn-wh-ok.info   { background:#206efb; }
     .btn-close-modal {
       width: 32px; height: 32px;
       border: none; background: transparent;
@@ -3547,7 +3560,8 @@ function updateBatchBar() {
 window.clearBatchSelection = function() { _batchSelected.clear(); renderDocuments(); };
 window.batchDelete = async function() {
   const size = _batchSelected.size;
-  if (!size || !confirm(`${size} Dokument(e) löschen?`)) return;
+  const _okBulk = await whConfirm({ modalId:'modal-wh-danger-confirm', title:'Dokumente löschen', desc:`${size} Dokument${size!==1?'e':''} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.`, iconClass:'danger', okLabel:'Löschen', okIcon:'<i class=\'fa-solid fa-trash\'></i>' });
+  if (!size || !_okBulk) return;
   const ids = [..._batchSelected];
   _batchSelected.clear();
   for (const id of ids) {
@@ -3939,6 +3953,36 @@ window.closeDeleteModal = function() {
   document.getElementById('modal-delete-confirm').classList.remove('open');
   state.pendingDeleteId = null;
 };
+
+// ── Promise-based confirm modals (replaces window.confirm) ──────────────────
+function whConfirm({ modalId, title, desc, iconClass, iconHtml, okClass, okLabel, okIcon }) {
+  return new Promise(resolve => {
+    const overlay = document.getElementById(modalId);
+    if (!overlay) { resolve(window.confirm(desc || title)); return; }
+    if (title)    document.getElementById(modalId.replace('modal-','') + '-title')?.textContent && (document.getElementById(modalId.replace('modal-','') + '-title').textContent = title);
+    if (desc) {
+      const descId = modalId === 'modal-wh-danger-confirm' ? 'wh-danger-desc' : 'wh-info-desc';
+      const titleId = modalId === 'modal-wh-danger-confirm' ? 'wh-danger-title' : 'wh-info-title';
+      const okId    = modalId === 'modal-wh-danger-confirm' ? 'btn-wh-danger-ok' : 'btn-wh-info-ok';
+      const cancelId= modalId === 'modal-wh-danger-confirm' ? 'btn-wh-danger-cancel' : 'btn-wh-info-cancel';
+      if (title) document.getElementById(titleId).textContent = title;
+      document.getElementById(descId).textContent = desc;
+      if (okLabel) document.getElementById(okId).innerHTML = (okIcon||'') + ' ' + okLabel;
+      if (iconHtml) { const ic = overlay.querySelector('.modal-icon'); if(ic) ic.innerHTML = iconHtml; }
+      if (iconClass) { const ic = overlay.querySelector('.modal-icon'); if(ic) { ic.className = 'modal-icon ' + iconClass; } }
+      overlay.classList.add('open');
+      const ok     = document.getElementById(okId);
+      const cancel = document.getElementById(cancelId);
+      const onOk   = () => { cleanup(); resolve(true); };
+      const onCancel = () => { cleanup(); resolve(false); };
+      const onKey  = e => { if (e.key === 'Escape') { cleanup(); resolve(false); } };
+      function cleanup() { overlay.classList.remove('open'); ok.removeEventListener('click',onOk); cancel.removeEventListener('click',onCancel); document.removeEventListener('keydown',onKey); }
+      ok.addEventListener('click', onOk);
+      cancel.addEventListener('click', onCancel);
+      document.addEventListener('keydown', onKey);
+    }
+  });
+}
 window.confirmDelete = async function() {
   if (!state.pendingDeleteId) return;
   try {
@@ -4099,7 +4143,7 @@ window.handleUploadAll = async function() {
   if (!state.uploadFiles.length) return;
   const folderId = document.getElementById('upload-folder').value || null;
   if (!folderId) {
-    const confirmed = confirm('Kein Ordner ausgewählt. In die allgemeine Ablage hochladen?');
+    const confirmed = await whConfirm({ modalId:'modal-wh-info-confirm', title:'Allgemeine Ablage', desc:'Kein Ordner ausgewählt. In die allgemeine Ablage hochladen?', iconClass:'info', okLabel:'Hochladen', okIcon:'<i class=\'fa-solid fa-upload\'></i>' });
     if (!confirmed) return;
   }
   const tags = getTagPickerValue('tab-tag-picker');
@@ -6426,7 +6470,7 @@ async function ctxDeleteDoc() {
 async function ctxDeleteFolder() {
   hideCtxMenu();
   const folder = _ctxTarget;
-  if (!confirm(`Ordner "${folder.name}" löschen? Enthaltene Dokumente werden in die Ablage verschoben.`)) return;
+  if (!(await whConfirm({ modalId:'modal-wh-danger-confirm', title:`Ordner löschen`, desc:`Ordner "${folder.name}" löschen? Enthaltene Dokumente werden in die Ablage verschoben.`, iconClass:'danger', okLabel:'Löschen', okIcon:'<i class="fa-solid fa-folder-minus"></i>' }))) return;
   try {
     const res = await fetch(WISSENSHUB_API_URL, {
       method: 'POST',
@@ -6827,5 +6871,35 @@ window.RootsSyncStatusConfig = {
   <button class="gcp-btn-primary" style="background:#ef4444" onclick="batchDelete()"><i class="fa-solid fa-trash"></i> Löschen</button>
 </div>
 
+
+<!-- ── Generic Danger Confirm Modal ── -->
+<div class="modal-overlay wh-confirm-modal" id="modal-wh-danger-confirm" aria-hidden="true">
+  <div class="modal-box" role="dialog" aria-labelledby="wh-danger-title" style="max-width:380px">
+    <div class="modal-body" style="padding-top:1.5rem">
+      <div class="modal-icon danger" id="wh-danger-icon"><i class="fa-solid fa-trash"></i></div>
+      <strong id="wh-danger-title" style="font-size:1rem;display:block;margin-bottom:.4rem;color:var(--ink)">Wirklich löschen?</strong>
+      <p id="wh-danger-desc">Diese Aktion kann nicht rückgängig gemacht werden.</p>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn-wh-cancel" id="btn-wh-danger-cancel">Abbrechen</button>
+      <button type="button" class="btn-wh-ok danger" id="btn-wh-danger-ok"><i class="fa-solid fa-trash"></i> Löschen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Generic Info Confirm Modal ── -->
+<div class="modal-overlay wh-confirm-modal" id="modal-wh-info-confirm" aria-hidden="true">
+  <div class="modal-box" role="dialog" aria-labelledby="wh-info-title" style="max-width:380px">
+    <div class="modal-body" style="padding-top:1.5rem">
+      <div class="modal-icon info"><i class="fa-solid fa-circle-info"></i></div>
+      <strong id="wh-info-title" style="font-size:1rem;display:block;margin-bottom:.4rem;color:var(--ink)">Bitte bestätigen</strong>
+      <p id="wh-info-desc">Möchtest du fortfahren?</p>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn-wh-cancel" id="btn-wh-info-cancel">Abbrechen</button>
+      <button type="button" class="btn-wh-ok info" id="btn-wh-info-ok"><i class="fa-solid fa-check"></i> Fortfahren</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
