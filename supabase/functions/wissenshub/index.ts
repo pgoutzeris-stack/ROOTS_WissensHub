@@ -82,10 +82,19 @@ async function getApiKey(name: "openai" | "anthropic" | "google" | "voyage"): Pr
   if (_keyCache[name] && now - (_keyCacheAt[name] || 0) < KEY_CACHE_TTL) {
     return _keyCache[name];
   }
-  const dbKey = `api_key_${name}`;
-  const { data } = await getAdminClient()
-    .schema("knowledge").from("settings").select("value").eq("key", dbKey).maybeSingle();
-  const val = (data?.value as string | null) || {
+  const sharedKeyName = `wissenshub_${name}_api_key`;
+  let val = "";
+  const { data: sharedVal } = await getAdminClient()
+    .schema("shared").rpc("get_api_key", { p_key_name: sharedKeyName });
+  val = (sharedVal as string | null) || "";
+  if (!val) {
+    // Legacy fallback — plaintext table, kept only until fully migrated
+    const dbKey = `api_key_${name}`;
+    const { data: legacy } = await getAdminClient()
+      .schema("knowledge").from("settings").select("value").eq("key", dbKey).maybeSingle();
+    val = (legacy?.value as string | null) || "";
+  }
+  val = val || {
     openai: OPENAI_API_KEY_ENV, anthropic: ANTHROPIC_API_KEY_ENV,
     google: GOOGLE_API_KEY_ENV, voyage: VOYAGE_API_KEY_ENV,
   }[name] || "";
@@ -1498,9 +1507,11 @@ serve(async (req: Request) => {
       case "get_settings": {
         // Return which API keys are set (not their values)
         const admin = getAdminClient();
-        const { data } = await admin.schema("knowledge").from("settings")
-          .select("key").in("key", ["api_key_anthropic","api_key_openai","api_key_google","api_key_voyage"]);
-        const keys = (data || []).map((r: { key: string }) => r.key);
+        const { data } = await admin.schema("shared").from("api_keys")
+          .select("key_name").like("key_name", "wissenshub_%");
+        const keys = (data || [])
+          .map((r: { key_name: string }) => r.key_name.replace(/^wissenshub_/, "").replace(/_api_key$/, ""))
+          .map((provider: string) => `api_key_${provider}`);
         return new Response(JSON.stringify({ keys }), {
           status: 200, headers: { ...getCorsHeaders(origin), "Content-Type": "application/json" }
         });
@@ -1516,11 +1527,15 @@ serve(async (req: Request) => {
         if (prof?.app_role !== "admin") return errorResponse(origin, "Forbidden", 403);
         const keys = body.keys as Record<string, string>;
         const admin = getAdminClient();
-        const upserts = Object.entries(keys)
-          .filter(([, v]) => v)
-          .map(([k, v]) => ({ key: k, value: v, updated_by: auth.userId, updated_at: new Date().toISOString() }));
-        if (upserts.length > 0) {
-          await admin.schema("knowledge").from("settings").upsert(upserts, { onConflict: "key" });
+        for (const [k, v] of Object.entries(keys)) {
+          if (!v) continue;
+          const provider = k.replace(/^api_key_/, "");
+          const sharedKeyName = `wissenshub_${provider}_api_key`;
+          await admin.schema("shared").rpc("set_api_key", {
+            p_key_name: sharedKeyName, p_api_key: v,
+            p_description: `${provider} API key for ROOTS WissensHub`,
+            p_updated_by: auth.userId,
+          });
         }
         return new Response(JSON.stringify({ ok: true }), {
           status: 200, headers: { ...getCorsHeaders(origin), "Content-Type": "application/json" }
