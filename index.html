@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com https://cdn.sheetjs.com https://pgoutzeris-stack.github.io; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.cdnfonts.com; font-src 'self' data: https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://fonts.cdnfonts.com; img-src 'self' data: blob: https:; connect-src 'self' https://csmguwcvzreefluhahyu.supabase.co wss://csmguwcvzreefluhahyu.supabase.co; form-action 'self' https://csmguwcvzreefluhahyu.supabase.co; media-src 'self' blob: data:; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests">
+  <meta name="referrer" content="no-referrer">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ROOTS WissensHub</title>
@@ -2609,7 +2611,7 @@
 </div>
 
 <script type="module">
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.110.8/+esm';
 import { WISSENSHUB_API_URL, SB_URL, SB_ANON } from './config.js';
 
 // ─── Supabase init ────────────────────────────────────────────────────────────
