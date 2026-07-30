@@ -11,7 +11,6 @@
   <meta http-equiv="Expires" content="0" />
   <link rel="stylesheet" href="https://fonts.cdnfonts.com/css/circular-std" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" crossorigin="anonymous" />
-  <script src="https://pgoutzeris-stack.github.io/ROOTS_Intranet/roots-auth-client.js?v=20260730-access-broker-v5"></script>
   <style>
     :root {
       --font-ui: "Circular Std", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -2619,18 +2618,13 @@ import { WISSENSHUB_API_URL, SB_URL, SB_ANON } from './config.js';
 let sb;
 function initSupabase() {
   const embedded = window.parent !== window;
-  const options = {
+  sb = createClient(SB_URL, SB_ANON, {
     auth: {
       persistSession: !embedded,
       autoRefreshToken: !embedded,
       detectSessionInUrl: !embedded,
     },
-  };
-  if (embedded && window.RootsEmbeddedAuth) {
-    options.accessToken = async () => window.RootsEmbeddedAuth.getAccessToken();
-  }
-  sb = createClient(SB_URL, SB_ANON, options);
-  sb = window.RootsEmbeddedAuth?.registerClient?.(sb) || sb;
+  });
   window.__rootsSupabaseClient = sb;
   return sb;
 }
@@ -6775,7 +6769,7 @@ window.RootsSyncStatusConfig = {
 };
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
-<script defer src="https://pgoutzeris-stack.github.io/ROOTS_Intranet/roots-user-bridge.js?v=20260730-access-broker-v5"></script>
+<script defer src="https://pgoutzeris-stack.github.io/ROOTS_Intranet/roots-user-bridge.js?v=20260728-identity-guard-v1"></script>
 
 <!-- Upload Modal (Quick Upload aus Dokumente-Ansicht) -->
 <div class="modal-overlay" id="modal-quick-upload">
