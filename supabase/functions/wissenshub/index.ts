@@ -117,6 +117,8 @@ const COST = {
   gpt4o_mini_output: 0.60  / 1_000_000,
   claude_input:      3.00  / 1_000_000, // claude-sonnet conservative
   claude_output:    15.00  / 1_000_000,
+  gemini25flash_input: 0.30 / 1_000_000,
+  gemini25flash_output: 2.50 / 1_000_000,
 };
 
 function estimateEmbedCost(chars: number): number {
@@ -125,6 +127,9 @@ function estimateEmbedCost(chars: number): number {
 }
 
 function estimateChatCost(model: string, inputTokens: number, outputTokens: number): number {
+  if (model.includes("gemini-2.5-flash")) {
+    return inputTokens * COST.gemini25flash_input + outputTokens * COST.gemini25flash_output;
+  }
   if (model.includes("gpt-4o-mini")) {
     return inputTokens * COST.gpt4o_mini_input + outputTokens * COST.gpt4o_mini_output;
   }
@@ -133,6 +138,11 @@ function estimateChatCost(model: string, inputTokens: number, outputTokens: numb
   }
   // Claude / default
   return inputTokens * COST.claude_input + outputTokens * COST.claude_output;
+}
+
+async function logProviderUsage(row: Record<string, unknown>): Promise<void> {
+  const { error } = await getAdminClient().schema("shared").from("ai_provider_usage").insert(row);
+  if (error) throw new Error(`Usage tracking failed: ${error.message}`);
 }
 
 async function checkBudget(estimatedCost: number, origin: string | null): Promise<Response | null> {
@@ -823,6 +833,9 @@ Antworte immer auf Deutsch, strukturiert und präzise. Nutze Markdown für Liste
     let assistantContent = "";
     let promptTokens = 0;
     let completionTokens = 0;
+    let thinkingTokens = 0;
+    let provider = finalIsOpenAI ? "openai" : (isGeminiModel ? "google" : "anthropic");
+    const callStartedAt = Date.now();
 
     try {
       if (finalIsOpenAI) {
@@ -831,6 +844,7 @@ Antworte immer auf Deutsch, strukturiert und präzise. Nutze Markdown für Liste
           headers: { Authorization: `Bearer ${await getApiKey("openai")}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             model: finalModel, max_tokens: 2048, stream: true,
+            stream_options: { include_usage: true },
             messages: [
               { role: "system", content: systemPrompt },
               ...history.slice(-10).map((h: {role: string; content: string}) => ({ role: h.role as "user"|"assistant", content: h.content })),
@@ -840,6 +854,7 @@ Antworte immer auf Deutsch, strukturiert und präzise. Nutze Markdown für Liste
         });
         if (!oRes.ok) {
           const errText = await oRes.text();
+          await logProviderUsage({ app: "wissenshub", operation: "chat", provider: "openai", model: finalModel, status: "error", user_id: auth?.userId || null, error_code: `http_${oRes.status}`, duration_ms: Date.now() - callStartedAt });
           await sendEvent({ error: `OpenAI error: ${errText}` });
           await writer.close(); return;
         }
@@ -880,6 +895,7 @@ Antworte immer auf Deutsch, strukturiert und präzise. Nutze Markdown für Liste
         });
         if (!aRes.ok) {
           const errText = await aRes.text();
+          await logProviderUsage({ app: "wissenshub", operation: "chat", provider: "anthropic", model: finalModel, status: "error", user_id: auth?.userId || null, error_code: `http_${aRes.status}`, duration_ms: Date.now() - callStartedAt });
           await sendEvent({ error: `Anthropic error: ${errText}` });
           await writer.close(); return;
         }
@@ -897,6 +913,7 @@ Antworte immer auf Deutsch, strukturiert und präzise. Nutze Markdown für Liste
             const d = line.slice(6).trim();
             try {
               const j = JSON.parse(d);
+              if (j.type === "message_start") promptTokens = j.message?.usage?.input_tokens || promptTokens;
               if (j.type === "content_block_delta" && j.delta?.text) {
                 assistantContent += j.delta.text;
                 await sendEvent({ delta: j.delta.text });
@@ -923,6 +940,7 @@ Antworte immer auf Deutsch, strukturiert und präzise. Nutze Markdown für Liste
         );
         if (!geminiRes.ok) {
           const errText = await geminiRes.text();
+          await logProviderUsage({ app: "wissenshub", operation: "chat", provider: "google", model: finalModel, status: "error", user_id: auth?.userId || null, error_code: `http_${geminiRes.status}`, duration_ms: Date.now() - callStartedAt });
           await sendEvent({ error: `Gemini error: ${errText}` });
           await writer.close(); return;
         }
@@ -930,6 +948,7 @@ Antworte immer auf Deutsch, strukturiert und präzise. Nutze Markdown für Liste
         assistantContent = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text ?? "Keine Antwort erhalten.";
         promptTokens = geminiJson.usageMetadata?.promptTokenCount ?? 0;
         completionTokens = geminiJson.usageMetadata?.candidatesTokenCount ?? 0;
+        thinkingTokens = geminiJson.usageMetadata?.thoughtsTokenCount ?? 0;
         await sendEvent({ delta: assistantContent });
       }
 
@@ -949,6 +968,11 @@ Antworte immer auf Deutsch, strukturiert und präzise. Nutze Markdown für Liste
         });
         if (sugRes.ok) {
           const sugData = await sugRes.json();
+          await logProviderUsage({
+            app: "wissenshub", operation: "followup_suggestions", provider: "openai", model: "gpt-4o-mini",
+            status: "success", user_id: auth?.userId || null,
+            input_tokens: Number(sugData.usage?.prompt_tokens || 0), output_tokens: Number(sugData.usage?.completion_tokens || 0),
+          });
           suggestions = (sugData.choices?.[0]?.message?.content || "").split("\n").filter((s: string) => s.trim().length > 5).slice(0, 3);
         }
       } catch { /* suggestions optional */ }
@@ -966,6 +990,12 @@ Antworte immer auf Deutsch, strukturiert und präzise. Nutze Markdown für Liste
       // Log usage
       const cost = estimateChatCost(finalModel, promptTokens, completionTokens);
       await logUsage("chat", finalModel, promptTokens, completionTokens, cost, undefined, auth?.userId);
+      await logProviderUsage({
+        app: "wissenshub", operation: "chat", provider, model: finalModel, status: "success",
+        user_id: auth?.userId || null, input_tokens: promptTokens,
+        output_tokens: completionTokens, thinking_tokens: thinkingTokens,
+        duration_ms: Date.now() - callStartedAt,
+      });
 
     } catch (err) {
       await sendEvent({ error: String(err) }).catch(() => {});
