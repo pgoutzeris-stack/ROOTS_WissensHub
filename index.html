@@ -1986,7 +1986,7 @@
           <button class="finder-item" id="finder-all" onclick="selectFolderFilter(null)" data-filter="all">
             <i class="fa-solid fa-folder-open finder-item-icon" style="color:#5e9cf5"></i>
             <span class="finder-item-label">Alle Dokumente</span>
-            <span class="finder-item-badge" id="finder-count-all">–</span>
+            <span class="finder-item-badge" id="finder-count-all">-</span>
           </button>
           <button class="finder-item" id="finder-recent" onclick="selectFolderFilter('recent')">
             <i class="fa-solid fa-clock finder-item-icon" style="color:#f59e0b"></i>
@@ -2003,7 +2003,7 @@
         </div>
 
         <!-- hidden: kept for compatibility -->
-        <span class="folder-count" id="folder-count-all" style="display:none">–</span>
+        <span class="folder-count" id="folder-count-all" style="display:none">-</span>
         <div id="recent-docs-list" style="display:none"></div>
 
         <!-- Tag cloud -->
@@ -2079,7 +2079,7 @@
           <select class="toolbar-select" id="sort-select" onchange="renderDocuments()">
             <option value="newest">Neueste zuerst</option>
             <option value="oldest">Älteste zuerst</option>
-            <option value="alpha">A – Z</option>
+            <option value="alpha">A - Z</option>
           </select>
           <!-- View toggle -->
           <div style="display:flex;gap:2px;background:var(--surface-2,#f1f5f9);border-radius:8px;padding:3px;flex-shrink:0">
@@ -2232,7 +2232,7 @@
             <!-- FIX 4: Zielordner-Banner -->
             <div id="upload-folder-banner" style="display:none;background:var(--brand-10,#eff6ff);border:1px solid rgba(32,110,251,.2);border-radius:10px;padding:.6rem 1rem;margin-bottom:.75rem;font-size:.82rem;color:var(--brand);align-items:center;gap:.5rem">
               <i class="fa-solid fa-folder"></i>
-              <span id="upload-folder-banner-text">Zielordner: —</span>
+              <span id="upload-folder-banner-text">Zielordner: -</span>
               <button onclick="selectFolderPicker('tab','','Alle Dokumente (Root)','#5e9cf5')" style="margin-left:auto;background:none;border:none;cursor:pointer;color:var(--muted);font-size:.75rem">Ändern</button>
             </div>
 
@@ -2634,7 +2634,7 @@ initSupabase();
 const state = {
   view: 'documents',
   documents: [],
-  allDocs: [],       // alle Docs ungefiltert — für Subfolder-Zähler
+  allDocs: [],       // alle Docs ungefiltert - für Subfolder-Zähler
   navHistory: [],    // [{folderId, label}]
   navPos: -1,        // aktueller Index in navHistory
   folders: [],
@@ -2884,12 +2884,12 @@ async function loadFolders() {
 }
 
 function renderFolderTree(folders) {
-  // Legacy shim — delegates to new Finder tree
+  // Legacy shim - delegates to new Finder tree
   renderFinderTree();
 }
 
 function renderFolderNode(container, folder, allFolders, depth = 0) {
-  // Legacy shim — no-op, renderFinderTree handles rendering
+  // Legacy shim - no-op, renderFinderTree handles rendering
 }
 
 function renderFinderTree() {
@@ -3160,7 +3160,7 @@ function populateFolderSelects(folders) {
 
 function folderOptionLabel(folder) {
   const depth = folderDepth(folder.id);
-  return `${'— '.repeat(depth)}${folder.name}`;
+  return `${'- '.repeat(depth)}${folder.name}`;
 }
 
 function folderDepth(folderId, seen = new Set()) {
@@ -3170,7 +3170,7 @@ function folderDepth(folderId, seen = new Set()) {
   return 1 + folderDepth(folder.parent_id, seen);
 }
 
-// onFolderFilterChange removed — folder filter is now done via the sidebar tree only
+// onFolderFilterChange removed - folder filter is now done via the sidebar tree only
 
 // ─── Tags ─────────────────────────────────────────────────────────────────────
 async function loadTags() {
@@ -3358,11 +3358,11 @@ window.renderDocuments = function() {
   } else {
     if (state.activeFolderId) {
       // VS Code / Finder Verhalten: ALLE Items des aktuellen Ordners zeigen
-      // Unterordner zuerst (als Ordner-Kacheln), dann Dateien — beides immer sichtbar
+      // Unterordner zuerst (als Ordner-Kacheln), dann Dateien - beides immer sichtbar
       const subfolders = state.folders.filter(f => f.parent_id === state.activeFolderId);
       const docsCache  = state.allDocs.length ? state.allDocs : state.documents;
 
-      // Unterordner-Kacheln (kein Label — Items direkt wie Finder)
+      // Unterordner-Kacheln (kein Label - Items direkt wie Finder)
       if (subfolders.length) {
 
         subfolders.forEach(f => {
@@ -3386,7 +3386,7 @@ window.renderDocuments = function() {
         });
       }
 
-      // Dateien — IMMER anzeigen, kein Label (Finder-Style)
+      // Dateien - IMMER anzeigen, kein Label (Finder-Style)
       docs.forEach(doc => grid.appendChild(makeDocCard(doc)));
 
       // Leerer Ordner
@@ -4029,7 +4029,7 @@ window.confirmDelete = async function() {
 
 // FIX 7: undoDeleteDoc
 window.undoDeleteDoc = async function(docId) {
-  toast('Rückgängig machen nicht möglich — Dokument ist permanent gelöscht.', 'err');
+  toast('Rückgängig machen nicht möglich - Dokument ist permanent gelöscht.', 'err');
 };
 
 // ─── Folder modal ─────────────────────────────────────────────────────────────
@@ -4744,7 +4744,7 @@ function updateRecentDocs() {
     .map(id => state.documents.find(d => d.id === id))
     .filter(Boolean).slice(0, 3);
   if (!recentDocs.length) {
-    list.innerHTML = '<span style="font-size:.72rem;color:var(--muted);padding:.2rem .6rem">—</span>';
+    list.innerHTML = '<span style="font-size:.72rem;color:var(--muted);padding:.2rem .6rem">-</span>';
     return;
   }
   list.innerHTML = recentDocs.map(doc => `
@@ -4996,7 +4996,7 @@ async function openAiSettings() {
     const isSet = setKeys.has(keyDbMap[k]);
     inp.value = isSet ? '••••••••••••' : '';
     inp.dataset.saved = isSet ? '1' : '';
-    inp.placeholder = isSet ? 'Gesetzt – neu eingeben zum Ändern' : { anthropic:'sk-ant-…', openai:'sk-…', google:'AIza…', voyage:'pa-…' }[k];
+    inp.placeholder = isSet ? 'Gesetzt - neu eingeben zum Ändern' : { anthropic:'sk-ant-…', openai:'sk-…', google:'AIza…', voyage:'pa-…' }[k];
     inp.classList.toggle('has-value', isSet);
   });
 
@@ -5065,13 +5065,13 @@ async function saveAiSettings() {
   }
 
   closeAiSettings();
-  toast('Einstellungen gespeichert – API-Keys sicher in Supabase hinterlegt ✓', 'ok');
+  toast('Einstellungen gespeichert - API-Keys sicher in Supabase hinterlegt ✓', 'ok');
 
   const chatModelSel = document.getElementById('chat-model-select');
   if (chatModelSel && settings.model) chatModelSel.value = settings.model;
 }
 
-// Show gear icon only for admins — called after login
+// Show gear icon only for admins - called after login
 function updateAdminSidebar() {
   const el = document.getElementById('sidebar-ai-settings');
   if (el) el.hidden = !state.isAdmin;
@@ -5084,14 +5084,14 @@ window.selectModel = selectModel;
 window.toggleKeyVisibility = toggleKeyVisibility;
 window.saveAiSettings = saveAiSettings;
 
-// ─── Wissensgraph v4 — Hierarchisches Radial-Layout + Progressive Enthüllung ──
+// ─── Wissensgraph v4 - Hierarchisches Radial-Layout + Progressive Enthüllung ──
 //
 // Konzept: 3 klare Zoom-Ebenen, progressiv enthüllt durch Scrollen
-//   Ebene 1 (< 150%): Nur Root-Ordner — großer Überblick
-//   Ebene 2 (150–350%): Unterordner + Dokument-Punkte wachsen heraus
+//   Ebene 1 (< 150%): Nur Root-Ordner - großer Überblick
+//   Ebene 2 (150-350%): Unterordner + Dokument-Punkte wachsen heraus
 //   Ebene 3 (> 350%): Dokument-Kacheln mit Inhalt
 //
-// Layout: deterministisch radial — keine chaotische Physics-Simulation
+// Layout: deterministisch radial - keine chaotische Physics-Simulation
 // Animation: Spring-Physik von Eltern- zur Zielposition
 
 // ── Zoom-Schwellen ─────────────────────────────────────────────────────────────
@@ -5502,7 +5502,7 @@ function _draw(ctx) {
       const fs = n.type==='folder' ? 12 : 10;
       ctx.font=`${n.type==='folder'?'700 ':''}${fs}px Circular Std,system-ui`;
       const tw=ctx.measureText(lbl).width;
-      // Folder shape ist höher als der Radius — Label weiter unten
+      // Folder shape ist höher als der Radius - Label weiter unten
       const py = (n.type==='folder'||n.type==='subfolder') ? n.y + n.r*1.15 + 5 : n.y+n.r+5;
       // Pill-Label
       const lh=fs+6, lw=tw+12, lx=n.x-lw/2;
@@ -5539,7 +5539,7 @@ function _draw(ctx) {
 }
 
 function _drawDocCard(ctx, n, isHover, z) {
-  // Kein Box-Container — Inhalt direkt als floating Text im Canvas
+  // Kein Box-Container - Inhalt direkt als floating Text im Canvas
   const relZ = z / Math.max(0.001, _gv.baseZoom);
   const showFullText = relZ >= Z_CARDS * 1.15 && n.content;
   const alpha = n.revealP;
@@ -5606,7 +5606,7 @@ function _drawDocCard(ctx, n, isHover, z) {
         ctx.fillText('· ' + line.slice(2).slice(0, 28), n.x, ly);
         ly += 11;
       } else {
-        // Normaler Fließtext — umbrechen
+        // Normaler Fließtext - umbrechen
         const words = line.split(' ');
         let wLine = '';
         for (const w of words) {
@@ -5839,7 +5839,7 @@ function _applyGapMode() {
     if(n._isGap) gaps++;
   });
   toast(gaps
-    ? `${gaps} Dok${gaps>1?'umente':'ument'} ohne Verbindungen — mögliche Wissenslücken`
+    ? `${gaps} Dok${gaps>1?'umente':'ument'} ohne Verbindungen - mögliche Wissenslücken`
     : 'Alle Dokumente sind verbunden ✓', 'ok');
 }
 
@@ -6439,7 +6439,7 @@ function ctxMoveDoc() {
   _moveDocId = _ctxTarget.id;
   // Populate folder select
   const sel = document.getElementById('move-doc-folder-select');
-  sel.innerHTML = '<option value="">— Kein Ordner (Ablage) —</option>' +
+  sel.innerHTML = '<option value="">- Kein Ordner (Ablage) -</option>' +
     state.folders.map(f => `<option value="${f.id}">${escHtml(f.name)}</option>`).join('');
   sel.value = _ctxTarget.folder_id || '';
   document.getElementById('modal-move-doc').classList.add('open');
@@ -6799,7 +6799,7 @@ window.RootsSyncStatusConfig = {
         </div>
       </div>
 
-      <!-- Zielordner — custom folder picker -->
+      <!-- Zielordner - custom folder picker -->
       <div class="form-field">
         <label class="form-label"><i class="fa-solid fa-folder" style="margin-right:.35rem;color:var(--brand)"></i>Zielordner</label>
         <div id="modal-folder-picker" class="folder-picker">
@@ -6874,7 +6874,7 @@ window.RootsSyncStatusConfig = {
     </div>
     <div style="padding:1rem 1.5rem 1.5rem">
       <select id="move-doc-folder-select" class="form-input" style="width:100%">
-        <option value="">— Kein Ordner (Ablage) —</option>
+        <option value="">- Kein Ordner (Ablage) -</option>
       </select>
       <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end">
         <button class="btn-ghost" onclick="document.getElementById('modal-move-doc').classList.remove('open')">Abbrechen</button>
